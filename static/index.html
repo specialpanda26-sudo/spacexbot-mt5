@@ -1099,7 +1099,7 @@ function confetti(x,y){if(reduce||!document.body.animate)return;var cols=["#3CCB
 function syncTC(){var m=document.querySelector("meta[name=theme-color]");if(m)m.content=getComputedStyle(document.documentElement).getPropertyValue("--bg").trim()||m.content}
 function applyTheme(){setTimeout(syncTC,40);var r=document.documentElement;if(S.theme==="auto")r.removeAttribute("data-theme");else r.setAttribute("data-theme",S.theme);$("#themeBtn").title="Theme: "+S.theme;redraw(false)}
 var VIEWS=["welcome","onboard","home","market","bot","trades","connect","terms","privacy","cookies","profile"];
-function show(v,noScroll){if(VIEWS.indexOf(v)<0)v="welcome";closeSheet();if(v==="profile")renderProfile();
+function show(v,noScroll){if(v==="admin"){show(window.U?"home":"welcome",noScroll);try{history.replaceState(null,"","#admin")}catch(e){}if(window.adm)window.adm();return}if(VIEWS.indexOf(v)<0)v="welcome";closeSheet();if(v==="profile")renderProfile();
   document.body.classList.toggle("welcome",v==="welcome");document.body.classList.toggle("lg",/^(terms|privacy|cookies)$/.test(v));
   VIEWS.forEach(function(n){$("#view-"+n).classList.toggle("on",n===v)});
   $$(".nav button").forEach(function(b){if(b.dataset.go===v)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current")});
@@ -1676,12 +1676,12 @@ function bar(){var h=$("#view-home .buddy-card");if(!h)return;var c=$("#subCard"
  $("#subBtn").onclick=function(){if(!U)auth("login");else if(!U.verified)verify();else plans()}}
 setInterval(bar,1500);bar();
 /* admin: open with #admin in the address */
-function adm(){SXA.ready.then(function(){if(!(U&&U.admin)){tst("Admin only");location.hash="#welcome";return}ov(XB+BR,1);panel()})}
+function adm(){SXA.ready.then(function(){var me=U||SXA.user();if(!(me&&me.admin)){tst("Admin only");location.hash=me?"#home":"#welcome";return}if(!U)U=me;ov(XB+BR,1);panel()})}window.adm=adm;
 function panel(){ovEl.classList.add("wide");
  var em=Object.keys(SB);
  $(".panel",ovEl).innerHTML=XB+BR+'<h2>Admin panel</h2><h3 style="margin:0">Packages</h3><p class="note">Edit what customers see on the payment page. Days is how long the bot stays unlocked.</p><div class="ar" style="font-size:12px;font-weight:800;color:var(--muted)"><span>Name</span><span>Days</span><span>KES</span><span>USD</span><span></span></div><div id="aRows" style="display:grid;gap:6px"></div><div style="display:flex;gap:8px"><button class="btn" id="aAdd">Add package</button><button class="btn primary" id="aSave">Save packages</button></div>'+
  '<h3 style="margin:8px 0 0">Subscribers</h3><div class="sr"><input class="inp" id="gE" placeholder="email" style="flex:1;width:auto"><input class="inp" id="gD" value="30" inputmode="numeric"><button class="btn primary" id="gB">Grant days</button></div><div id="aSub" style="display:grid;gap:10px"></div>';
- $(".x",ovEl).onclick=function(){closeOv();ovEl.classList.remove("wide");location.hash="#welcome"};
+ $(".x",ovEl).onclick=function(){closeOv();ovEl.classList.remove("wide");location.hash="#home"};
  var rows=PK.map(function(p){return Object.assign({},p)});
  function dr(){$("#aRows").innerHTML=rows.map(function(p,i){return'<div class="ar"><input class="inp" data-f="name" data-i="'+i+'" value="'+esc(p.name)+'"><input class="inp" data-f="days" data-i="'+i+'" inputmode="numeric" value="'+p.days+'"><input class="inp" data-f="kes" data-i="'+i+'" inputmode="numeric" value="'+p.kes+'"><input class="inp" data-f="usd" data-i="'+i+'" inputmode="numeric" value="'+p.usd+'"><button class="icon-btn" data-x="'+i+'" aria-label="Delete">✕</button></div>'}).join("");
   $$("[data-f]",ovEl).forEach(function(inp){inp.oninput=function(){var r=rows[+inp.dataset.i],f=inp.dataset.f;r[f]=f==="name"?inp.value:Math.max(0,+inp.value||0)}});
