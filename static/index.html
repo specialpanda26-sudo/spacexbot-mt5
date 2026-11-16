@@ -1326,6 +1326,7 @@ function pwMeter(id){return'<div class="pwm" id="'+id+'M" data-s="0" aria-hidden
 function pwBind(inp,id){inp.addEventListener("input",function(){var s=pwScore(inp.value);$("#"+id+"M").dataset.s=inp.value?Math.max(s,1):0;$("#"+id+"T").textContent=inp.value?PWL[s]+(s<2?". Add length and mixed case.":"."):PWH})}
 function otpHtml(id){return'<div class="otp" id="'+id+'">'+[0,1,2,3,4,5].map(function(i){return'<input class="ob" inputmode="numeric" autocomplete="'+(i?"off":"one-time-code")+'" aria-label="Digit '+(i+1)+'" placeholder=" ">'}).join("")+'</div>'}
 function otpBind(id,done){var box=$("#"+id),bx=$$("#"+id+" input");
+ if(!$("#"+id+"P")&&navigator.clipboard&&navigator.clipboard.readText){box.insertAdjacentHTML("afterend",'<button type="button" class="lnk" id="'+id+'P" style="justify-self:center">Paste code</button>');$("#"+id+"P").onclick=function(){navigator.clipboard.readText().then(function(t){t=(t||"").replace(/\D/g,"").slice(0,6);if(!t)return tst("No code found. Copy the 6 digits first.");bx.forEach(function(x){x.value=""});fill(0,t)}).catch(function(){bx[0].focus();tst("Press and hold the first box, then tap Paste.")})}}
  function val(){return bx.map(function(i){return i.value}).join("")}
  function fill(from,s){s.split("").slice(0,6-from).forEach(function(c,k){bx[from+k].value=c});bx[Math.min(from+s.length,5)].focus();if(val().length===6)done(val())}
  bx.forEach(function(b,i){
