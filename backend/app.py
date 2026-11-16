@@ -40,7 +40,7 @@ def home(): return send_from_directory('../static', 'index.html')
 def hz(): return 'ok'
 @app.get('/config.js')
 def cfgjs():
-    return Response(f'window.SXB={{sb:{json.dumps(sbauth.public_config())},plans:{json.dumps(pay.plans())}}};', mimetype='application/javascript')
+    return Response(f'window.SXB={{sb:{json.dumps(sbauth.public_config())},gid:{json.dumps(os.getenv("GOOGLE_WEB_CLIENT_ID", ""))},plans:{json.dumps(pay.plans())}}};', mimetype='application/javascript')
 
 # ---------------- EA bridge ----------------
 def _scan(sym):

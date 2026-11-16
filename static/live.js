@@ -73,6 +73,20 @@
     resendCode: function (email) { var n = need(); return n || S.auth.resend({ type: "signup", email: email }).then(chk); },
     google: function () {
       var n = need(); if (n) return n;
+      var cap = window.Capacitor, gid = (window.SXB && window.SXB.gid) || "";
+      if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.registerPlugin && gid) {
+        var raw = Array.prototype.map.call(crypto.getRandomValues(new Uint8Array(16)), function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
+        return crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw)).then(function (h) {
+          var hashed = Array.prototype.map.call(new Uint8Array(h), function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
+          return cap.registerPlugin("GoogleSignIn").signIn({ serverClientId: gid, nonce: hashed });
+        }).then(function (r) {
+          if (!r || !r.idToken) throw new Error("Google sign-in failed. Try again.");
+          return S.auth.signInWithIdToken({ provider: "google", token: r.idToken, nonce: raw });
+        }).then(chk).then(load).catch(function (e) {
+          if (e && (e.code === "CANCELLED" || /^cancel/i.test(String(e.message || "")))) { var c = new Error("Google sign-in was cancelled."); c.code = "cancelled"; throw c; }
+          throw e;
+        });
+      }
       return S.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + "/" } }).then(chk).then(function () { return new Promise(function () {}); });
     },
     signOut: function () { ME = null; lastUid = null; return S ? S.auth.signOut() : Promise.resolve(); },
