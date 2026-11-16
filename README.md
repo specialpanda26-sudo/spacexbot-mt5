@@ -1,6 +1,6 @@
 # spaceXBot MT5 v2
 
-MT5 terminal (PC/VPS) <-> **EA** <-> Render backend (Flask) <-> app (Google sign-in, push, M-Pesa via FinoQ, PayPal).
+MT5 terminal (PC/VPS) <-> **EA** <-> Render backend (Flask) <-> app (Supabase sign-in with Google or an email code, M-Pesa via FinoQ, PayPal, email receipts and alerts via Resend).
 The backend does the thinking (11 rule-based strategies, regime filter, safety gates). The EA only fetches signals and places orders.
 
 ## What changed from v1
@@ -45,16 +45,23 @@ Separate from sign-in codes. In Render add `RESEND_API_KEY` and `MAIL_FROM` (an 
 - **Check it:** `python3 tools/check_resend.py you@example.com` sends one test email and says what is wrong in plain words. The admin health check also lists a missing key.
 - Until the domain is verified Resend only lets you send to your own address.
 
-## 3) Firebase, 4) MT5
-Same as v1: Auth > Google, service-account JSON into `FIREBASE_SERVICE_ACCOUNT`, web config into `FIREBASE_WEB_CONFIG`, add your Render domain to Authorized domains.
+## 3) Google sign-in, 4) MT5
+Google sign-in is switched on in Supabase > Auth > Providers > Google: paste the client ID and secret from Google Cloud, and add the callback URL Supabase shows to your Google OAuth client. Your Render address goes under Redirect URLs (step 5 above). Firebase is no longer used.
 Copy `ea/SpaceXBridge.mq5` to `MQL5/Experts/`, compile, allow WebRequest for your Render URL. Starts **demo-only** (`AllowLive=false`). MT5 must stay open.
 
 ## 5) Prove it before real money
-    python tests/test_all.py                      # 30 offline checks
+    python tests/test_all.py                      # offline checks: strategies, gates, payments, API
     python tests/test_sbauth.py                   # server-side token checks
     python tests/test_authjs.py                   # sign-up / code / reset flow in the browser code (needs node)
+    python tests/test_admin.py                    # admin user list, grant, revoke
+    python tests/test_mail.py                     # Resend receipts and trade alerts (no network)
+    python tests/test_locked.py                   # bot lock follows the server plan (needs node)
     python tools/backtest.py XAUUSD_M15.csv XAUUSD_H1.csv --solo
 The backtest ignores news lock, exposure cap and loss limits.
+
+## Android app
+GitHub > Actions > Build Android APK > Run workflow builds `spacexbot.apk` (see Releases). It is a thin wrapper that opens your Render site, so `android-wrapper/capacitor.config.json` must point at your own Render address (it is set to `spacexbot-gn73.onrender.com`). Signing needs the four `ANDROID_*` secrets (see `android-wrapper/setup-signing.sh`).
+PayPal opens in the phone's browser; when the person returns to the app it checks the order and credits the plan. This has only been tested against a fake server, so try both M-Pesa and PayPal on a real phone before taking real money.
 
 ## Known limits
 - **SQLite on Render free is wiped on every redeploy.** Users, plans and payments reset. Move to Supabase Postgres before taking real money.

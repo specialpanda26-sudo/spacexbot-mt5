@@ -1941,7 +1941,7 @@ empties();var mo=new MutationObserver(empties);["#tList","#openList"].forEach(fu
 <script>
 (function(){
 var $=function(s){return document.querySelector(s)},was=null;
-function locked(){try{var u=JSON.parse(localStorage.getItem("sxb_user")||sessionStorage.getItem("sxb_user")||"null");if(!u)return true;var b=(JSON.parse(localStorage.getItem("sxb_subs")||"{}"))[u.email];return!(b&&b.exp>Date.now())}catch(e){return true}}
+function locked(){try{var u=SXA.user();if(!u)return true;return!(u.admin||u.active||(u.plan_until||0)>Date.now()/1e3)}catch(e){return true}}
 function sync(){var c=$("#botChip"),b=$("#botToggle");if(!c||!b)return;var l=locked();
  if(l){c.className="chip stop";c.innerHTML='<span class="dot"></span>Locked';$("#bubble").textContent="The bot is locked. Choose a plan to switch it on.";b.textContent="Start bot";b.className="btn primary";var p=$("#pillTxt");if(p)p.textContent="Bot locked"}
  else if(was){var h=$('.nav [data-go="home"]');if(h&&$("#view-home").classList.contains("on"))h.click()}

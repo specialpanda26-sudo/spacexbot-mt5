@@ -1,4 +1,4 @@
-"""Account profile: validation + storage. The browser never decides who a user is; the Firebase token does."""
+"""Account profile: validation + storage. The browser never decides who a user is; the signed-in token does."""
 import re, json, sqlite3, datetime as dt
 from . import store as st
 
