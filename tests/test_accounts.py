@@ -1,7 +1,7 @@
 """Section 1 tests (accounts). Run: python tests/test_accounts.py"""
-import os, sys
-os.environ.update(DEV_AUTH='1', EA_KEY='k', ADMIN_EMAILS='boss@x.com', DB_PATH='/tmp/sxb_acc.db', PAYHERO_CALLBACK_SECRET='s', BASE_URL='http://t')
-if os.path.exists('/tmp/sxb_acc.db'): os.remove('/tmp/sxb_acc.db')
+import os, sys, tempfile
+os.environ.update(DEV_AUTH='1', EA_KEY='k', ADMIN_EMAILS='boss@x.com', DB_PATH=os.path.join(tempfile.gettempdir(), 'sxb_acc.db'), PAYHERO_CALLBACK_SECRET='s', BASE_URL='http://t')
+if os.path.exists(os.environ['DB_PATH']): os.remove(os.environ['DB_PATH'])
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from backend.app import app
 c = app.test_client(); H = lambda e: {'Authorization': 'Bearer dev:' + e}
@@ -28,7 +28,7 @@ T('delete removes the user', c.delete('/api/me', headers=H('bob@x.com')).status_
 from backend import store as st
 T('row gone', st.q("SELECT 1 FROM users WHERE uid='dev-bob@x.com'", one=True) is None)
 # unverified emails: no admin, no payments
-from backend import fb
+from backend import sbauth as fb
 orig = fb.verify
 fb.verify = lambda t: {'uid': 'u9', 'email': 'boss@x.com', 'name': '', 'verified': False}
 T('unverified admin email is not admin', c.get('/api/me', headers={'Authorization': 'Bearer z'}).json['admin'] is False)

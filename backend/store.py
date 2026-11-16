@@ -1,20 +1,66 @@
+"""Storage. DATABASE_URL set -> Supabase Postgres. Not set -> local SQLite (tests, offline dev).
+Same API either way: q() reads, x() writes, get/put key-values."""
 import os, time, sqlite3, threading, json
-from contextlib import closing
+from contextlib import closing, contextmanager
+URL = os.getenv('DATABASE_URL', '').strip()
+PG = bool(URL)
 DB = os.getenv('DB_PATH', 'data/spacex.db')
-os.makedirs(os.path.dirname(DB) or '.', exist_ok=True)
 _lock = threading.Lock()
-SCHEMA = """
+if not PG: os.makedirs(os.path.dirname(DB) or '.', exist_ok=True)
+
+SQLITE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS users(uid TEXT PRIMARY KEY,email TEXT,name TEXT,plan_until INTEGER DEFAULT 0,fcm TEXT,created INTEGER);
 CREATE TABLE IF NOT EXISTS signals(id INTEGER PRIMARY KEY AUTOINCREMENT,symbol TEXT,side TEXT,entry REAL,sl REAL,tp REAL,risk_pct REAL,
   strategy TEXT,score INTEGER,status TEXT,created INTEGER,ticket TEXT,lots REAL,fill REAL,pnl REAL,closed INTEGER,note TEXT);
 CREATE TABLE IF NOT EXISTS payments(ref TEXT PRIMARY KEY,uid TEXT,provider TEXT,plan TEXT,amount REAL,currency TEXT,status TEXT,created INTEGER,extra TEXT);
 CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY,v TEXT);
 """
+PG_SCHEMA = """
+CREATE TABLE IF NOT EXISTS users(uid TEXT PRIMARY KEY,email TEXT,name TEXT,plan_until BIGINT DEFAULT 0,created BIGINT,
+  username TEXT,phone TEXT,country TEXT,bio TEXT,exp_level TEXT,goal TEXT,risk_pref TEXT,av INTEGER,notif TEXT,dob TEXT,gender TEXT);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;
+CREATE TABLE IF NOT EXISTS signals(id BIGSERIAL PRIMARY KEY,symbol TEXT,side TEXT,entry DOUBLE PRECISION,sl DOUBLE PRECISION,tp DOUBLE PRECISION,
+  risk_pct DOUBLE PRECISION,strategy TEXT,score INTEGER,status TEXT,created BIGINT,ticket TEXT,lots DOUBLE PRECISION,fill DOUBLE PRECISION,
+  pnl DOUBLE PRECISION,closed BIGINT,note TEXT);
+CREATE TABLE IF NOT EXISTS payments(ref TEXT PRIMARY KEY,uid TEXT,provider TEXT,plan TEXT,amount DOUBLE PRECISION,currency TEXT,status TEXT,
+  created BIGINT,extra TEXT,phone TEXT,checkout_id TEXT,receipt TEXT,paid_at BIGINT,last_check BIGINT);
+CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY,v TEXT);
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE signals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE kv ENABLE ROW LEVEL SECURITY;
+"""
+
+# ---------------- Postgres plumbing (only used when DATABASE_URL is set) ----------------
+_pool = None
+def _pg():
+    global _pool
+    if _pool is None:
+        from psycopg2.pool import ThreadedConnectionPool
+        import psycopg2.extensions as ext
+        ext.register_type(ext.new_type(ext.DECIMAL.values, 'NUM2FLOAT', lambda v, c: float(v) if v is not None else None))
+        _pool = ThreadedConnectionPool(1, int(os.getenv('DB_POOL', '5')), URL, connect_timeout=10)
+    return _pool
+@contextmanager
+def _pgc():
+    p = _pg(); c = p.getconn()
+    try: yield c
+    except Exception:
+        try: c.rollback()
+        except Exception: pass
+        raise
+    finally: p.putconn(c)
+def _ph(sql): return sql.replace('?', '%s')
+
 def _c():
     c = sqlite3.connect(DB, timeout=15); c.row_factory = sqlite3.Row; return c
+
 def init():
+    if PG:
+        with _pgc() as c, c.cursor() as cur: cur.execute(PG_SCHEMA); c.commit()
+        return
     with closing(_c()) as c:
-        c.executescript(SCHEMA)
+        c.executescript(SQLITE_SCHEMA)
         for col in ('phone TEXT', 'checkout_id TEXT', 'receipt TEXT', 'paid_at INTEGER', 'last_check INTEGER'):   # migrate older DBs
             try: c.execute('ALTER TABLE payments ADD COLUMN ' + col)
             except sqlite3.OperationalError: pass
@@ -23,13 +69,30 @@ def init():
             except sqlite3.OperationalError: pass
         c.execute('CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL')
         c.commit()
+
 def q(sql, a=(), one=False):
-    with closing(_c()) as c: rows = [dict(r) for r in c.execute(sql, a).fetchall()]
+    if PG:
+        from psycopg2.extras import RealDictCursor
+        with _pgc() as c, c.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(_ph(sql), tuple(a)); rows = [dict(r) for r in cur.fetchall()]; c.commit()
+    else:
+        with closing(_c()) as c: rows = [dict(r) for r in c.execute(sql, a).fetchall()]
     return (rows[0] if rows else None) if one else rows
+
 def x(sql, a=(), count=False):
-    """Write. Returns lastrowid, or rows changed when count=True (used for conditional, idempotent updates)."""
+    """Write. Returns the new row id for a signals insert, or rows changed when count=True (conditional, idempotent updates)."""
+    if PG:
+        import psycopg2
+        s = _ph(sql); ins = s.lstrip().upper().startswith('INSERT INTO SIGNALS')
+        if ins: s += ' RETURNING id'
+        with _pgc() as c, c.cursor() as cur:
+            try: cur.execute(s, tuple(a))
+            except psycopg2.IntegrityError as e: raise sqlite3.IntegrityError(str(e))     # one exception type for callers (e.g. username taken)
+            rc = cur.rowcount; rid = cur.fetchone()[0] if ins else None; c.commit()
+        return rc if count else rid
     with _lock, closing(_c()) as c:
         cur = c.execute(sql, a); c.commit(); return cur.rowcount if count else cur.lastrowid
+
 DEFAULTS = {'bot_enabled': '0', 'risk_pct': os.getenv('RISK_PCT', '1.0'), 'max_open': os.getenv('MAX_OPEN', '3'),
     'max_trades_day': os.getenv('MAX_TRADES_DAY', '6'), 'max_daily_loss_pct': os.getenv('MAX_DAILY_LOSS_PCT', '3.0'),
     'min_confluence': os.getenv('MIN_CONFLUENCE', '2'), 'rr': os.getenv('RR', '2.0'), 'cooldown_min': os.getenv('COOLDOWN_MIN', '60'),

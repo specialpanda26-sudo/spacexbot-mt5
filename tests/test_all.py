@@ -1,8 +1,8 @@
 """Offline tests, no network. Run:  python tests/test_all.py   (exit code 1 on any failure)"""
-import os, sys, json, time, math, random, datetime as dt
-os.environ.update(DEV_AUTH='1', EA_KEY='k', ADMIN_EMAILS='boss@x.com', DB_PATH='/tmp/sxb_test.db', PAYHERO_API_KEY='a', PAYHERO_API_SECRET='b',
+import os, sys, json, time, math, random, tempfile, datetime as dt
+os.environ.update(DEV_AUTH='1', EA_KEY='k', ADMIN_EMAILS='boss@x.com', DB_PATH=os.path.join(tempfile.gettempdir(), 'sxb_test.db'), PAYHERO_API_KEY='a', PAYHERO_API_SECRET='b',
                   PAYHERO_CHANNEL_ID='7', PAYHERO_CALLBACK_SECRET='sec', BASE_URL='http://t', PAYPAL_ENV='sandbox')
-if os.path.exists('/tmp/sxb_test.db'): os.remove('/tmp/sxb_test.db')
+if os.path.exists(os.environ['DB_PATH']): os.remove(os.environ['DB_PATH'])
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from backend.app import app
 from backend import store as st, strategies as S, brain, risk, news, stats, payments as pay, indicators as ix

@@ -1,6 +1,6 @@
 import os, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, bars, brain, risk, fb, news, stats, accounts, payments as pay
+from . import store as st, bars, brain, risk, sbauth, news, stats, accounts, payments as pay
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init()
@@ -9,14 +9,9 @@ _last_scan = {}
 
 def _ea_ok(): return bool(EA_KEY) and hmac.compare_digest(request.headers.get('X-EA-Key', ''), EA_KEY)
 
-def sub_tokens():
-    now = int(time.time())
-    return [r['fcm'] for r in st.q('SELECT fcm,email,plan_until FROM users WHERE fcm IS NOT NULL')
-            if (r['plan_until'] or 0) > now or (r['email'] or '').lower() in ADMINS]
-
 def user():
     h = request.headers.get('Authorization', '')
-    u = fb.verify(h[7:]) if h.startswith('Bearer ') else None
+    u = sbauth.verify(h[7:]) if h.startswith('Bearer ') else None
     if not u: return None
     if not st.q('SELECT 1 FROM users WHERE uid=?', (u['uid'],), True):
         st.x('INSERT INTO users(uid,email,name,created) VALUES(?,?,?,?)', (u['uid'], u['email'], u['name'], int(time.time())))
@@ -45,15 +40,7 @@ def home(): return send_from_directory('../static', 'index.html')
 def hz(): return 'ok'
 @app.get('/config.js')
 def cfgjs():
-    c = os.getenv('FIREBASE_WEB_CONFIG', '{}'); v = os.getenv('FIREBASE_VAPID_KEY', '')
-    return Response(f'window.SXB={{fb:{c},vapid:{json.dumps(v)},plans:{json.dumps(pay.plans())}}};', mimetype='application/javascript')
-@app.get('/firebase-messaging-sw.js')
-def sw():
-    c = os.getenv('FIREBASE_WEB_CONFIG', '{}')
-    js = ("importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js','https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');"
-          f"firebase.initializeApp({c});const m=firebase.messaging();"
-          "m.onBackgroundMessage(p=>self.registration.showNotification(p.notification.title,{body:p.notification.body}));")
-    return Response(js, mimetype='application/javascript')
+    return Response(f'window.SXB={{sb:{json.dumps(sbauth.public_config())},plans:{json.dumps(pay.plans())}}};', mimetype='application/javascript')
 
 # ---------------- EA bridge ----------------
 def _scan(sym):
@@ -74,7 +61,7 @@ def _scan(sym):
     if not ok: print('skip', sym, s['side'], why); return
     st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created) VALUES(?,?,?,?,?,?,?,?,?,?)',
          (sym, s['side'], s['entry'], s['sl'], s['tp'], st.fget('risk_pct'), s['strategy'], s['score'], 'pending', int(time.time())))
-    fb.push(sub_tokens(), f"{s['side'].upper()} {sym}", f"Entry {s['entry']}  SL {s['sl']}  TP {s['tp']}  ({s['strategy']})")
+    sbauth.notify(f"{s['side'].upper()} {sym}", f"Entry {s['entry']}  SL {s['sl']}  TP {s['tp']}  ({s['strategy']})")
 
 @app.post('/api/ea/sync')
 def ea_sync():
@@ -102,7 +89,7 @@ def ea_report():
         if s:
             title = f"{s['symbol']} {'opened' if stt == 'open' else 'closed'}"
             body = f"{s['side'].upper()} lots {s['lots']}" if stt == 'open' else f"P/L {s['pnl']}"
-            fb.push(sub_tokens(), title, body)
+            sbauth.notify(title, body)
     return jsonify(ok=True)
 
 # ---------------- app API ----------------
@@ -130,16 +117,11 @@ def me_profile(u):
 @need()
 def me_delete(u):
     if u['admin']: return jsonify(error='Admin accounts cannot be deleted here.'), 400
-    accounts.erase(u['uid']); fb.delete_user(u['uid']); return jsonify(ok=True)
+    accounts.erase(u['uid']); sbauth.delete_user(u['uid']); return jsonify(ok=True)
 
 @app.post('/api/me/signout-others')
 @need()
-def me_signout(u): return jsonify(ok=fb.revoke(u['uid']))
-
-@app.post('/api/me/fcm')
-@need()
-def set_fcm(u):
-    st.x('UPDATE users SET fcm=? WHERE uid=?', ((request.json or {}).get('token'), u['uid'])); return jsonify(ok=True)
+def me_signout(u): return jsonify(ok=sbauth.revoke(u['uid']))
 
 @app.get('/api/signals')
 @need(active=True)
