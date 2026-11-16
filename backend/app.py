@@ -1,6 +1,6 @@
 import os, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, bars, brain, risk, fb, news, stats, payments as pay
+from . import store as st, bars, brain, risk, fb, news, stats, accounts, payments as pay
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init()
@@ -20,17 +20,18 @@ def user():
     if not u: return None
     if not st.q('SELECT 1 FROM users WHERE uid=?', (u['uid'],), True):
         st.x('INSERT INTO users(uid,email,name,created) VALUES(?,?,?,?)', (u['uid'], u['email'], u['name'], int(time.time())))
-    u['admin'] = u['email'].lower() in ADMINS
+    u['admin'] = bool(u.get('verified')) and u['email'].lower() in ADMINS      # an unverified email can never be admin
     row = st.q('SELECT plan_until FROM users WHERE uid=?', (u['uid'],), True); u['plan_until'] = row['plan_until'] or 0
     u['active'] = u['admin'] or u['plan_until'] > time.time()
     return u
 
-def need(admin=False, active=False):
+def need(admin=False, active=False, verified=False):
     def deco(f):
         @functools.wraps(f)
         def w(*a, **k):
             u = user()
             if not u: return jsonify(error='sign in required'), 401
+            if (verified or admin) and not u.get('verified'): return jsonify(error='verify your email first'), 403
             if admin and not u['admin']: return jsonify(error='admin only'), 403
             if active and not u['active']: return jsonify(error='subscription required'), 402
             return f(u, *a, **k)
@@ -109,13 +110,31 @@ def ea_report():
 @need()
 def me(u):
     a = st.acct(); online = time.time() - a.get('seen', 0) < 120
-    out = {'email': u['email'], 'admin': u['admin'], 'active': u['active'], 'plan_until': u['plan_until']}
+    out = {'uid': u['uid'], 'email': u['email'], 'verified': bool(u.get('verified')), 'admin': u['admin'], 'active': u['active'], 'plan_until': u['plan_until'], **accounts.view(u['uid'])}
+    out['name'] = out['name'] or u.get('name') or u['email'].split('@')[0]
     if u['active']:
         since = st.day_start()
         out.update(bot=st.get('bot_enabled') == '1', ea_online=online, account=a if u['admin'] else {'demo': a.get('demo')},
                    today=st.q("SELECT COUNT(*) n, COALESCE(SUM(pnl),0) pnl FROM signals WHERE created>=?", (since,), True))
         if u['admin']: out['settings'] = {k: st.get(k) for k in st.DEFAULTS}
     return jsonify(out)
+
+@app.post('/api/me/profile')
+@need()
+def me_profile(u):
+    try: accounts.update(u['uid'], request.get_json(silent=True) or {})
+    except ValueError as e: return jsonify(error=str(e)), 400
+    return jsonify(ok=True)
+
+@app.delete('/api/me')
+@need()
+def me_delete(u):
+    if u['admin']: return jsonify(error='Admin accounts cannot be deleted here.'), 400
+    accounts.erase(u['uid']); fb.delete_user(u['uid']); return jsonify(ok=True)
+
+@app.post('/api/me/signout-others')
+@need()
+def me_signout(u): return jsonify(ok=fb.revoke(u['uid']))
 
 @app.post('/api/me/fcm')
 @need()
@@ -170,7 +189,7 @@ def admin_grant(u):
 def plans(): return jsonify(pay.plans())
 
 @app.post('/api/pay/mpesa')
-@need()
+@need(verified=True)
 def p_mpesa(u):
     j = request.json or {}
     try: return jsonify(ref=pay.stk_push(u['uid'], j.get('plan'), j.get('phone')), msg='Check your phone for the M-Pesa prompt')
@@ -190,7 +209,7 @@ def p_cb():
     except Exception as e: print('settle failed', cb['ref'], e); return jsonify(ok=False, error='retry'), 500     # non-2xx makes the gateway retry
 
 @app.post('/api/pay/paypal')
-@need()
+@need(verified=True)
 def p_pp(u):
     try: ref, url = pay.paypal_create(u['uid'], (request.json or {}).get('plan')); return jsonify(ref=ref, url=url)
     except ValueError as e: return jsonify(error=str(e)), 400

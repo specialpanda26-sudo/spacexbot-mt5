@@ -18,6 +18,10 @@ def init():
         for col in ('phone TEXT', 'checkout_id TEXT', 'receipt TEXT', 'paid_at INTEGER', 'last_check INTEGER'):   # migrate older DBs
             try: c.execute('ALTER TABLE payments ADD COLUMN ' + col)
             except sqlite3.OperationalError: pass
+        for col in ('username TEXT', 'phone TEXT', 'country TEXT', 'bio TEXT', 'exp_level TEXT', 'goal TEXT', 'risk_pref TEXT', 'av INTEGER', 'notif TEXT', 'dob TEXT', 'gender TEXT'):
+            try: c.execute('ALTER TABLE users ADD COLUMN ' + col)
+            except sqlite3.OperationalError: pass
+        c.execute('CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL')
         c.commit()
 def q(sql, a=(), one=False):
     with closing(_c()) as c: rows = [dict(r) for r in c.execute(sql, a).fetchall()]
