@@ -36,6 +36,9 @@ def need(admin=False, active=False, verified=False):
 # ---------------- static / config ----------------
 @app.get('/')
 def home(): return send_from_directory('../static', 'index.html')
+
+@app.get('/favicon.ico')
+def favicon(): return send_from_directory('../static/brand', 'favicon.ico')
 @app.get('/healthz')
 def hz(): return 'ok'
 @app.get('/config.js')
