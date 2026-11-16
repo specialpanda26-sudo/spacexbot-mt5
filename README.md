@@ -37,6 +37,14 @@ Sign-up and "forgot password" both email a **6-digit code**. Supabase sends it, 
 Limits to know (check your dashboards, they change): Supabase allows one auth email per address every 60 seconds (the app's resend button waits 60 s to match) and caps emails per hour under *Auth > Rate Limits*; Resend's free plan has daily and monthly send caps.
 What the app shows when something is wrong: "Too many emails sent" or "Please wait N seconds" = a rate limit; "We could not send the email" = the SMTP or sender-domain setup (step 1 or 2); "That code is wrong or has expired" = wrong, expired or already-used code (use Resend code).
 
+## Email alerts and receipts (Resend API)
+Separate from sign-in codes. In Render add `RESEND_API_KEY` and `MAIL_FROM` (an address on your verified Resend domain, for example `spaceXBot <alerts@yourdomain.com>`).
+- **Receipt:** one email to the buyer when a plan is credited (M-Pesa or PayPal). A repeat callback never sends a second one.
+- **Trade alerts:** a new signal, a trade opened and a trade closed are emailed to active subscribers and admins who kept *Trade alerts* on in Profile. Turned off people get nothing.
+- **Daily cap:** `MAIL_ALERT_CAP` (default 60) stops alerts for the day; receipts can go on to `MAIL_HARD_CAP` (default 90). Sign-in codes share your Resend quota, so keep alerts below it.
+- **Check it:** `python3 tools/check_resend.py you@example.com` sends one test email and says what is wrong in plain words. The admin health check also lists a missing key.
+- Until the domain is verified Resend only lets you send to your own address.
+
 ## 3) Firebase, 4) MT5
 Same as v1: Auth > Google, service-account JSON into `FIREBASE_SERVICE_ACCOUNT`, web config into `FIREBASE_WEB_CONFIG`, add your Render domain to Authorized domains.
 Copy `ea/SpaceXBridge.mq5` to `MQL5/Experts/`, compile, allow WebRequest for your Render URL. Starts **demo-only** (`AllowLive=false`). MT5 must stay open.

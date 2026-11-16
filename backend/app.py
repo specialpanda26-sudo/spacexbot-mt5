@@ -59,9 +59,9 @@ def _scan(sym):
     if not s: return
     ok, why = risk.symbol_gate(sym, s['side'])
     if not ok: print('skip', sym, s['side'], why); return
-    st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created) VALUES(?,?,?,?,?,?,?,?,?,?)',
+    sid = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created) VALUES(?,?,?,?,?,?,?,?,?,?)',
          (sym, s['side'], s['entry'], s['sl'], s['tp'], st.fget('risk_pct'), s['strategy'], s['score'], 'pending', int(time.time())))
-    sbauth.notify(f"{s['side'].upper()} {sym}", f"Entry {s['entry']}  SL {s['sl']}  TP {s['tp']}  ({s['strategy']})")
+    sbauth.notify(f"{s['side'].upper()} {sym}", f"Entry {s['entry']}  SL {s['sl']}  TP {s['tp']}  ({s['strategy']})", key=f'sig{sid}-new')
 
 @app.post('/api/ea/sync')
 def ea_sync():
@@ -89,7 +89,7 @@ def ea_report():
         if s:
             title = f"{s['symbol']} {'opened' if stt == 'open' else 'closed'}"
             body = f"{s['side'].upper()} lots {s['lots']}" if stt == 'open' else f"P/L {s['pnl']}"
-            sbauth.notify(title, body)
+            sbauth.notify(title, body, key=f'sig{sid}-{stt}')
     return jsonify(ok=True)
 
 # ---------------- app API ----------------

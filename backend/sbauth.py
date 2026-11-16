@@ -52,6 +52,9 @@ def delete_user(uid):
         return r.status_code in (200, 204)
     except Exception as e: print('supabase delete failed:', e); return False
 
-def notify(title, body):
-    """Trade alerts. Push notifications are gone with Firebase; email alerts via Resend come in a later section."""
+def notify(title, body, key=None):
+    """Trade alerts: logged, and emailed through Resend to subscribers who kept Trade alerts on."""
     print('[alert]', title, body)
+    try:
+        from . import mailer; mailer.trade_alert(title, body, key)
+    except Exception as e: print('alert mail failed', e)

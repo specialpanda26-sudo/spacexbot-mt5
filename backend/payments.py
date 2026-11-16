@@ -124,6 +124,11 @@ FAIL_REASON = {1: 'insufficient', 1032: 'cancelled', 1037: 'timeout', 2001: 'wro
 def _mark(ref, status, reason=''):
     st.x("UPDATE payments SET status=?,extra=? WHERE ref=? AND status IN('pending','expired')", (status, reason, ref))
 
+def _receipt(p):
+    try:
+        from . import mailer; mailer.receipt(p['ref'])
+    except Exception as e: print('receipt failed', e)
+
 def settle_deposit(cb):
     """-> result string. Idempotent: safe to call for every repeated callback."""
     p = st.q('SELECT * FROM payments WHERE ref=? AND provider=?', (cb['ref'], 'finoq'), True)
@@ -140,6 +145,7 @@ def settle_deposit(cb):
         try: activate(p['uid'], p['plan'])
         except Exception:                                  # paid but not delivered: reopen so a retry can deliver
             st.x("UPDATE payments SET status='expired' WHERE ref=? AND status='paid'", (p['ref'],)); raise
+        _receipt(p)
         return 'paid'
     if cb['failed']:
         if p['status'] != 'pending': return 'duplicate'
@@ -222,6 +228,7 @@ def _pp_apply(p, state, j):
         try: activate(p['uid'], p['plan'])
         except Exception:                                # paid but not delivered: reopen so the next check delivers it
             st.x("UPDATE payments SET status='pending' WHERE ref=? AND status='paid'", (p['ref'],)); raise
+        _receipt(p)
 
 def _row(ref): return st.q('SELECT * FROM payments WHERE ref=?', (ref,), True)
 
@@ -272,6 +279,7 @@ def health():
     if not sbauth.configured(): bad.append('SUPABASE_URL or SUPABASE_ANON_KEY is missing. Nobody can sign in.')
     if not os.getenv('SUPABASE_SERVICE_KEY'): bad.append('SUPABASE_SERVICE_KEY is missing. Deleting an account will not remove its login.')
     if not os.getenv('EA_KEY'): bad.append('EA_KEY is missing. The MT5 EA cannot connect.')
+    if not (os.getenv('RESEND_API_KEY') and os.getenv('MAIL_FROM')): bad.append('RESEND_API_KEY or MAIL_FROM is missing. Receipts and trade alert emails are off.')
     if not _env('PAYHERO_API_KEY', 'PAYHERO_USER'): bad.append('PAYHERO_API_KEY is missing. M-Pesa is off.')
     if not _env('PAYHERO_API_SECRET', 'PAYHERO_PASS'): bad.append('PAYHERO_API_SECRET is missing. M-Pesa is off.')
     if not _channel(): bad.append('PAYHERO_CHANNEL_ID is missing or not a number. M-Pesa is off.')
