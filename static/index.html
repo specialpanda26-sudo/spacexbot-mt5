@@ -1099,12 +1099,13 @@ function confetti(x,y){if(reduce||!document.body.animate)return;var cols=["#3CCB
 function syncTC(){var m=document.querySelector("meta[name=theme-color]");if(m)m.content=getComputedStyle(document.documentElement).getPropertyValue("--bg").trim()||m.content}
 function applyTheme(){setTimeout(syncTC,40);var r=document.documentElement;if(S.theme==="auto")r.removeAttribute("data-theme");else r.setAttribute("data-theme",S.theme);$("#themeBtn").title="Theme: "+S.theme;redraw(false)}
 var VIEWS=["welcome","onboard","home","market","bot","trades","connect","terms","privacy","cookies","profile"];
-function show(v,noScroll){if(v==="admin"){show(window.U?"home":"welcome",noScroll);try{history.replaceState(null,"","#admin")}catch(e){}if(window.adm)window.adm();return}if(VIEWS.indexOf(v)<0)v="welcome";closeSheet();if(v==="profile")renderProfile();
+function sxOA(v){return /^(access_token|error|error_code|error_description)=/.test(v||"")}
+function show(v,noScroll){var oa=sxOA(v);if(oa)v="welcome";if(v==="admin"){show(window.U?"home":"welcome",noScroll);try{history.replaceState(null,"","#admin")}catch(e){}if(window.adm)window.adm();return}if(VIEWS.indexOf(v)<0)v="welcome";closeSheet();if(v==="profile")renderProfile();
   document.body.classList.toggle("welcome",v==="welcome");document.body.classList.toggle("lg",/^(terms|privacy|cookies)$/.test(v));
   VIEWS.forEach(function(n){$("#view-"+n).classList.toggle("on",n===v)});
   $$(".nav button").forEach(function(b){if(b.dataset.go===v)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current")});
   $$("#view-"+v+">*").forEach(function(c,i){c.style.setProperty("--i",Math.min(i,8))});
-  if(location.hash!=="#"+v)try{history.replaceState(null,"","#"+v)}catch(e){location.hash=v}
+  if(location.hash!=="#"+v&&!oa)try{history.replaceState(null,"","#"+v)}catch(e){location.hash=v}
   if(!noScroll)window.scrollTo(0,0);
   if(v==="home"){renderHome(true);$$("#gates .bar i").forEach(function(el){var w=el.style.width;el.style.width="0";requestAnimationFrame(function(){requestAnimationFrame(function(){el.style.width=w})})})}
   if(v==="market"){renderCards()}
