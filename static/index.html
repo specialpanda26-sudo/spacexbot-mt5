@@ -1319,7 +1319,7 @@ function slot(){if(U&&typeof U.onboarded==="boolean"&&window.sxSetOnb)window.sxS
 var BK='<button class="icon-btn x" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>';
 var RS={email:"",code:"",tries:0},rsw=function(f,ms){return new Promise(function(r){setTimeout(function(){r(f())},ms)})};
 function rsBusy(b,t){b.dataset.t=b.textContent;b.disabled=true;b.textContent=t}
-function rsCd(b){var t=60;b.disabled=true;b.textContent="Resend code in 60s";var iv=setInterval(function(){if(!document.body.contains(b)){clearInterval(iv);return}t--;if(t<=0){clearInterval(iv);b.disabled=false;b.textContent="Resend code"}else b.textContent="Resend code in "+t+"s"},1000)}
+function rsCd(b){var t=600,f=function(){return Math.floor(t/60)+":"+("0"+t%60).slice(-2)};b.disabled=true;b.textContent="New code in "+f();var iv=setInterval(function(){if(!document.body.contains(b)){clearInterval(iv);return}t--;if(t<=0){clearInterval(iv);b.disabled=false;b.textContent="Send a new code"}else b.textContent="New code in "+f()},1000)}
 function pwScore(p){var s=0;if(p.length>=8)s++;if(p.length>=12)s++;if(/[a-z]/.test(p)&&/[A-Z]/.test(p))s++;if(/\d/.test(p)&&/[^A-Za-z0-9]/.test(p))s++;return s}
 var PWH="Use 8+ characters. Mix letters, numbers and symbols.",PWL=["Too weak","Weak","Okay","Good","Strong"];
 function pwMeter(id){return'<div class="pwm" id="'+id+'M" data-s="0" aria-hidden="true"><i></i><i></i><i></i><i></i></div><p class="note" id="'+id+'T">'+PWH+'</p>'}

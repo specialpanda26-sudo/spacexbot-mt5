@@ -54,7 +54,7 @@ T('forgot password asks Supabase for a recovery email', find('reset') == ['a@b.c
 T('reset code is checked as type recovery', find('verifyOtp')[1]['type'] == 'recovery' and o['resetVerify'] == o['verify'])
 e = o['err']
 T('error: wrong password', e[0] == 'Wrong email or password.')
-T('error: rate limit shows the seconds', e[1] == 'Please wait 45 seconds before asking for another email.')
+T('error: rate limit shows the seconds', e[1] == 'Your last code is still valid. Use it, or ask for a new one in 45 seconds.')
 T('error: email could not be sent (SMTP/Resend problem)', e[2] == e[3] == 'We could not send the email. Try again in a minute.')
 T('error: bad and unauthorised addresses', e[4] == 'Enter a valid email.' and 'cannot send email' in e[5])
 T('error: expired token, offline, empty, sign-ups off', e[6].startswith('That code') and e[7] == 'No connection. Check your internet.' and e[8] == 'Something went wrong. Try again.' and e[9].startswith('New sign-ups'))

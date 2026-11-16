@@ -122,14 +122,14 @@
       var c = (e && e.code) || "", m = (e && e.message) || "", t = {
         invalid_credentials: "Wrong email or password.", user_already_exists: "That email already has an account. Log in instead.", email_exists: "That email already has an account. Log in instead.",
         weak_password: "Choose a stronger password (8+ characters).", validation_failed: "Enter a valid email.", email_address_invalid: "Enter a valid email.",
-        over_request_rate_limit: "Too many tries. Wait a few minutes and try again.", over_email_send_rate_limit: "Too many emails sent. Wait a minute and try again.",
+        over_request_rate_limit: "Too many tries. Wait a few minutes and try again.", over_email_send_rate_limit: "A code was already sent. Use it, or wait for it to expire (10 minutes) before asking for another.",
         otp_expired: "That code is wrong or has expired. Request a new one.", same_password: "Choose a password different from your old one.", user_banned: "This account has been disabled.",
         email_not_confirmed: "Confirm your email first. We sent you a code.", signup_disabled: "New sign-ups are turned off right now.", email_provider_disabled: "Email sign-in is turned off right now.",
         email_address_not_authorized: "We cannot send email to that address right now. Contact support.", user_not_found: "No account found for that email.",
         session_not_found: "Your session ended. Log in again.", session_expired: "Your session ended. Log in again.", reauthentication_needed: "Log in again to do that."
       };
       var sec = /(\d+)\s*seconds?/i.exec(m);
-      if ((c === "over_email_send_rate_limit" || /only request this once every/i.test(m)) && sec) return "Please wait " + sec[1] + " seconds before asking for another email.";
+      if ((c === "over_email_send_rate_limit" || /only request this once every/i.test(m)) && sec) return "Your last code is still valid. Use it, or ask for a new one in " + (+sec[1] >= 120 ? Math.ceil(+sec[1] / 60) + " minutes." : sec[1] + " seconds.");
       if (t[c]) return t[c];
       if (/error sending (confirmation|recovery|magic link|email)/i.test(m) || (c === "unexpected_failure" && /email|smtp|mail/i.test(m))) return "We could not send the email. Try again in a minute.";
       if (/invalid login/i.test(m)) return "Wrong email or password.";
