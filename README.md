@@ -23,12 +23,28 @@ Keep **1 worker**: candles live in memory. Free Render sleeps: ping `/healthz` e
 Nothing to paste: the app sends `{BASE_URL}/api/webhooks/payhero?s={PAYHERO_CALLBACK_SECRET}` with every prompt.
 Test with a KES 1-style small plan first. If prompts are refused, check `PAYHERO_BASE_URL` (Comrade Connect's code uses `https://api.finoq.africa`; older PayHero used `https://backend.payhero.co.ke`).
 
+## Sign-in emails (Supabase + Resend)
+Sign-up and "forgot password" both email a **6-digit code**. Supabase sends it, Resend delivers it. Do this once, in this order:
+1. **Resend:** add your domain, copy the DNS records (SPF, DKIM) into your domain's DNS, wait until it shows *Verified*. Create an API key.
+2. **Supabase > Auth > SMTP Settings:** turn on custom SMTP. Host `smtp.resend.com`, port `465`, username `resend`, password = the Resend API key, sender = an address on the verified domain (e.g. `noreply@yourdomain.com`).
+   Without this Supabase's built-in sender only emails your own team members and allows a handful of emails per hour, so real users get nothing.
+3. **Supabase > Auth > Providers > Email:** *Confirm email* ON, email OTP length 6. If Confirm email is off, sign-up logs the user straight in and no code is sent.
+4. **Supabase > Auth > Email Templates:** open **Confirm signup** and **Reset Password**. Each must contain `{{ .Token }}`, for example `<p>Your spaceXBot code is <b>{{ .Token }}</b>. It expires in 1 hour.</p>`.
+   If a template only has `{{ .ConfirmationURL }}` the user gets a link, not a code, and the code screen cannot work. Magic Link and Change Email templates are not used.
+5. **Supabase > Auth > URL Configuration:** Site URL = `BASE_URL`; add `BASE_URL/` to Redirect URLs (Google sign-in needs it).
+6. **Test:** sign up with a new address, get the code, enter it. Then use *Forgot password* on that account: code, then new password.
+
+Limits to know (check your dashboards, they change): Supabase allows one auth email per address every 60 seconds (the app's resend button waits 60 s to match) and caps emails per hour under *Auth > Rate Limits*; Resend's free plan has daily and monthly send caps.
+What the app shows when something is wrong: "Too many emails sent" or "Please wait N seconds" = a rate limit; "We could not send the email" = the SMTP or sender-domain setup (step 1 or 2); "That code is wrong or has expired" = wrong, expired or already-used code (use Resend code).
+
 ## 3) Firebase, 4) MT5
 Same as v1: Auth > Google, service-account JSON into `FIREBASE_SERVICE_ACCOUNT`, web config into `FIREBASE_WEB_CONFIG`, add your Render domain to Authorized domains.
 Copy `ea/SpaceXBridge.mq5` to `MQL5/Experts/`, compile, allow WebRequest for your Render URL. Starts **demo-only** (`AllowLive=false`). MT5 must stay open.
 
 ## 5) Prove it before real money
     python tests/test_all.py                      # 30 offline checks
+    python tests/test_sbauth.py                   # server-side token checks
+    python tests/test_authjs.py                   # sign-up / code / reset flow in the browser code (needs node)
     python tools/backtest.py XAUUSD_M15.csv XAUUSD_H1.csv --solo
 The backtest ignores news lock, exposure cap and loss limits.
 

@@ -56,7 +56,8 @@
         if (r.error) {
           if (r.error.code === "email_not_confirmed" || /not confirmed/i.test(r.error.message || "")) {
             PEND = { email: email, name: "" };
-            return S.auth.resend({ type: "signup", email: email }).then(function () { return { pending: true, email: email }; });
+            /* A code was already sent at sign-up. If this resend is rate-limited (Supabase: 1 per 60 s per user) the code screen must still open. */
+            return S.auth.resend({ type: "signup", email: email }).then(function () { return { pending: true, email: email }; }, function () { return { pending: true, email: email }; });
           }
           throw r.error;
         }
@@ -119,11 +120,17 @@
     err: function (e) {
       var c = (e && e.code) || "", m = (e && e.message) || "", t = {
         invalid_credentials: "Wrong email or password.", user_already_exists: "That email already has an account. Log in instead.", email_exists: "That email already has an account. Log in instead.",
-        weak_password: "Choose a stronger password (8+ characters).", validation_failed: "Enter a valid email.", over_request_rate_limit: "Too many tries. Wait a few minutes and try again.",
-        over_email_send_rate_limit: "Too many emails sent. Wait a few minutes and try again.", otp_expired: "That code is wrong or has expired. Request a new one.",
-        same_password: "Choose a password different from your old one.", user_banned: "This account has been disabled."
+        weak_password: "Choose a stronger password (8+ characters).", validation_failed: "Enter a valid email.", email_address_invalid: "Enter a valid email.",
+        over_request_rate_limit: "Too many tries. Wait a few minutes and try again.", over_email_send_rate_limit: "Too many emails sent. Wait a minute and try again.",
+        otp_expired: "That code is wrong or has expired. Request a new one.", same_password: "Choose a password different from your old one.", user_banned: "This account has been disabled.",
+        email_not_confirmed: "Confirm your email first. We sent you a code.", signup_disabled: "New sign-ups are turned off right now.", email_provider_disabled: "Email sign-in is turned off right now.",
+        email_address_not_authorized: "We cannot send email to that address right now. Contact support.", user_not_found: "No account found for that email.",
+        session_not_found: "Your session ended. Log in again.", session_expired: "Your session ended. Log in again.", reauthentication_needed: "Log in again to do that."
       };
+      var sec = /(\d+)\s*seconds?/i.exec(m);
+      if ((c === "over_email_send_rate_limit" || /only request this once every/i.test(m)) && sec) return "Please wait " + sec[1] + " seconds before asking for another email.";
       if (t[c]) return t[c];
+      if (/error sending (confirmation|recovery|magic link|email)/i.test(m) || (c === "unexpected_failure" && /email|smtp|mail/i.test(m))) return "We could not send the email. Try again in a minute.";
       if (/invalid login/i.test(m)) return "Wrong email or password.";
       if (/token has expired|invalid/i.test(m) && /token|otp|code/i.test(m)) return t.otp_expired;
       if (/failed to fetch|network/i.test(m)) return "No connection. Check your internet.";
