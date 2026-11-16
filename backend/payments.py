@@ -34,7 +34,13 @@ def _env(*names, d=''):
         if v: return v
     return d
 def base(): return _env('PAYHERO_BASE_URL', d='https://api.finoq.africa').rstrip('/')
-def ready(): return bool(_env('PAYHERO_API_KEY', 'PAYHERO_USER') and _env('PAYHERO_API_SECRET', 'PAYHERO_PASS') and _channel())
+def _cb_url():
+    """Where FinoQ posts the result. An explicit CALLBACK_URL wins; otherwise BASE_URL + the secret."""
+    u = _env('CALLBACK_URL', 'PAYHERO_CALLBACK_URL').strip('"\'')
+    if u: return u
+    b = _env('BASE_URL').rstrip('/')
+    return f"{b}/api/webhooks/payhero?s={cb_secret()}" if b and cb_secret() else ''
+def ready(): return bool(_env('PAYHERO_API_KEY', 'PAYHERO_USER') and _env('PAYHERO_API_SECRET', 'PAYHERO_PASS') and _channel() and cb_secret() and _cb_url())
 def _channel():
     try: n = int(_env('PAYHERO_CHANNEL_ID')); return n if n > 0 else 0
     except ValueError: return 0
@@ -78,8 +84,7 @@ def stk_push(uid, pid, phone_raw):
     if prov == 'sasapay': body['network_code'] = '63902'
     acc = _env('PAYHERO_ACCOUNT_ID')
     if acc.isdigit(): body['account_id'] = int(acc)
-    cb = _env('CALLBACK_URL', 'PAYHERO_CALLBACK_URL') or f"{_env('BASE_URL').rstrip('/')}/api/webhooks/payhero?s={cb_secret()}"
-    body['callback_url'] = cb
+    body['callback_url'] = _cb_url()
     try:
         r = requests.post(base() + '/api/v2/payments', json=body, headers=_head(), timeout=25)
         j = r.json() if r.content else {}
@@ -160,38 +165,121 @@ def reconcile():
         try: check_status(p)
         except Exception as e: print('reconcile failed', p['ref'], e)
     st.x("UPDATE payments SET status='expired',extra='no_response' WHERE provider='finoq' AND status='pending' AND created<?", (now - 15 * 60,))
+    for p in st.q("SELECT * FROM payments WHERE provider='paypal' AND status='pending' AND checkout_id IS NOT NULL AND created>=? AND created<=? ORDER BY created LIMIT 25", (now - 4 * 3600, now - 60)):
+        try: paypal_recover(p)
+        except Exception as e: print('paypal reconcile failed', p['ref'], e)
+    st.x("UPDATE payments SET status='expired',extra='no_response' WHERE provider='paypal' AND status='pending' AND created<?", (now - 4 * 3600,))
 
 # ---------- PayPal (Orders v2) ----------
-def _pp_base(): return 'https://api-m.paypal.com' if os.getenv('PAYPAL_ENV', 'live') == 'live' else 'https://api-m.sandbox.paypal.com'
+def _pp_base(): return 'https://api-m.paypal.com' if (os.getenv('PAYPAL_ENV') or 'live').strip().lower() == 'live' else 'https://api-m.sandbox.paypal.com'
+def paypal_ready(): return bool(_env('PAYPAL_CLIENT_ID') and _env('PAYPAL_SECRET') and _env('BASE_URL').startswith('http'))
 def _pp_token():
-    r = requests.post(_pp_base() + '/v1/oauth2/token', data={'grant_type': 'client_credentials'}, auth=(os.getenv('PAYPAL_CLIENT_ID', ''), os.getenv('PAYPAL_SECRET', '')), timeout=25)
+    r = requests.post(_pp_base() + '/v1/oauth2/token', data={'grant_type': 'client_credentials'}, auth=(_env('PAYPAL_CLIENT_ID'), _env('PAYPAL_SECRET')), timeout=25)
+    if r.status_code >= 300: print('paypal auth failed', r.status_code, r.text[:200])      # wrong keys, or live keys with PAYPAL_ENV=sandbox (or the reverse)
     r.raise_for_status(); return r.json()['access_token']
+def _pp_get(order_id):
+    r = requests.get(f'{_pp_base()}/v2/checkout/orders/{order_id}', headers={'Authorization': 'Bearer ' + _pp_token()}, timeout=25)
+    return r.json() if r.status_code < 300 else None
 
 def paypal_create(uid, pid):
     p = plan(pid)
     if not p: raise ValueError('bad plan')
-    ref = _new(uid, 'paypal', pid, p['usd'], 'USD'); b = os.getenv('BASE_URL', '').rstrip('/')
+    if not paypal_ready(): raise RuntimeError('PayPal is not set up yet')
+    ref = _new(uid, 'paypal', pid, p['usd'], 'USD'); b = _env('BASE_URL').rstrip('/')
     body = {'intent': 'CAPTURE', 'purchase_units': [{'reference_id': ref, 'custom_id': ref, 'amount': {'currency_code': 'USD', 'value': f"{p['usd']:.2f}"}}],
             'application_context': {'return_url': f'{b}/api/pay/paypal/return', 'cancel_url': f'{b}/?paid=cancel', 'user_action': 'PAY_NOW'}}
-    r = requests.post(_pp_base() + '/v2/checkout/orders', json=body, headers={'Authorization': 'Bearer ' + _pp_token()}, timeout=25)
-    r.raise_for_status(); o = r.json()
+    try:
+        r = requests.post(_pp_base() + '/v2/checkout/orders', json=body, headers={'Authorization': 'Bearer ' + _pp_token(), 'PayPal-Request-Id': ref}, timeout=25)
+        if r.status_code >= 300: print('paypal refused the order', r.status_code, r.text[:300]); raise RuntimeError('refused')
+        o = r.json(); link = next(l['href'] for l in o['links'] if l['rel'] in ('approve', 'payer-action'))
+    except Exception as e:
+        _mark(ref, 'failed', 'not_sent'); raise RuntimeError('PayPal is unavailable right now') from e
     st.x('UPDATE payments SET checkout_id=? WHERE ref=?', (o['id'], ref))
-    return ref, next(l['href'] for l in o['links'] if l['rel'] in ('approve', 'payer-action'))
+    return ref, link
+
+def _pp_state(p, j):
+    """-> 'paid' | 'pending' | 'failed' | 'underpaid', read from a PayPal order. Anything unclear is 'pending', never 'failed'."""
+    try: cap = j['purchase_units'][0]['payments']['captures'][0]
+    except (KeyError, IndexError, TypeError): cap = None
+    if not cap: return 'failed' if j.get('status') == 'VOIDED' else 'pending'
+    cs = cap.get('status')
+    if cs == 'COMPLETED':
+        if j.get('status') != 'COMPLETED': return 'pending'
+        try: good = cap['amount']['currency_code'] == 'USD' and float(cap['amount']['value']) >= float(p['amount'])
+        except (KeyError, TypeError, ValueError): good = False
+        return 'paid' if good else 'underpaid'          # underpaid = money captured but not the price: needs a human (refund or grant)
+    if cs == 'PENDING': return 'pending'                # e.g. under review: PayPal may still complete it
+    return 'failed'
+
+def _pp_apply(p, state, j):
+    """Move a pending PayPal payment to its new state once. Only the update that wins credits the plan; a repeat does nothing."""
+    if state == 'pending': return
+    try: cap_id = j['purchase_units'][0]['payments']['captures'][0].get('id') or ''
+    except (KeyError, IndexError, TypeError, AttributeError): cap_id = ''
+    n = st.x("UPDATE payments SET status=?,paid_at=?,receipt=? WHERE ref=? AND status='pending'",
+             (state, int(time.time()) if state == 'paid' else None, (cap_id or p['checkout_id']) if state in ('paid', 'underpaid') else None, p['ref']), count=True)
+    if state == 'paid' and n:
+        try: activate(p['uid'], p['plan'])
+        except Exception:                                # paid but not delivered: reopen so the next check delivers it
+            st.x("UPDATE payments SET status='pending' WHERE ref=? AND status='paid'", (p['ref'],)); raise
+
+def _row(ref): return st.q('SELECT * FROM payments WHERE ref=?', (ref,), True)
 
 def paypal_capture(order_id):
-    """-> payment row (status paid/failed/pending) or None. Verifies amount and currency before crediting."""
+    """-> payment row or None. Credits only when PayPal says COMPLETED for at least the price in USD. A lost answer is re-checked with PayPal."""
     p = st.q("SELECT * FROM payments WHERE checkout_id=? AND provider='paypal'", (order_id,), True)
     if not p: return None
     if p['status'] != 'pending': return p
+    st.x('UPDATE payments SET last_check=? WHERE ref=?', (int(time.time()), p['ref']))
     try:
-        r = requests.post(f'{_pp_base()}/v2/checkout/orders/{order_id}/capture', headers={'Authorization': 'Bearer ' + _pp_token(), 'Content-Type': 'application/json'}, timeout=25)
-    except Exception as e: print('paypal capture error', e); return p            # stay pending, user can retry
+        r = requests.post(f'{_pp_base()}/v2/checkout/orders/{order_id}/capture', headers={'Authorization': 'Bearer ' + _pp_token(), 'Content-Type': 'application/json', 'PayPal-Request-Id': p['ref'] + '-cap'}, timeout=25)
+    except Exception as e: print('paypal capture error', e); return p            # stay pending, the status check retries
     if r.status_code >= 500: return p
-    ok = False
-    try:
-        j = r.json(); cap = j['purchase_units'][0]['payments']['captures'][0]
-        ok = j.get('status') == 'COMPLETED' and cap.get('status') == 'COMPLETED' and cap['amount']['currency_code'] == 'USD' and float(cap['amount']['value']) >= float(p['amount'])
-    except Exception: ok = False
-    n = st.x("UPDATE payments SET status=?,paid_at=?,receipt=? WHERE ref=? AND status='pending'", ('paid' if ok else 'failed', int(time.time()) if ok else None, order_id if ok else None, p['ref']), count=True)
-    if ok and n: activate(p['uid'], p['plan'])
-    return st.q('SELECT * FROM payments WHERE ref=?', (p['ref'],), True)
+    try: j = r.json()
+    except Exception: j = {}
+    if r.status_code >= 400:
+        issues = ' '.join(str(d.get('issue', '')) for d in (j.get('details') or []) if isinstance(d, dict))
+        if 'ORDER_ALREADY_CAPTURED' in issues:            # the first answer was lost: ask PayPal, do not guess
+            try: j = _pp_get(order_id) or {}
+            except Exception as e: print('paypal re-check failed', e); return p
+            state = _pp_state(p, j) if j else 'pending'
+        elif 'ORDER_NOT_APPROVED' in issues or 'PAYER_ACTION_REQUIRED' in issues: return p
+        else: print('paypal capture refused', r.status_code, issues or str(j)[:200]); state = 'failed'
+    else: state = _pp_state(p, j)
+    try: _pp_apply(p, state, j)
+    except Exception as e: print('paypal credit failed, will retry', p['ref'], e)
+    return _row(p['ref'])
+
+def paypal_recover(p):
+    """The browser never came back from PayPal (tab closed, signal lost). Ask PayPal: capture if approved, credit if already captured."""
+    if p['status'] != 'pending' or not p.get('checkout_id') or not paypal_ready(): return None
+    st.x('UPDATE payments SET last_check=? WHERE ref=?', (int(time.time()), p['ref']))
+    try: j = _pp_get(p['checkout_id'])
+    except Exception as e: print('paypal status check failed', e); return None
+    if not j: return None
+    if j.get('status') == 'APPROVED': return paypal_capture(p['checkout_id'])
+    try: _pp_apply(p, _pp_state(p, j), j)
+    except Exception as e: print('paypal credit failed, will retry', p['ref'], e)
+    return _row(p['ref'])
+
+def health():
+    """Setup check for the admin: which settings are wrong. Never returns a secret value."""
+    from urllib.parse import urlparse
+    from . import sbauth
+    base = _env('BASE_URL'); bad = []
+    if not st.PG: bad.append('DATABASE_URL is not set. Users, payments and plans are wiped on every redeploy.')
+    if not base.startswith('https://'): bad.append('BASE_URL must be your https Render address.')
+    if not sbauth.configured(): bad.append('SUPABASE_URL or SUPABASE_ANON_KEY is missing. Nobody can sign in.')
+    if not os.getenv('SUPABASE_SERVICE_KEY'): bad.append('SUPABASE_SERVICE_KEY is missing. Deleting an account will not remove its login.')
+    if not os.getenv('EA_KEY'): bad.append('EA_KEY is missing. The MT5 EA cannot connect.')
+    if not _env('PAYHERO_API_KEY', 'PAYHERO_USER'): bad.append('PAYHERO_API_KEY is missing. M-Pesa is off.')
+    if not _env('PAYHERO_API_SECRET', 'PAYHERO_PASS'): bad.append('PAYHERO_API_SECRET is missing. M-Pesa is off.')
+    if not _channel(): bad.append('PAYHERO_CHANNEL_ID is missing or not a number. M-Pesa is off.')
+    if not cb_secret(): bad.append('PAYHERO_CALLBACK_SECRET is missing. M-Pesa is off, because confirmations would be refused.')
+    cu = _env('CALLBACK_URL', 'PAYHERO_CALLBACK_URL').strip('"\'')
+    if cu and base and urlparse(cu).netloc != urlparse(base).netloc: bad.append('CALLBACK_URL points to a different site than BASE_URL, so payment confirmations would go there. Delete CALLBACK_URL.')
+    if _env('PAYHERO_PROVIDER').lower() not in ('', 'm-pesa', 'sasapay'): bad.append('PAYHERO_PROVIDER should be m-pesa or sasapay.')
+    if not (_env('PAYPAL_CLIENT_ID') and _env('PAYPAL_SECRET')): bad.append('PAYPAL_CLIENT_ID or PAYPAL_SECRET is missing. PayPal is off.')
+    if os.getenv('DEV_AUTH') == '1': bad.append('DEV_AUTH is on. Anyone can sign in as anyone. Remove it.')
+    return {'ok': not bad, 'problems': bad, 'database': 'postgres' if st.PG else 'temporary sqlite', 'mpesa_ready': ready(), 'paypal_ready': paypal_ready(),
+            'paypal_env': (_env('PAYPAL_ENV') or 'live').lower(), 'mpesa_provider': 'sasapay' if _env('PAYHERO_PROVIDER').lower() == 'sasapay' else 'm-pesa'}

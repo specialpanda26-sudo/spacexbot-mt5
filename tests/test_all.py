@@ -187,9 +187,90 @@ def _():
         P._pp_token = lambda: 't'
         P.requests.post = lambda *a, **k: Resp(201, {'status': 'COMPLETED', 'purchase_units': [{'payments': {'captures': [{'status': 'COMPLETED', 'amount': {'value': val, 'currency_code': cur}}]}}]})
         return P.paypal_capture(oid)['status']
-    assert run('1.00', 'USD') == 'failed' and not active()
-    assert run('4.00', 'KES') == 'failed' and not active()
+    assert run('1.00', 'USD') == 'underpaid' and not active()
+    assert run('4.00', 'KES') == 'underpaid' and not active()
     assert run('4.00', 'USD') == 'paid' and active(); P.requests.post = fake_post
+
+_REAL_GET = P.requests.get
+def pp_order(status='COMPLETED', cap='COMPLETED', val='4.00', cur='USD'):
+    return {'status': status, 'purchase_units': [{'payments': {'captures': [{'id': 'CAP1', 'status': cap, 'amount': {'value': val, 'currency_code': cur}}]}}]}
+def pp_row():
+    ref = P._new('dev-joe@x.com', 'paypal', 'p1', 4, 'USD'); oid = 'ORD' + ref; st.x('UPDATE payments SET checkout_id=? WHERE ref=?', (oid, ref)); return ref, oid
+def pstatus(ref): return st.q('SELECT status FROM payments WHERE ref=?', (ref,), True)['status']
+def prow(ref): return st.q('SELECT * FROM payments WHERE ref=?', (ref,), True)
+
+@T('pay: M-Pesa stays off until the callback is fully set up')
+def _():
+    assert P.ready()
+    sec = os.environ.pop('PAYHERO_CALLBACK_SECRET')
+    try: assert not P.ready()
+    finally: os.environ['PAYHERO_CALLBACK_SECRET'] = sec
+    base = os.environ.pop('BASE_URL')
+    try: assert not P.ready()
+    finally: os.environ['BASE_URL'] = base
+    os.environ['CALLBACK_URL'] = '"https://other.example/api/webhooks/payhero?s=x"'
+    try:
+        assert P._cb_url() == 'https://other.example/api/webhooks/payhero?s=x'
+        assert any('CALLBACK_URL' in x for x in P.health()['problems'])
+    finally: del os.environ['CALLBACK_URL']
+@T('paypal: a lost first answer (already captured) is verified with PayPal, not marked failed')
+def _():
+    st.x('UPDATE users SET plan_until=0'); ref, oid = pp_row(); P._pp_token = lambda: 't'
+    P.requests.post = lambda *a, **k: Resp(422, {'details': [{'issue': 'ORDER_ALREADY_CAPTURED'}]})
+    P.requests.get = lambda *a, **k: Resp(200, pp_order())
+    try: assert P.paypal_capture(oid)['status'] == 'paid' and active()
+    finally: P.requests.post = fake_post; P.requests.get = _REAL_GET
+@T('paypal: not approved yet or money still pending stays pending; a decline fails')
+def _():
+    ref, oid = pp_row(); P._pp_token = lambda: 't'
+    try:
+        P.requests.post = lambda *a, **k: Resp(422, {'details': [{'issue': 'ORDER_NOT_APPROVED'}]}); assert P.paypal_capture(oid)['status'] == 'pending'
+        P.requests.post = lambda *a, **k: Resp(201, pp_order('COMPLETED', 'PENDING')); assert P.paypal_capture(oid)['status'] == 'pending'
+        P.requests.post = lambda *a, **k: Resp(503, {}); assert P.paypal_capture(oid)['status'] == 'pending'
+        P.requests.post = lambda *a, **k: Resp(422, {'details': [{'issue': 'INSTRUMENT_DECLINED'}]}); assert P.paypal_capture(oid)['status'] == 'failed'
+    finally: P.requests.post = fake_post
+@T('paypal: an approved order whose browser never came back is captured by the status check')
+def _():
+    st.x('UPDATE users SET plan_until=0'); os.environ.update(PAYPAL_CLIENT_ID='i', PAYPAL_SECRET='s'); P._pp_token = lambda: 't'
+    try:
+        ref, oid = pp_row()
+        P.requests.get = lambda *a, **k: Resp(200, {'status': 'APPROVED'}); P.requests.post = lambda *a, **k: Resp(201, pp_order())
+        P.paypal_recover(prow(ref)); assert pstatus(ref) == 'paid' and active()
+        ref2, oid2 = pp_row(); P.requests.get = lambda *a, **k: Resp(200, {'status': 'CREATED'})
+        P.paypal_recover(prow(ref2)); assert pstatus(ref2) == 'pending'
+    finally:
+        del os.environ['PAYPAL_CLIENT_ID'], os.environ['PAYPAL_SECRET']; P.requests.post = fake_post; P.requests.get = _REAL_GET
+@T('paypal: reconcile expires orders nobody approved')
+def _():
+    ref, oid = pp_row(); st.x('UPDATE payments SET created=? WHERE ref=?', (int(time.time()) - 5 * 3600, ref))
+    P.reconcile(); assert pstatus(ref) == 'expired'
+@T('paypal: create says "not set up" when keys are missing, returns the link when set, marks a refused order failed')
+def _():
+    r = C.post('/api/pay/paypal', json={'plan': 'p1'}, headers=U); assert r.status_code == 503 and 'not set up' in r.json['error']
+    os.environ.update(PAYPAL_CLIENT_ID='i', PAYPAL_SECRET='s'); P._pp_token = lambda: 't'
+    try:
+        P.requests.post = lambda *a, **k: Resp(201, {'id': 'O1', 'links': [{'rel': 'approve', 'href': 'https://pp/approve'}]})
+        r = C.post('/api/pay/paypal', json={'plan': 'p1'}, headers=U); assert r.status_code == 200 and r.json['url'] == 'https://pp/approve'
+        assert prow(r.json['ref'])['checkout_id'] == 'O1'
+        P.requests.post = lambda *a, **k: Resp(400, {'name': 'INVALID_REQUEST'})
+        r = C.post('/api/pay/paypal', json={'plan': 'p1'}, headers=U); assert r.status_code == 503
+        assert st.q('SELECT status FROM payments ORDER BY created DESC,rowid DESC LIMIT 1', one=True)['status'] == 'failed'
+    finally:
+        del os.environ['PAYPAL_CLIENT_ID'], os.environ['PAYPAL_SECRET']; P.requests.post = fake_post
+@T('paypal: the return page redirects with the real result and the payment ref')
+def _():
+    st.x('UPDATE users SET plan_until=0'); ref, oid = pp_row(); P._pp_token = lambda: 't'
+    P.requests.post = lambda *a, **k: Resp(201, pp_order())
+    try: loc = C.get('/api/pay/paypal/return?token=' + oid).headers['Location']; assert 'paid=ok' in loc and ref in loc
+    finally: P.requests.post = fake_post
+@T('admin health: admin only, lists problems, never shows a secret value')
+def _():
+    assert C.get('/api/admin/health', headers=U).status_code == 403
+    os.environ['PAYHERO_API_SECRET'] = 'ZZSECRETVALUE9'
+    try:
+        r = C.get('/api/admin/health', headers=A); assert r.status_code == 200
+        assert 'ZZSECRETVALUE9' not in json.dumps(r.json) and any('DATABASE_URL' in x for x in r.json['problems']) and r.json['mpesa_ready'] is True
+    finally: os.environ['PAYHERO_API_SECRET'] = 'b'
 
 # ---------- API ----------
 @T('api: plans, admin edit, grant, gating')

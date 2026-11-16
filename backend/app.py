@@ -167,6 +167,10 @@ def admin_grant(u):
     pay.activate(r['uid'], None, days); return jsonify(ok=True)
 
 # ---------------- payments ----------------
+@app.get('/api/admin/health')
+@need(admin=True)
+def admin_health(u): return jsonify(pay.health())
+
 @app.get('/api/plans')
 def plans(): return jsonify(pay.plans())
 
@@ -195,12 +199,15 @@ def p_cb():
 def p_pp(u):
     try: ref, url = pay.paypal_create(u['uid'], (request.json or {}).get('plan')); return jsonify(ref=ref, url=url)
     except ValueError as e: return jsonify(error=str(e)), 400
+    except RuntimeError as e: return jsonify(error=str(e)), 503
     except Exception as e: print('paypal create failed', e); return jsonify(error='PayPal is unavailable right now'), 502
 
 @app.get('/api/pay/paypal/return')
 def p_pp_ret():
-    p = pay.paypal_capture(request.args.get('token', ''))
-    return redirect('/?paid=' + ('ok' if p and p['status'] == 'paid' else 'fail'))
+    try: p = pay.paypal_capture(request.args.get('token', ''))
+    except Exception as e: print('paypal return failed', e); p = None
+    s = p['status'] if p else ''
+    return redirect('/?paid=' + ('ok' if s == 'paid' else 'wait' if s == 'pending' else 'fail') + ('&ref=' + p['ref'] if p else ''))
 
 @app.get('/api/pay/status')
 @need()
@@ -208,8 +215,8 @@ def p_status(u):
     p = st.q('SELECT * FROM payments WHERE ref=? AND uid=?', (request.args.get('ref'), u['uid']), True)
     if not p: return jsonify(status='unknown')
     # webhook missed or slow? ask the gateway at most every 15s
-    if p['status'] == 'pending' and p['provider'] == 'finoq' and p['checkout_id'] and time.time() - (p['last_check'] or 0) > 15 and time.time() - p['created'] > 10:
-        try: pay.check_status(p)
+    if p['status'] == 'pending' and p['checkout_id'] and time.time() - (p['last_check'] or 0) > 15 and time.time() - p['created'] > 10:
+        try: (pay.check_status if p['provider'] == 'finoq' else pay.paypal_recover)(p)
         except Exception as e: print('status check failed', e)
         p = st.q('SELECT * FROM payments WHERE ref=?', (p['ref'],), True)
     return jsonify(status=p['status'], plan=p['plan'], amount=p['amount'], currency=p['currency'], receipt=p['receipt'], reason=p['extra'] if p['status'] == 'failed' else None)
