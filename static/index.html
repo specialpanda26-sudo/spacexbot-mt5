@@ -1,0 +1,62 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>spaceXBot MT5</title>
+<style>
+:root{--bg:#0b0f17;--card:#141b29;--tx:#e8edf5;--mut:#8a97ad;--ok:#22c55e;--bad:#ef4444;--acc:#6366f1;--bd:#243049}
+@media(prefers-color-scheme:light){:root{--bg:#f4f6fa;--card:#fff;--tx:#111827;--mut:#6b7280;--bd:#e5e7eb}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px system-ui,sans-serif;padding:env(safe-area-inset-top) 14px calc(env(safe-area-inset-bottom) + 20px)}
+.w{max-width:560px;margin:0 auto}h1{font-size:20px;margin:16px 0 4px}.m{color:var(--mut);font-size:13px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin:12px 0}
+button,input{font:inherit;border-radius:10px;border:1px solid var(--bd);padding:10px 12px;background:var(--bg);color:var(--tx)}
+button{background:var(--acc);border:0;color:#fff;font-weight:600;cursor:pointer}button.g{background:transparent;border:1px solid var(--bd);color:var(--tx)}
+.r{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.s{padding:8px 0;border-top:1px solid var(--bd);display:flex;justify-content:space-between;gap:8px}
+.b{color:var(--ok)}.x{color:var(--bad)}.dot{display:inline-block;width:9px;height:9px;border-radius:9px;background:var(--bad);margin-right:6px}.dot.on{background:var(--ok)}
+</style></head><body><div class="w" id="app"></div>
+<script src="/config.js"></script>
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {getMessaging,getToken} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js';
+const app=initializeApp(SXB.fb),auth=getAuth(app),root=document.getElementById('app');
+const h=(t,p={},...k)=>{const e=document.createElement(t);for(const a in p)a.startsWith('on')?e.addEventListener(a.slice(2),p[a]):a=='class'?e.className=p[a]:e.setAttribute(a,p[a]);k.flat().forEach(x=>e.append(x??''));return e};
+const api=async(p,b)=>{const t=await auth.currentUser.getIdToken();const r=await fetch('/api'+p,{method:b?'POST':'GET',headers:{Authorization:'Bearer '+t,'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});return{s:r.status,j:await r.json().catch(()=>({}))}};
+let timer;
+onAuthStateChanged(auth,u=>{clearInterval(timer);if(!u)return login();draw();timer=setInterval(draw,10000)});
+function login(){root.replaceChildren(h('h1',{},'spaceXBot MT5'),h('p',{class:'m'},'Signals + auto-trading bridge for MetaTrader 5.'),
+ h('button',{onclick:()=>signInWithPopup(auth,new GoogleAuthProvider())},'Sign in with Google'))}
+async function draw(){
+ const me=(await api('/me')).j,sig=me.active?(await api('/signals')).j:[],gt=me.active?(await api('/status')).j:null,sx=me.active?(await api('/stats')).j:null,ps=new URLSearchParams(location.search).get('paid');
+ const top=h('div',{class:'r',style:'justify-content:space-between'},h('div',{},h('h1',{},'spaceXBot MT5'),h('div',{class:'m'},me.email,me.admin?' · admin':'')),h('button',{class:'g',onclick:()=>signOut(auth)},'Sign out'));
+ const cards=[top];
+ if(ps)cards.push(h('div',{class:'c'},ps=='ok'?'Payment received. Plan active.':'Payment not completed.'));
+ if(me.active){
+  const t=me.today||{};
+  cards.push(h('div',{class:'c'},h('div',{},h('span',{class:'dot'+(me.ea_online?' on':'')}),me.ea_online?'MT5 connected':'MT5 offline'),
+   h('div',{class:'m'},'Bot '+(me.bot?'ON':'OFF')+' · today '+(t.n||0)+' signals · P/L '+(+(t.pnl||0)).toFixed(2)),
+   me.plan_until&&!me.admin?h('div',{class:'m'},'Plan until '+new Date(me.plan_until*1e3).toLocaleDateString()):''));
+  if(me.admin){const s=me.settings,ri=h('input',{type:'number',step:'0.1',value:s.risk_pct,style:'width:90px'});
+   cards.push(h('div',{class:'c'},h('div',{class:'r'},h('button',{onclick:async()=>{await api('/admin/settings',{bot_enabled:me.bot?0:1});draw()}},me.bot?'Turn bot OFF':'Turn bot ON'),
+    h('span',{class:'m'},'risk % / trade'),ri,h('button',{class:'g',onclick:async()=>{await api('/admin/settings',{risk_pct:ri.value});draw()}},'Save')),
+    h('div',{class:'m',style:'margin-top:8px'},'Max open '+s.max_open+' · max/day '+s.max_trades_day+' · daily loss stop '+s.max_daily_loss_pct+'% · confluence '+s.min_confluence)))}
+  if(gt&&gt.bot!==undefined){const nx=gt.news_next;cards.push(h('div',{class:'c'},h('b',{},'Safety gates'),
+   h('div',{class:'m'},(gt.can_trade?'Clear to trade':'Not trading: '+gt.why)),
+   h('div',{class:'m'},'Daily loss '+gt.day_loss_pct+'% of '+gt.day_loss_limit+'% · open '+gt.open+'/'+gt.max_open),
+   h('div',{class:'m'},gt.news_lock?(gt.news_loaded?(nx?'Next high-impact news: '+nx.ccy+' '+nx.title+' in '+nx.in_min+' min':'No high-impact news left this week'):'News feed not loaded yet'):'News lock off')))}
+  if(sx&&sx.summary&&sx.summary.trades)cards.push(h('div',{class:'c'},h('b',{},'Results'),h('div',{class:'m'},sx.summary.trades+' trades · win '+sx.summary.win_rate+'% · net '+sx.summary.net+' · max drawdown '+sx.summary.max_drawdown),
+   Object.entries(sx.by_strategy).map(([k,v])=>h('div',{class:'s'},h('span',{},k),h('span',{class:'m'},v.n+' trades · '+v.win_rate+'% · '+v.pnl)))));
+  cards.push(h('div',{class:'c'},h('b',{},'Signals'),sig.length?sig.map(x=>h('div',{class:'s'},h('span',{class:x.side=='buy'?'b':'x'},x.side.toUpperCase()+' '+x.symbol),
+   h('span',{class:'m'},x.entry+' · SL '+x.sl+' · TP '+x.tp+' · '+x.status+(x.pnl!=null?' · '+x.pnl:'')))):h('div',{class:'m'},'No signals yet.')));
+ }
+ if(!me.admin){const ph=h('input',{placeholder:'07XXXXXXXX',inputmode:'tel'}),pl=h('select',{},SXB.plans.map(v=>h('option',{value:v.id},v.name+' — KES '+v.kes+' / $'+v.usd)));pl.style.cssText='padding:10px;border-radius:10px';
+  const msg=h('div',{class:'m',style:'margin-top:8px'});
+  const poll=async ref=>{for(let i=0;i<40;i++){await new Promise(r=>setTimeout(r,3000));const s=(await api('/pay/status?ref='+ref)).j;
+    if(s.status=='paid'){msg.textContent='Payment received. Plan active.';return draw()}
+    if(['failed','expired','underpaid'].includes(s.status)){msg.textContent='Payment '+s.status+(s.reason?' ('+s.reason+')':'')+'.';return}}msg.textContent='Still waiting. If you paid, it will activate shortly.'};
+  cards.push(h('div',{class:'c'},h('b',{},me.active?'Extend plan':'Get access'),h('div',{class:'r',style:'margin:10px 0'},pl),
+   h('div',{class:'r'},ph,h('button',{onclick:async()=>{msg.textContent='Sending prompt...';const r=await api('/pay/mpesa',{plan:pl.value,phone:ph.value});msg.textContent=r.j.msg||r.j.error;if(r.j.ref)poll(r.j.ref)}},'Pay M-Pesa')),
+   h('div',{class:'r',style:'margin-top:8px'},h('button',{class:'g',onclick:async()=>{const r=await api('/pay/paypal',{plan:pl.value});r.j.url?location=r.j.url:alert(r.j.error)}},'PayPal')),msg))}
+ cards.push(h('div',{class:'c'},h('button',{class:'g',onclick:push},'Enable push notifications')));
+ root.replaceChildren(...cards)}
+async function push(){try{if(await Notification.requestPermission()!='granted')return alert('Notifications blocked');
+ const reg=await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+ const tok=await getToken(getMessaging(app),{vapidKey:SXB.vapid,serviceWorkerRegistration:reg});await api('/me/fcm',{token:tok});alert('Notifications on')}catch(e){alert('Push failed: '+e.message)}}
+</script></body></html>
