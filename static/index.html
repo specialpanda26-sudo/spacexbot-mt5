@@ -1318,21 +1318,51 @@ function slot(){landing();var a=$("#authSlot");if(!a)return;
 var BK='<button class="icon-btn x" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>';
 var RS={email:"",code:"",tries:0},rsw=function(f,ms){return new Promise(function(r){setTimeout(function(){r(f())},ms)})};
 function rsBusy(b,t){b.dataset.t=b.textContent;b.disabled=true;b.textContent=t}
-function rsCd(b){var t=30;b.disabled=true;b.textContent="Resend code in 30s";var iv=setInterval(function(){if(!document.body.contains(b)){clearInterval(iv);return}t--;if(t<=0){clearInterval(iv);b.disabled=false;b.textContent="Resend code"}else b.textContent="Resend code in "+t+"s"},1000)}
+function rsCd(b){var t=60;b.disabled=true;b.textContent="Resend code in 60s";var iv=setInterval(function(){if(!document.body.contains(b)){clearInterval(iv);return}t--;if(t<=0){clearInterval(iv);b.disabled=false;b.textContent="Resend code"}else b.textContent="Resend code in "+t+"s"},1000)}
 function pwScore(p){var s=0;if(p.length>=8)s++;if(p.length>=12)s++;if(/[a-z]/.test(p)&&/[A-Z]/.test(p))s++;if(/\d/.test(p)&&/[^A-Za-z0-9]/.test(p))s++;return s}
 var PWH="Use 8+ characters. Mix letters, numbers and symbols.",PWL=["Too weak","Weak","Okay","Good","Strong"];
 function pwMeter(id){return'<div class="pwm" id="'+id+'M" data-s="0" aria-hidden="true"><i></i><i></i><i></i><i></i></div><p class="note" id="'+id+'T">'+PWH+'</p>'}
 function pwBind(inp,id){inp.addEventListener("input",function(){var s=pwScore(inp.value);$("#"+id+"M").dataset.s=inp.value?Math.max(s,1):0;$("#"+id+"T").textContent=inp.value?PWL[s]+(s<2?". Add length and mixed case.":"."):PWH})}
+function otpHtml(id){return'<div class="otp" id="'+id+'">'+[0,1,2,3,4,5].map(function(i){return'<input class="ob" inputmode="numeric" autocomplete="'+(i?"off":"one-time-code")+'" aria-label="Digit '+(i+1)+'" placeholder=" ">'}).join("")+'</div>'}
+function otpBind(id,done){var box=$("#"+id),bx=$$("#"+id+" input");
+ function val(){return bx.map(function(i){return i.value}).join("")}
+ function fill(from,s){s.split("").slice(0,6-from).forEach(function(c,k){bx[from+k].value=c});bx[Math.min(from+s.length,5)].focus();if(val().length===6)done(val())}
+ bx.forEach(function(b,i){
+  b.onfocus=function(){b.select()};
+  b.oninput=function(){var s=b.value.replace(/\D/g,"");b.value="";if(s)fill(i,s)};
+  b.onkeydown=function(e){if(e.key==="Backspace"&&!b.value&&bx[i-1]){bx[i-1].focus();bx[i-1].value="";e.preventDefault()}else if(e.key==="ArrowLeft"&&bx[i-1]){bx[i-1].focus()}else if(e.key==="ArrowRight"&&bx[i+1]){bx[i+1].focus()}else if(e.key==="Enter"&&val().length===6)done(val())};
+  b.onpaste=function(e){var t=(e.clipboardData||window.clipboardData).getData("text").replace(/\D/g,"").slice(0,6);if(!t)return;e.preventDefault();bx.forEach(function(x){x.value=""});fill(0,t)}});
+ return{box:box,bx:bx,val:val,
+  lock:function(on){bx.forEach(function(i){i.disabled=on})},
+  reset:function(){bx.forEach(function(i){i.value="";i.disabled=false});bx[0].focus()},
+  shake:function(){box.classList.remove("bad");void box.offsetWidth;box.classList.add("bad")}}}
 function forgot(pre){
- ov(BK+BR+IL2.mail+'<h2>Forgot your password?</h2><p class="muted" style="text-align:center">Enter your email. We will email you a 6-digit code to set a new one.</p><div class="field"><label for="fE">Email</label><input class="inp" id="fE" type="email" autocomplete="email" inputmode="email" placeholder="you@email.com"></div><p class="err" id="fErr" role="alert"></p><button class="btn primary big block" id="fGo">Send code</button><p class="note" style="text-align:center"><button class="lnk" data-auth="login">Back to log in</button></p>',1);
- $(".x",ovEl).onclick=function(){auth("login")};var i=$("#fE");i.value=pre||"";
- function sent(e){ov(BK+BR+IL2.phone+'<h2>Check your email</h2><p class="muted" style="text-align:center">If an account exists for <b>'+esc(e)+'</b>, a 6-digit code is on its way. Enter it with a new password.</p><div class="field"><label for="rC">Code</label><input class="inp" id="rC" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456"></div><div class="field"><label for="rP">New password</label><input class="inp" id="rP" type="password" autocomplete="new-password" placeholder="8+ characters"></div><p class="err" id="rE" role="alert"></p><button class="btn primary big block" id="rGo">Set new password</button><p class="note" style="text-align:center"><button class="lnk" id="rL">Back to log in</button></p>',1);
-  $(".x",ovEl).onclick=function(){forgot(e)};$("#rL").onclick=function(){auth("login");var m=$("#aE");if(m)m.value=e};
-  $("#rGo").onclick=function(){var c=$("#rC").value.replace(/\D/g,""),p=$("#rP").value,b=this;if(c.length<6)return $("#rE").textContent="Enter the 6-digit code.";if(p.length<8)return $("#rE").textContent="Password needs 8 or more characters.";rsBusy(b,"Saving");
-   SXA.resetWithCode(e,c,p).then(function(m){U=m;slot();tst("Password updated");if(!m.dob){about();return}sxGo("#home")}).catch(function(x){b.disabled=false;b.textContent=b.dataset.t;$("#rE").textContent=SXA.err(x)})}}
- function go(){var e=i.value.trim();if(!/^\S+@\S+\.\S+$/.test(e))return $("#fErr").textContent="Enter the email you signed up with.";var b=$("#fGo");rsBusy(b,"Sending");
-  SXA.resetPassword(e).then(function(){sent(e)},function(x){b.disabled=false;b.textContent=b.dataset.t;$("#fErr").textContent=SXA.err(x)})}
- $("#fGo").onclick=go;i.onkeydown=function(ev){if(ev.key==="Enter")go()}}
+ function s1(){
+  ov(BK+BR+IL2.mail+'<h2>Forgot your password?</h2><p class="muted" style="text-align:center">Enter your email. We will send a 6-digit code so you can choose a new password.</p><div class="field"><label for="fE">Email</label><input class="inp" id="fE" type="email" autocomplete="email" inputmode="email" placeholder="you@email.com"></div><p class="err" id="fErr" role="alert"></p><button class="btn primary big block" id="fGo">Send code</button><p class="note" style="text-align:center"><button class="lnk" data-auth="login">Back to log in</button></p>',1);
+  $(".x",ovEl).onclick=function(){auth("login")};var i=$("#fE");i.value=pre||RS.email||"";
+  function go(){var e=i.value.trim();if(!/^\S+@\S+\.\S+$/.test(e))return $("#fErr").textContent="Enter the email you signed up with.";var b=$("#fGo");rsBusy(b,"Sending");
+   SXA.resetPassword(e).then(function(){RS.email=e;s2()},function(x){b.disabled=false;b.textContent=b.dataset.t;$("#fErr").textContent=SXA.err(x)})}
+  $("#fGo").onclick=go;i.onkeydown=function(ev){if(ev.key==="Enter")go()}}
+ function s2(){
+  var m=RS.email.replace(/^(.).*(@.*)$/,"$1***$2");
+  ov(BK+BR+IL2.phone+'<h2>Check your email</h2><p class="muted" style="text-align:center">If an account exists for <b>'+esc(m)+'</b>, a 6-digit code is on its way.</p>'+otpHtml("fO")+'<p class="err" id="fErr" role="alert"></p><button class="btn primary big block" id="fV">Verify code</button><p class="note" style="text-align:center"><button class="lnk" id="fR"></button> · <button class="lnk" id="fC">Change email</button></p><p class="note" style="text-align:center">Nothing yet? Look in your spam folder.</p>',1);
+  $(".x",ovEl).onclick=s1;$("#fC").onclick=s1;var rb=$("#fR"),o;rsCd(rb);
+  function chk(c){var b=$("#fV");if(b.disabled)return;rsBusy(b,"Checking");o.lock(true);$("#fErr").textContent="";
+   SXA.resetVerify(RS.email,c).then(s3).catch(function(x){b.disabled=false;b.textContent=b.dataset.t;o.reset();o.shake();$("#fErr").textContent=SXA.err(x)})}
+  o=otpBind("fO",chk);
+  rb.onclick=function(){rb.disabled=true;rb.textContent="Sending";SXA.resetPassword(RS.email).then(function(){$("#fErr").textContent="";o.reset();rsCd(rb)}).catch(function(x){rb.disabled=false;rb.textContent="Resend code";$("#fErr").textContent=SXA.err(x)})};
+  $("#fV").onclick=function(){var c=o.val();if(c.length<6)return $("#fErr").textContent="Enter all 6 digits.";chk(c)}}
+ function s3(){
+  ov(BK+BR+'<svg class="ill sec-ill" viewBox="0 0 160 120" aria-hidden="true" style="margin:18px auto 0;width:140px"><use href="#ill-lock"/></svg><h2>Choose a new password</h2><div class="field"><label for="nP">New password</label><input class="inp" id="nP" type="password" autocomplete="new-password" placeholder="8+ characters"></div>'+pwMeter("nm")+'<div class="field"><label for="nR">Confirm password</label><input class="inp" id="nR" type="password" autocomplete="new-password" placeholder="Type it again"></div><label class="ck"><input type="checkbox" id="nS"> Show passwords</label><p class="err" id="fErr" role="alert"></p><button class="btn primary big block" id="nGo">Save new password</button>',1);
+  $(".x",ovEl).onclick=function(){SXA.resetAbort();auth("login")};var a=$("#nP"),b=$("#nR");pwBind(a,"nm");
+  $("#nS").onchange=function(){a.type=b.type=this.checked?"text":"password"};
+  function go(){var er=$("#fErr");if(a.value.length<8)return er.textContent="Password needs 8 or more characters.";if(a.value!==b.value)return er.textContent="Passwords do not match.";er.textContent="";var g=$("#nGo");rsBusy(g,"Saving");
+   SXA.resetSave(a.value).then(function(m){U=m;slot();s4()}).catch(function(x){g.disabled=false;g.textContent=g.dataset.t;er.textContent=SXA.err(x)})}
+  $("#nGo").onclick=go;[a,b].forEach(function(i){i.onkeydown=function(e){if(e.key==="Enter")go()}})}
+ function s4(){
+  ov(IL2.ok+'<h2>Password updated</h2><p class="muted" style="text-align:center">You are signed in with your new password.</p><button class="btn primary big block" id="fL">Continue</button>',1);$(".panel",ovEl).classList.add("pop");
+  $("#fL").onclick=function(){RS.email="";if(!U.dob){about();return}tst("Password updated");sxGo("#home")}}
+ s1()}
 
 var PK="sxb_prof",PF=LS(PK)||{},AVC=["--green-soft","--sky-soft","--sun-soft","--berry-soft","--surface2","--sky"],AVN=["Mint","Sky","Sun","Berry","Cloud","Ocean"];
 function pfSv(){if(!U)return;U.prof=PF;SXA.save(Object.assign({name:U.name},PF)).then(function(m){U=m;PF=m.prof}).catch(function(x){tst(SXA.err(x))})}
@@ -1564,13 +1594,14 @@ function about(){var wd,wm,wy,dn=0,g="",last="";
   SXA.save({dob:dob,gender:g}).then(function(m){U=m;slot();if(m.verified)welcome();else verify()}).catch(function(x){wb.classList.remove("ld");wb.style.minWidth=wb.style.minHeight="";wb.textContent="Continue";$("#wE").textContent=SXA.err(x)})}}
 function verify(em){
  var pe=em||(U&&U.email)||"";
- ov(XB+BR+IL2.phone+'<h2>Check your email</h2><p class="muted" style="text-align:center">We sent a 6-digit code to <b>'+esc(pe)+'</b>. Enter it below.</p><div class="field"><label for="vC">Code</label><input class="inp" id="vC" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456" style="text-align:center;letter-spacing:6px;font-size:22px"></div><p class="err" id="vE" role="alert"></p><button class="btn primary big block" id="vGo">Verify</button><button class="btn block" id="vR">Resend code</button><p class="note" style="text-align:center">Nothing yet? Look in your spam folder.</p>');
- $(".x",ovEl).onclick=closeOv;
- function rst(g){g.classList.remove("ld");g.style.minWidth=g.style.minHeight="";g.textContent="Verify"}
- function go(){var c=$("#vC").value.replace(/\D/g,""),g=$("#vGo");if(c.length<6)return $("#vE").textContent="Enter the 6-digit code from your email.";$("#vE").textContent="";dots(g);
-  SXA.verifyCode(pe,c).then(function(m){U=m;slot();window.dispatchEvent(new Event("sx-newuser"));if(!m.dob)about();else okPage()}).catch(function(x){rst(g);$("#vE").textContent=SXA.err(x)})}
- $("#vGo").onclick=go;$("#vC").onkeydown=function(e){if(e.key==="Enter")go()};
- $("#vR").onclick=function(){var b=this;b.disabled=true;SXA.resendCode(pe).then(function(){var t=30;b.textContent="Sent. Resend in 30s";var iv=setInterval(function(){t--;if(!document.body.contains(b)||t<=0){clearInterval(iv);b.disabled=false;b.textContent="Resend code"}else b.textContent="Sent. Resend in "+t+"s"},1000)}).catch(function(x){b.disabled=false;$("#vE").textContent=SXA.err(x)})}}
+ ov(XB+BR+IL2.phone+'<h2>Check your email</h2><p class="muted" style="text-align:center">We sent a 6-digit code to <b>'+esc(pe)+'</b>.</p>'+otpHtml("vO")+'<p class="err" id="vE" role="alert"></p><button class="btn primary big block" id="vGo">Verify email</button><p class="note" style="text-align:center"><button class="lnk" id="vR"></button></p><p class="note" style="text-align:center">Nothing yet? Look in your spam folder.</p>',1);
+ $(".x",ovEl).onclick=closeOv;var rb=$("#vR"),o;rsCd(rb);
+ function rst(g){g.classList.remove("ld");g.style.minWidth=g.style.minHeight="";g.textContent="Verify email"}
+ function go(c){var g=$("#vGo");if(g.classList.contains("ld"))return;$("#vE").textContent="";o.lock(true);dots(g);
+  SXA.verifyCode(pe,c).then(function(m){U=m;slot();window.dispatchEvent(new Event("sx-newuser"));if(!m.dob)about();else okPage()}).catch(function(x){rst(g);o.reset();o.shake();$("#vE").textContent=SXA.err(x)})}
+ o=otpBind("vO",go);
+ $("#vGo").onclick=function(){var c=o.val();if(c.length<6)return $("#vE").textContent="Enter all 6 digits.";go(c)};
+ rb.onclick=function(){rb.disabled=true;rb.textContent="Sending";SXA.resendCode(pe).then(function(){$("#vE").textContent="";o.reset();rsCd(rb)}).catch(function(x){rb.disabled=false;rb.textContent="Resend code";$("#vE").textContent=SXA.err(x)})}}
 function okPage(){ov(IL2.ok+'<h2>Email verified</h2><p class="muted" style="text-align:center">Nice one, <b>'+esc(U.name)+'</b>. Your account is ready.</p><span class="dots" style="justify-self:center;color:var(--green)"><i></i><i></i><i></i></span>',1);$(".panel",ovEl).classList.add("pop");setTimeout(welcome,2300)}
 function welcome(){var n=esc((U.name||"").split(" ")[0]);ov(IL2.rocket+'<h2>Welcome aboard, '+n+'!</h2><p class="muted" style="text-align:center">spaceXBot watches the market for you while you stay in charge.</p><ul class="wl"><li style="--i:0"><i>'+TK+'</i>Practice safely in demo mode</li><li style="--i:1"><i>'+TK+'</i>Every trade passes your safety rules</li><li style="--i:2"><i>'+TK+'</i>Subscribe now or whenever you are ready</li></ul><button class="btn primary big block" id="wGo">Let\'s go</button>',1);$(".panel",ovEl).classList.add("pop");$("#wGo").onclick=function(){dots(this);setTimeout(function(){plans(1)},500)}}
 function payPg(p,m,first,n){var k=m==="mpesa",P=$(".panel",ovEl),T=[],amt=k?"KES "+p.kes:"$"+p.usd,mask=n?"0"+n.slice(3,5)+" ••• "+n.slice(-3):"";

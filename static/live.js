@@ -1,7 +1,7 @@
 /* spaceXBot web client. Supabase handles sign-in (Google, or email + 6-digit code); the server decides who you are and what you may do. */
 (function () {
   "use strict";
-  var cfg = (window.SXB && window.SXB.sb) || {}, ok = !!(cfg.url && cfg.key && window.supabase), S = null, ME = null, sink = null, done = false, first = true, PEND = null, lastUid = null;
+  var cfg = (window.SXB && window.SXB.sb) || {}, ok = !!(cfg.url && cfg.key && window.supabase), S = null, ME = null, sink = null, done = false, first = true, PEND = null, lastUid = null, HOLD = false;
 
   function norm(j) {
     return { uid: j.uid, name: j.name || (j.email || "").split("@")[0], email: j.email || "", verified: !!j.verified, admin: !!j.admin, active: !!j.active,
@@ -21,7 +21,7 @@
     });
   }
   function load() { return api("/api/me").then(function (j) { ME = norm(j); lastUid = ME.uid; return ME; }); }
-  function fire() { if (sink) sink(ME, first); }
+  function fire() { if (sink && !HOLD) sink(ME, first); }
   function need() { if (!ok) return Promise.reject(Object.assign(new Error("Sign-in is not set up on this server yet."), { code: "sxb/config" })); return null; }
   function chk(r) { if (r.error) throw r.error; return r.data; }
 
@@ -91,10 +91,18 @@
     },
     signOut: function () { ME = null; lastUid = null; return S ? S.auth.signOut() : Promise.resolve(); },
     resetPassword: function (email) { var n = need(); return n || S.auth.resetPasswordForEmail(email).then(chk); },
-    resetWithCode: function (email, code, pw) {
+    /* Reset runs in two steps so the code squares and the new-password screen can be separate pages.
+       Between the steps the page is "held": the recovery sign-in must not push the app behind the overlay to #home. */
+    resetVerify: function (email, code) {
       var n = need(); if (n) return n;
-      return S.auth.verifyOtp({ email: email, token: code, type: "recovery" }).then(chk).then(function () { return S.auth.updateUser({ password: pw }); }).then(chk).then(load);
+      HOLD = true;
+      return S.auth.verifyOtp({ email: email, token: code, type: "recovery" }).then(chk).then(function () { return true; }).catch(function (e) { HOLD = false; throw e; });
     },
+    resetSave: function (pw) {
+      var n = need(); if (n) return n;
+      return S.auth.updateUser({ password: pw }).then(chk).then(load).then(function (m) { HOLD = false; fire(); return m; });
+    },
+    resetAbort: function () { HOLD = false; ME = null; lastUid = null; return S ? S.auth.signOut().catch(function () {}) : Promise.resolve(); },
     resendVerification: function () { return ME ? Promise.resolve() : Promise.reject(new Error("Log in first.")); },
     checkVerified: function () { return Promise.resolve(!!(ME && ME.verified)); },
     save: function (o) { return api("/api/me/profile", { method: "POST", body: o }).then(load); },
