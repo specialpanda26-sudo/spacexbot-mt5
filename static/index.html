@@ -906,6 +906,7 @@ try{var sv=JSON.parse(localStorage.getItem("sxb2")||"null");if(sv){for(var k in 
 if(typeof sv!=="undefined"&&sv&&sv.onboarded===undefined)S.onboarded=true;
 if(S.theme!=="light")S.theme="dark";
 function save(){try{localStorage.setItem("sxb2",JSON.stringify(S))}catch(e){}}
+window.sxSetOnb=function(v){if(S.onboarded!==v){S.onboarded=v;save()}};
 var toastT;function toast(t){var el=$("#toast");el.textContent=t;el.hidden=false;el.style.animation="none";void el.offsetWidth;el.style.animation="";clearTimeout(toastT);toastT=setTimeout(function(){el.hidden=true},2300)}
 
 /* ---------- sample data ---------- */
@@ -1311,7 +1312,7 @@ function intro(){
  '<div class="gbot"><button class="btn primary big block" data-auth="signup">Get started</button><button class="btn big block ghost" data-auth="login">Log in</button></div></div>';
  ovEl.hidden=false;void ovEl.offsetWidth;ovEl.classList.add("open");$(".x",ovEl).onclick=closeOv;stream($("#sc2"),"#10151E");
 }
-function slot(){if(U&&typeof U.onboarded==="boolean"&&S.onboarded!==U.onboarded){S.onboarded=U.onboarded;save()}landing();var a=$("#authSlot");if(!a)return;
+function slot(){if(U&&typeof U.onboarded==="boolean"&&window.sxSetOnb)window.sxSetOnb(U.onboarded);landing();var a=$("#authSlot");if(!a)return;
  a.innerHTML=U?'<button class="avatar" id="avBtn" aria-label="Account">'+esc(U.name.charAt(0).toUpperCase())+'</button>':'<button class="btn login" data-auth="login" style="padding:10px 14px">Log in</button><button class="btn primary" data-auth="start" style="padding:10px 16px">Get started</button>'}
 /* ---- forgot password + profile: front end only. Swap RESET.* and the LS(PK) store for API calls when the back end exists ---- */
 var BK='<button class="icon-btn x" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>';
@@ -1528,8 +1529,8 @@ if(vc){var pc=document.createElement("div");pc.className="card";pc.innerHTML='<d
 
 /* ---- email verification, plans, payments, admin (demo, runs on this device) ---- */
 var DEF=[{id:"p1",name:"1 Week",days:7,kes:500,usd:4},{id:"p2",name:"1 Month",days:30,kes:1500,usd:12,pop:1},{id:"p3",name:"3 Months",days:90,kes:3900,usd:30}];
-var PK=LS("sxb_pkgs")||DEF,SB=LS("sxb_subs")||{},VR=LS("sxb_ver")||{};
-function left(e){var s=SB[e];return s&&s.exp>Date.now()?Math.ceil((s.exp-Date.now())/864e5):0}
+var PK=(window.SXB&&SXB.plans&&SXB.plans.length)?SXB.plans:DEF,SB=LS("sxb_subs")||{},VR=LS("sxb_ver")||{};
+function left(e){if(U&&e===U.email){var r=(U.plan_until||0)-Date.now()/1e3;return r>0?Math.ceil(r/86400):0}var s=SB[e];return s&&s.exp>Date.now()?Math.ceil((s.exp-Date.now())/864e5):0}
 function grant(e,d,pl,amt,m){var s=SB[e]||{log:[]};s.exp=Math.max(s.exp||0,Date.now())+d*864e5;s.plan=pl;(s.log=s.log||[]).push({t:Date.now(),pl:pl,amt:amt||"admin",m:m||"admin"});SB[e]=s;LS("sxb_subs",SB)}
 var CH2='<path d="M30 118C26 90 36 66 62 58c26-8 46 12 50 42l4 18" fill="#1d1d20"/><path d="M42 54C38 34 54 20 72 24c18 4 22 24 10 36-10 9-32 10-40-6z" fill="#26262a"/><path d="M44 38c4-15 30-20 44-8l12 7c-2 4-10 4-14 2-12-4-30-2-42 8z" fill="#34343a"/><path d="M60 47q6 5 12 0"/>',
 il2=function(p){return'<svg class="ill2" viewBox="0 0 240 170" fill="none" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+p+'<path d="M114 146c-14 4-26 2-38-4"/><g transform="translate(112 40)">'+CH2+'</g></svg>'},
@@ -1603,21 +1604,57 @@ function verify(em){
  rb.onclick=function(){rb.disabled=true;rb.textContent="Sending";SXA.resendCode(pe).then(function(){$("#vE").textContent="";o.reset();rsCd(rb)}).catch(function(x){rb.disabled=false;rb.textContent="Resend code";$("#vE").textContent=SXA.err(x)})}}
 function okPage(){ov(IL2.ok+'<h2>Email verified</h2><p class="muted" style="text-align:center">Nice one, <b>'+esc(U.name)+'</b>. Your account is ready.</p><span class="dots" style="justify-self:center;color:var(--green)"><i></i><i></i><i></i></span>',1);$(".panel",ovEl).classList.add("pop");setTimeout(welcome,2300)}
 function welcome(){var n=esc((U.name||"").split(" ")[0]);ov(IL2.rocket+'<h2>Welcome aboard, '+n+'!</h2><p class="muted" style="text-align:center">spaceXBot watches the market for you while you stay in charge.</p><ul class="wl"><li style="--i:0"><i>'+TK+'</i>Practice safely in demo mode</li><li style="--i:1"><i>'+TK+'</i>Every trade passes your safety rules</li><li style="--i:2"><i>'+TK+'</i>Subscribe now or whenever you are ready</li></ul><button class="btn primary big block" id="wGo">Let\'s go</button>',1);$(".panel",ovEl).classList.add("pop");$("#wGo").onclick=function(){dots(this);setTimeout(function(){plans(1)},500)}}
-function payPg(p,m,first,n){var k=m==="mpesa",P=$(".panel",ovEl),T=[],amt=k?"KES "+p.kes:"$"+p.usd,mask=n?"0"+n.slice(3,5)+" ••• "+n.slice(-3):"";
- function pop(){P.classList.remove("pop");void P.offsetWidth;P.classList.add("pop")}
- function rows(a){return'<div class="rc">'+a.map(function(r){return'<div><span>'+r[0]+'</span><b>'+r[1]+'</b></div>'}).join("")+'</div>'}
- function st(a){return'<ul class="stp">'+a.map(function(x,i){return'<li class="'+x+'"><i>'+(x==="done"?TK:"")+'</i>'+['','',''][i]+'</li>'}).join("")+'</ul>'}
- var L=k?["Prompt sent to "+mask,"Enter your M-Pesa PIN","Payment confirmed"]:["PayPal opened","Approve the payment","Payment confirmed"];
- function steps(a){var h=$("#pgS");h.innerHTML=a.map(function(x,i){return'<li class="'+x+'"><i>'+(x==="done"?TK:"")+'</i>'+L[i]+'</li>'}).join("")}
- P.innerHTML=BR+(k?IL2.push:IL2.wait)+'<h2>'+(k?"Check your phone":"Waiting for PayPal")+'</h2><p class="muted" style="text-align:center">'+(k?"We are sending an M-Pesa prompt for <b>"+amt+"</b>. Enter your PIN on your phone to confirm.":"Approve the <b>"+amt+"</b> payment in the PayPal window.")+'</p><ul class="stp" id="pgS"></ul>'+rows([["Plan",esc(p.name)],["Amount",amt]])+'<button class="btn block" id="pgC">Cancel</button>';
- pop();steps(["cur","todo","todo"]);
- $("#pgC").onclick=function(){T.forEach(clearTimeout);cancelled(first)};
- T.push(setTimeout(function(){steps(["done","cur","todo"])},1500));
- T.push(setTimeout(function(){steps(["done","done","cur"])},5200));
- T.push(setTimeout(function(){
-  if(!$("#pgS"))return;grant(U.email,p.days,p.name,amt,k?"M-Pesa":"PayPal");bar();var ex=new Date(SB[U.email].exp).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"});
-  P.innerHTML=BR+IL2.yay+'<h2>Hooray! Payment received</h2><p class="muted" style="text-align:center">The bot is unlocked for <b>'+p.days+' days</b>.</p>'+rows([["Plan",esc(p.name)],["Paid",amt+" · "+(k?"M-Pesa":"PayPal")],["Active until",ex]])+'<button class="btn primary big block" id="pgGo">Open spaceXBot</button><p class="note" style="text-align:center">Demo payment: no real money moved.</p>';pop();
-  $("#pgGo").onclick=function(){dots(this);setTimeout(function(){sxGo(first?"#onboard":"#home")},500)}},6600))}
+function fdate(s){return new Date(s*1e3).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})}
+function loadPlans(){return fetch("/api/plans").then(function(r){return r.json()}).then(function(a){if(Array.isArray(a)&&a.length)PK=a}).catch(function(){})}
+var PAYW=null;
+function payPend(v){if(v===undefined)return LS("sxb_pend");if(v===null){try{localStorage.removeItem("sxb_pend")}catch(e){}}else LS("sxb_pend",v)}
+var PAYWHY={insufficient:"Your M-Pesa balance was too low.",cancelled:"The prompt was cancelled on your phone.",timeout:"The prompt timed out before a PIN was entered.",expired:"The prompt expired before it was paid.",wrong_pin:"The PIN was wrong.",busy:"M-Pesa was busy. Please try again.",not_sent:"The prompt could not be sent."};
+function payRows(a){return'<div class="rc">'+a.map(function(r){return'<div><span>'+r[0]+'</span><b>'+r[1]+'</b></div>'}).join("")+'</div>'}
+function payInfo(i,ref){var a=[["Plan",esc(i.name||"Your plan")]];if(i.amt)a.push(["Amount",esc(i.amt)]);if(ref)a.push(["Reference",esc(ref)]);return payRows(a)}
+function payShow(html){var P=$(".panel",ovEl);if(!P||ovEl.hidden){ov(XB+BR,1);P=$(".panel",ovEl)}P.innerHTML=BR+html;P.classList.remove("pop");void P.offsetWidth;P.classList.add("pop");return P}
+function payDone(i,first){payPend(null);PAYW=null;
+ SXA.refresh().catch(function(){}).then(function(){bar();
+  payShow(IL2.yay+'<h2>Hooray! Payment received</h2><p class="muted" style="text-align:center">The bot is unlocked'+(U&&U.plan_until?' until <b>'+fdate(U.plan_until)+'</b>':'')+'.</p>'+payRows([["Plan",esc(i.name||"Your plan")]].concat(i.amt?[["Paid",esc(i.amt)+" · "+(i.m==="paypal"?"PayPal":"M-Pesa")]]:[],i.receipt?[["Receipt",esc(i.receipt)]]:[]))+'<button class="btn primary big block" id="pgGo">Open spaceXBot</button>');
+  $("#pgGo").onclick=function(){dots(this);setTimeout(function(){sxGo(first?"#onboard":"#home")},500)}})}
+function payFail(why,ref,first,under){payPend(null);PAYW=null;
+ payShow(IL2.cx+'<h2>'+(under?"Payment needs a check":"Payment did not go through")+'</h2><p class="muted" style="text-align:center">'+(under?'We received a payment, but it was less than the plan price. Send us this reference and we will fix it: <b>'+esc(ref)+'</b>':esc(PAYWHY[why]||"The payment was not completed.")+' Your plan was not changed.')+'</p><button class="btn primary big block" id="cxA">Try again</button><button class="btn block" id="cxB">Maybe later</button>');
+ $("#cxA").onclick=function(){plans(first)};$("#cxB").onclick=function(){sxGo(first?"#onboard":null)}}
+function paySlow(ref,i,first){PAYW=null;
+ payShow(IL2.wait+'<h2>Still waiting for confirmation</h2><p class="muted" style="text-align:center">We have not heard back yet. If you paid, your plan switches on by itself within a few minutes. You do not need to pay again.</p>'+payInfo(i,ref)+'<button class="btn primary big block" id="pgR">Check again</button><button class="btn block" id="pgX">Close</button>');
+ $("#pgR").onclick=function(){payWatch(ref,i,first)};$("#pgX").onclick=function(){sxGo(first?"#onboard":null)}}
+function payWatch(ref,i,first){var k=i.m!=="paypal",stop=false,tries=0,max=k?50:30,T=0,w={stop:function(){stop=true;clearTimeout(T)}},
+  L=k?["Prompt sent to "+(i.mask||"your phone"),"Enter your M-Pesa PIN","Payment confirmed"]:["PayPal approved","Confirming the payment","Payment confirmed"];
+ if(PAYW)PAYW.stop();PAYW=w;
+ payShow((k?IL2.push:IL2.wait)+'<h2>'+(k?"Check your phone":"Confirming your payment")+'</h2><p class="muted" style="text-align:center">'+(k?"We sent an M-Pesa prompt"+(i.amt?" for <b>"+esc(i.amt)+"</b>":"")+". Enter your PIN on your phone to confirm.":"Waiting for PayPal to confirm your payment"+(i.amt?" of <b>"+esc(i.amt)+"</b>":"")+".")+'</p><ul class="stp" id="pgS">'+L.map(function(x,n){var c=n===0?"done":n===1?"cur":"todo";return'<li class="'+c+'"><i>'+(c==="done"?TK:"")+'</i>'+esc(x)+'</li>'}).join("")+'</ul>'+payInfo(i)+'<button class="btn block" id="pgC">Close</button><p class="note" style="text-align:center">If you pay after closing this, your plan still switches on by itself.</p>');
+ $("#pgC").onclick=function(){w.stop();PAYW=null;tst("Your plan switches on as soon as the payment is confirmed.");sxGo(first?"#onboard":null)};
+ function next(d){if(!stop)T=setTimeout(tick,d)}
+ function tick(){if(stop)return;SXA.api("/api/pay/status?ref="+encodeURIComponent(ref)).then(function(j){if(stop)return;var s=j.status;
+  if(s==="paid"){i.receipt=j.receipt||"";return payDone(i,first)}
+  if(s==="failed"||s==="unknown")return payFail(j.reason||"",ref,first);
+  if(s==="underpaid")return payFail("",ref,first,1);
+  if(s==="expired"||++tries>=max)return paySlow(ref,i,first);
+  next(3e3)}).catch(function(){if(stop)return;if(++tries>=max)return paySlow(ref,i,first);next(4e3)})}
+ tick()}
+function payStart(p,m,n,first,fail){var k=m==="mpesa",amt=k?"KES "+p.kes:"$"+p.usd,i={name:p.name,days:p.days,amt:amt,m:m,mask:n?"0"+n.slice(3,5)+" \u2022\u2022\u2022 "+n.slice(-3):""};
+ SXA.api(k?"/api/pay/mpesa":"/api/pay/paypal",{method:"POST",body:k?{plan:p.id,phone:n}:{plan:p.id}}).then(function(j){
+  payPend({ref:j.ref,u:U&&U.uid,name:i.name,days:i.days,amt:amt,m:m,mask:i.mask,f:first?1:0,t:Date.now()});
+  if(k)return payWatch(j.ref,i,first);
+  payShow(IL2.wait+'<h2>Opening PayPal</h2><p class="muted" style="text-align:center">Approve the <b>'+esc(amt)+'</b> payment in PayPal. When you are done you come back here.</p>');
+  setTimeout(function(){location.href=j.url},400)
+ }).catch(function(e){fail(e&&e.message?e.message:"Could not start the payment. Try again.")})}
+/* back from PayPal (?paid=ok|wait|fail|cancel), or an M-Pesa / PayPal payment that was still open when the app was closed */
+function payBoot(){var q=new URLSearchParams(location.search),s=q.get("paid"),ref=q.get("ref")||"",d=payPend();
+ if(s){try{history.replaceState(null,"",location.pathname+location.hash)}catch(e){}}
+ if(!U||PAYW)return;
+ if(d&&(d.u!==U.uid||Date.now()-d.t>6*36e5)){payPend(null);d=null}
+ if(s==="cancel"){payPend(null);ov(XB+BR,1);cancelled(false);return}
+ if(s){ref=ref||(d&&d.ref)||"";if(!ref){tst("We could not find that payment. If you paid, your plan switches on by itself.");return}
+  ov(XB+BR,1);return payWatch(ref,d&&d.ref===ref?d:{name:"Your plan",amt:"",m:"paypal"},!!(d&&d.f))}
+ if(!d)return;
+ if(d.m==="mpesa"&&Date.now()-d.t<6e5){ov(XB+BR,1);return payWatch(d.ref,d,!!d.f)}
+ if(d.m==="paypal"&&Date.now()-d.t<18e5)SXA.api("/api/pay/status?ref="+encodeURIComponent(d.ref)).then(function(j){if(j.status==="paid")payDone(d,!!d.f);else if(j.status==="failed"||j.status==="expired")payPend(null)}).catch(function(){})}
+loadPlans();SXA.ready.then(function(){setTimeout(payBoot,700)});
+document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"&&U&&!PAYW&&payPend())payBoot()});
 function plans(first){if(!U)return auth("login");var m="mpesa",sel=(PK.filter(function(p){return p.pop})[0]||PK[0]||{}).id,busy=false;
  ov(XB+BR+'<div id="plI">'+IL2.coin+'</div><h2>Choose your plan</h2><p class="muted" style="text-align:center">'+(left(U.email)?'You have <b>'+left(U.email)+' days</b> left. Extend any time.':'Pay once to switch the bot on. Pick how long you need.')+'</p><div id="plB" style="display:grid;gap:12px"></div><button class="btn block" id="plL">'+(first?"Subscribe later":"Not now")+'</button><p class="note" style="text-align:center">You can subscribe any time from Home. Until then the app runs in demo mode.</p>',1);
  $(".x",ovEl).onclick=$("#plL").onclick=function(){sxGo(first?"#onboard":null)};
@@ -1625,16 +1662,16 @@ function plans(first){if(!U)return auth("login");var m="mpesa",sel=(PK.filter(fu
   $("#plB").innerHTML=PK.map(function(x){return'<button class="pk" data-k="'+x.id+'" aria-pressed="'+(x.id===p.id)+'"><span><b>'+esc(x.name)+'</b>'+(x.pop?' <span class="chip ok">Popular</span>':'')+'<br><small class="muted">'+x.days+' days of bot access</small></span><b>'+(k?"KES "+x.kes:"$"+x.usd)+'</b></button>'}).join("")+
   '<div class="tbs"><button class="pk tb" data-m="mpesa" aria-label="M-Pesa" aria-pressed="'+k+'"><span class="lg" style="color:#2fa84f"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/><path d="M9.5 10.5l1.8 1.8 3.2-3.6"/></svg>M-PESA</span></button><button class="pk tb" data-m="paypal" aria-label="PayPal" aria-pressed="'+!k+'"><span class="lg"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#009cde" d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106zm14.146-14.42a3.35 3.35 0 0 0-.607-.541c-.013.076-.026.175-.041.254-.93 4.778-4.005 7.201-9.138 7.201h-2.19a.563.563 0 0 0-.556.479l-1.187 7.527h-.506l-.24 1.516a.56.56 0 0 0 .554.647h3.882c.46 0 .85-.334.922-.788.06-.26.76-4.852.816-5.09a.932.932 0 0 1 .923-.788h.58c3.76 0 6.705-1.528 7.565-5.946.36-1.847.174-3.388-.777-4.471z"/></svg><span><span style="color:#2f7ed8">Pay</span><span style="color:#009cde">Pal</span></span></span></button></div>'+
   (k?'<div class="field"><label for="plP">M-Pesa phone number</label><input class="inp" id="plP" inputmode="tel" placeholder="07XX XXX XXX" value="'+esc(LS("sxb_ph")||"")+'"></div>':'')+
-  '<p class="err" id="plE"></p><button class="btn primary big block" id="plGo">'+(k?"Send M-Pesa prompt · KES "+p.kes:"Pay with PayPal · $"+p.usd)+'</button><p class="note" style="text-align:center">Demo payment: no real money moves until the payment server is connected.</p>';
+  '<p class="err" id="plE"></p><button class="btn primary big block" id="plGo">'+(k?"Send M-Pesa prompt · KES "+p.kes:"Pay with PayPal · $"+p.usd)+'</button><p class="note" style="text-align:center">You are charged only after you confirm the payment on your phone or in PayPal.</p>';
   $$("[data-k]",ovEl).forEach(function(b){b.onclick=function(){if(!busy){sel=b.dataset.k;draw()}}});$$("[data-m]",ovEl).forEach(function(b){b.onclick=function(){if(!busy){m=b.dataset.m;draw()}}});
-  $("#plGo").onclick=function(){if(busy)return;var g=this,n="";if(k){n=($("#plP").value||"").replace(/\D/g,"");n=n.replace(/^0/,"254").replace(/^([17]\d{8})$/,"254$1");if(!/^254[17]\d{8}$/.test(n))return $("#plE").textContent="Enter a valid Safaricom number, like 0712 345 678.";LS("sxb_ph",$("#plP").value)}busy=true;dots(g);setTimeout(function(){payPg(p,m,first,n)},800)}}
- draw()}
+  $("#plGo").onclick=function(){if(busy)return;var g=this,n="";if(k){n=($("#plP").value||"").replace(/\D/g,"");n=n.replace(/^0/,"254").replace(/^([17]\d{8})$/,"254$1");if(!/^254[17]\d{8}$/.test(n))return $("#plE").textContent="Enter a valid Safaricom number, like 0712 345 678.";LS("sxb_ph",$("#plP").value)}busy=true;dots(g);payStart(p,m,n,first,function(msg){busy=false;draw();$("#plE").textContent=msg})}}
+ draw();loadPlans().then(function(){if($("#plB"))draw()})}
 /* gate: the bot only starts with an active plan */
-document.addEventListener("click",function(e){if(e.target.closest("#botToggle,#botPill")&&(!U||!left(U.email))&&$("#botToggle").textContent==="Start bot"){e.preventDefault();e.stopPropagation();if(!U)auth("login");else if(!U.verified)verify();else plans()}},true);
+document.addEventListener("click",function(e){if(e.target.closest("#botToggle,#botPill")&&(!U||!(U.active||left(U.email)))&&$("#botToggle").textContent==="Start bot"){e.preventDefault();e.stopPropagation();if(!U)auth("login");else if(!U.verified)verify();else plans()}},true);
 /* status card on Home */
 function bar(){var h=$("#view-home .buddy-card");if(!h)return;var c=$("#subCard");if(!c){c=document.createElement("div");c.className="card";c.id="subCard";h.insertAdjacentElement("afterend",c)}
- var d=U?left(U.email):0,t=!U?'<b>Sign in to start</b><span class="muted">Create an account to unlock the bot.</span>':d?'<b>Plan active</b><span class="muted">'+d+' day'+(d>1?"s":"")+' left on '+esc(SB[U.email].plan)+'</span>':'<b>Bot is locked</b><span class="muted">Choose a plan to switch it on.</span>';
- var k=(U?d:"x")+"|"+(U&&!!U.verified);if(c.dataset.k===k)return;c.dataset.k=k;c.style.display="flex";c.style.justifyContent="space-between";c.style.alignItems="center";c.style.gap="12px";
+ var d=U?left(U.email):0,t=!U?'<b>Sign in to start</b><span class="muted">Create an account to unlock the bot.</span>':d?'<b>Plan active</b><span class="muted">'+d+' day'+(d>1?"s":"")+' left, until '+fdate(U.plan_until)+'</span>':U.admin?'<b>Admin access</b><span class="muted">The bot is always unlocked for you.</span>':'<b>Bot is locked</b><span class="muted">Choose a plan to switch it on.</span>';
+ var k=(U?d:"x")+"|"+(U&&!!U.verified)+"|"+(U&&!!U.admin);if(c.dataset.k===k)return;c.dataset.k=k;c.style.display="flex";c.style.justifyContent="space-between";c.style.alignItems="center";c.style.gap="12px";
  c.innerHTML='<div style="display:grid;gap:2px">'+t+'</div><button class="btn '+(d?"":"primary")+'" id="subBtn">'+(!U?"Log in":d?"Extend":"Choose plan")+'</button>';
  $("#subBtn").onclick=function(){if(!U)auth("login");else if(!U.verified)verify();else plans()}}
 setInterval(bar,1500);bar();
