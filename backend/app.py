@@ -166,6 +166,22 @@ def admin_grant(u):
     if not r or not (0 < days <= 3650): return jsonify(error='user not found (they must sign in once) or bad days'), 400
     pay.activate(r['uid'], None, days); return jsonify(ok=True)
 
+@app.get('/api/admin/subscribers')
+@need(admin=True)
+def admin_subs(u):
+    names = {p['id']: p['name'] for p in pay.plans()}
+    rows = st.q("SELECT u.email,u.name,u.plan_until,u.created,(SELECT p.plan FROM payments p WHERE p.uid=u.uid AND p.status='paid' ORDER BY p.created DESC LIMIT 1) AS plan "
+                "FROM users u ORDER BY u.plan_until DESC, u.created DESC LIMIT 200")
+    return jsonify([{'email': r['email'] or '', 'name': r['name'] or '', 'plan_until': int(r['plan_until'] or 0), 'created': int(r['created'] or 0),
+                     'plan': names.get(r['plan'], r['plan'] or '')} for r in rows])
+
+@app.post('/api/admin/revoke')
+@need(admin=True)
+def admin_revoke(u):
+    em = str((request.json or {}).get('email', '')).strip().lower()
+    n = st.x('UPDATE users SET plan_until=0 WHERE lower(email)=?', (em,), True)
+    return jsonify(ok=True) if n else (jsonify(error='user not found'), 400)
+
 # ---------------- payments ----------------
 @app.get('/api/admin/health')
 @need(admin=True)

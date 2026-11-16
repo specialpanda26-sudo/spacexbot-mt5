@@ -1676,7 +1676,7 @@ function bar(){var h=$("#view-home .buddy-card");if(!h)return;var c=$("#subCard"
  $("#subBtn").onclick=function(){if(!U)auth("login");else if(!U.verified)verify();else plans()}}
 setInterval(bar,1500);bar();
 /* admin: open with #admin in the address */
-function adm(){SXA.ready.then(function(){var me=U||SXA.user();if(!(me&&me.admin)){tst("Admin only");location.hash=me?"#home":"#welcome";return}if(!U)U=me;ov(XB+BR,1);panel()})}window.adm=adm;
+function adm(){SXA.ready.then(function(){var me=U||SXA.user();if(!(me&&me.admin)){tst("Admin only");location.hash=me?"#home":"#welcome";return}if(!U)U=me;ov(XB+BR,1);loadPlans().then(panel)})}window.adm=adm;
 function panel(){ovEl.classList.add("wide");
  var em=Object.keys(SB);
  $(".panel",ovEl).innerHTML=XB+BR+'<h2>Admin panel</h2><h3 style="margin:0">Packages</h3><p class="note">Edit what customers see on the payment page. Days is how long the bot stays unlocked.</p><div class="ar" style="font-size:12px;font-weight:800;color:var(--muted)"><span>Name</span><span>Days</span><span>KES</span><span>USD</span><span></span></div><div id="aRows" style="display:grid;gap:6px"></div><div style="display:flex;gap:8px"><button class="btn" id="aAdd">Add package</button><button class="btn primary" id="aSave">Save packages</button></div>'+
@@ -1687,11 +1687,15 @@ function panel(){ovEl.classList.add("wide");
   $$("[data-f]",ovEl).forEach(function(inp){inp.oninput=function(){var r=rows[+inp.dataset.i],f=inp.dataset.f;r[f]=f==="name"?inp.value:Math.max(0,+inp.value||0)}});
   $$("[data-x]",ovEl).forEach(function(b){b.onclick=function(){rows.splice(+b.dataset.x,1);dr()}})}
  dr();$("#aAdd").onclick=function(){rows.push({id:"p"+Date.now(),name:"New plan",days:30,kes:1000,usd:8});dr()};
- $("#aSave").onclick=function(){PK=rows.filter(function(r){return r.name&&r.days>0});LS("sxb_pkgs",PK);tst("Packages saved");bar()};
- function ds(){var k=Object.keys(SB);$("#aSub").innerHTML=k.length?k.map(function(e){var d=left(e);return'<div class="sr" style="display:grid;gap:6px"><div><b>'+esc(e)+'</b> <span class="chip '+(d?"ok":"stop")+'">'+(d?d+" days left":"expired")+'</span><br><small class="muted">'+esc(SB[e].plan||"")+'</small></div><div class="sr" style="border:0;padding:0"><input class="inp" id="n_'+k.indexOf(e)+'" value="30" inputmode="numeric"><button class="btn" data-a="'+esc(e)+'">Add days</button><button class="btn" data-r="'+esc(e)+'">Revoke</button></div></div>'}).join(""):'<p class="muted">No subscribers on this device yet.</p>';
-  $$("[data-a]",ovEl).forEach(function(b){b.onclick=function(){var d=+$("#n_"+Object.keys(SB).indexOf(b.dataset.a)).value||0;if(d>0){grant(b.dataset.a,d,"Admin grant");ds();tst("Added "+d+" days");bar()}}});
-  $$("[data-r]",ovEl).forEach(function(b){b.onclick=function(){SB[b.dataset.r].exp=0;LS("sxb_subs",SB);ds();bar();tst("Access revoked")}})}
- ds();$("#gB").onclick=function(){var e=$("#gE").value.trim().toLowerCase(),d=+$("#gD").value||0;if(!/^\S+@\S+\.\S+$/.test(e)||d<1)return tst("Enter an email and days");grant(e,d,"Admin grant");$("#gE").value="";ds();bar();tst("Granted "+d+" days")}}
+ $("#aSave").onclick=function(){var b=this,ok=rows.filter(function(r){return r.id&&r.name&&r.days>0&&r.kes>0&&r.usd>0});if(!ok.length)return tst("Each package needs a name, days, KES and USD above zero");b.disabled=true;SXA.api("/api/admin/plans",{method:"POST",body:{plans:ok}}).then(function(a){if(Array.isArray(a)&&a.length){PK=a;rows=PK.map(function(p){return Object.assign({},p)});dr()}tst("Packages saved for everyone");bar()}).catch(function(e){tst(e.message||"Could not save")}).then(function(){b.disabled=false})};
+ var SUBS=[];
+ function dleft(u){var r=(u.plan_until||0)-Date.now()/1e3;return r>0?Math.ceil(r/86400):0}
+ function grant2(em,d){SXA.api("/api/admin/grant",{method:"POST",body:{email:em,days:d}}).then(function(){tst("Added "+d+" days");ds();if(U&&em.toLowerCase()===(U.email||"").toLowerCase())SXA.refresh()}).catch(function(e){tst(e.message||"Could not grant")})}
+ function ds(){SXA.api("/api/admin/subscribers").then(function(a){SUBS=Array.isArray(a)?a:[];drs()}).catch(function(e){$("#aSub").innerHTML='<p class="muted">'+esc(e.message||"Could not load users")+'</p>'})}
+ function drs(){$("#aSub").innerHTML=SUBS.length?SUBS.map(function(u,i){var d=dleft(u);return'<div class="sr" style="display:grid;gap:6px"><div><b>'+esc(u.email)+'</b> <span class="chip '+(d?"ok":"stop")+'">'+(d?d+" days left":"no plan")+'</span><br><small class="muted">'+esc(u.name||"")+(u.plan?" · "+esc(u.plan):"")+'</small></div><div class="sr" style="border:0;padding:0"><input class="inp" id="n_'+i+'" value="30" inputmode="numeric"><button class="btn" data-a="'+i+'">Add days</button><button class="btn" data-r="'+i+'">Revoke</button></div></div>'}).join(""):'<p class="muted">No users yet.</p>';
+  $$("[data-a]",ovEl).forEach(function(b){b.onclick=function(){var u=SUBS[+b.dataset.a],d=+$("#n_"+b.dataset.a).value||0;if(d<1)return tst("Enter the number of days");grant2(u.email,d)}});
+  $$("[data-r]",ovEl).forEach(function(b){b.onclick=function(){var u=SUBS[+b.dataset.r];SXA.api("/api/admin/revoke",{method:"POST",body:{email:u.email}}).then(function(){tst("Access revoked");ds();if(U&&u.email.toLowerCase()===(U.email||"").toLowerCase())SXA.refresh()}).catch(function(e){tst(e.message||"Could not revoke")})}})}
+ ds();$("#gB").onclick=function(){var e=$("#gE").value.trim().toLowerCase(),d=+$("#gD").value||0;if(!/^\S+@\S+\.\S+$/.test(e)||d<1)return tst("Enter an email and days");grant2(e,d);$("#gE").value=""}}
 function chk(){if(location.hash==="#admin")adm()}window.addEventListener("hashchange",chk);setTimeout(chk,600);
 SXA.bind(window.sxSetUser);
 })();
