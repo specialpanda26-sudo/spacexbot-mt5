@@ -14,7 +14,7 @@ def user():
     u = sbauth.verify(h[7:]) if h.startswith('Bearer ') else None
     if not u: return None
     if not st.q('SELECT 1 FROM users WHERE uid=?', (u['uid'],), True):
-        st.x('INSERT INTO users(uid,email,name,created) VALUES(?,?,?,?)', (u['uid'], u['email'], u['name'], int(time.time())))
+        st.x('INSERT INTO users(uid,email,name,created,onboarded) VALUES(?,?,?,?,0) ON CONFLICT(uid) DO NOTHING', (u['uid'], u['email'], u['name'], int(time.time())))
     u['admin'] = bool(u.get('verified')) and u['email'].lower() in ADMINS      # an unverified email can never be admin
     row = st.q('SELECT plan_until FROM users WHERE uid=?', (u['uid'],), True); u['plan_until'] = row['plan_until'] or 0
     u['active'] = u['admin'] or u['plan_until'] > time.time()

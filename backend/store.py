@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS signals(id BIGSERIAL PRIMARY KEY,symbol TEXT,side TEX
 CREATE TABLE IF NOT EXISTS payments(ref TEXT PRIMARY KEY,uid TEXT,provider TEXT,plan TEXT,amount DOUBLE PRECISION,currency TEXT,status TEXT,
   created BIGINT,extra TEXT,phone TEXT,checkout_id TEXT,receipt TEXT,paid_at BIGINT,last_check BIGINT);
 CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY,v TEXT);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarded INTEGER;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE signals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
@@ -64,7 +65,7 @@ def init():
         for col in ('phone TEXT', 'checkout_id TEXT', 'receipt TEXT', 'paid_at INTEGER', 'last_check INTEGER'):   # migrate older DBs
             try: c.execute('ALTER TABLE payments ADD COLUMN ' + col)
             except sqlite3.OperationalError: pass
-        for col in ('username TEXT', 'phone TEXT', 'country TEXT', 'bio TEXT', 'exp_level TEXT', 'goal TEXT', 'risk_pref TEXT', 'av INTEGER', 'notif TEXT', 'dob TEXT', 'gender TEXT'):
+        for col in ('username TEXT', 'phone TEXT', 'country TEXT', 'bio TEXT', 'exp_level TEXT', 'goal TEXT', 'risk_pref TEXT', 'av INTEGER', 'notif TEXT', 'dob TEXT', 'gender TEXT', 'onboarded INTEGER'):
             try: c.execute('ALTER TABLE users ADD COLUMN ' + col)
             except sqlite3.OperationalError: pass
         c.execute('CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL')

@@ -35,4 +35,11 @@ T('unverified admin email is not admin', c.get('/api/me', headers={'Authorizatio
 T('unverified cannot start a payment', c.post('/api/pay/mpesa', json={'plan': 'p1', 'phone': '0712345678'}, headers={'Authorization': 'Bearer z'}).status_code == 403)
 T('unverified cannot use admin api', c.post('/api/admin/grant', json={}, headers={'Authorization': 'Bearer z'}).status_code == 403)
 fb.verify = orig
+j = c.get('/api/me', headers=H('newbie@x.com')).json
+T('a new account starts not onboarded', j['onboarded'] is False)
+T('finishing onboarding is stored on the server', c.post('/api/me/profile', json={'onboarded': True}, headers=H('newbie@x.com')).status_code == 200 and c.get('/api/me', headers=H('newbie@x.com')).json['onboarded'] is True)
+c.post('/api/me/profile', json={'onboarded': False}, headers=H('newbie@x.com'))
+T('onboarded cannot be switched back off', c.get('/api/me', headers=H('newbie@x.com')).json['onboarded'] is True)
+st.x("INSERT INTO users(uid,email,name,created) VALUES('dev-old@x.com','old@x.com','Old',1)")
+T('accounts from before this change count as onboarded', c.get('/api/me', headers=H('old@x.com')).json['onboarded'] is True)
 bad = [n for n, ok in R if not ok]; print('\n%d/%d passed' % (len(R) - len(bad), len(R))); sys.exit(1 if bad else 0)

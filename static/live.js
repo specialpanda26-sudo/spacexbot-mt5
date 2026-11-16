@@ -5,7 +5,7 @@
 
   function norm(j) {
     return { uid: j.uid, name: j.name || (j.email || "").split("@")[0], email: j.email || "", verified: !!j.verified, admin: !!j.admin, active: !!j.active,
-      plan_until: j.plan_until || 0, created: j.created || 0, dob: j.dob || null, age: j.age || null, gender: j.gender || null, prof: j.prof || {}, raw: j };
+      plan_until: j.plan_until || 0, created: j.created || 0, onboarded: j.onboarded !== false, dob: j.dob || null, age: j.age || null, gender: j.gender || null, prof: j.prof || {}, raw: j };
   }
   function tok() { return S ? S.auth.getSession().then(function (r) { return r.data && r.data.session ? r.data.session.access_token : null; }) : Promise.resolve(null); }
   function api(path, o) {
@@ -106,6 +106,7 @@
     resetAbort: function () { HOLD = false; ME = null; lastUid = null; return S ? S.auth.signOut().catch(function () {}) : Promise.resolve(); },
     resendVerification: function () { return ME ? Promise.resolve() : Promise.reject(new Error("Log in first.")); },
     checkVerified: function () { return Promise.resolve(!!(ME && ME.verified)); },
+    finishOnboarding: function () { if (ME) ME.onboarded = true; return api("/api/me/profile", { method: "POST", body: { onboarded: true } }).catch(function () {}); },
     save: function (o) { return api("/api/me/profile", { method: "POST", body: o }).then(load); },
     changePassword: function (cur, np) {
       var n = need(); if (n) return n;

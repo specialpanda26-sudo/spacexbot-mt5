@@ -15,7 +15,7 @@ def view(uid):
     r = st.q('SELECT * FROM users WHERE uid=?', (uid,), True) or {}
     try: n = {**DEF_NOTIF, **json.loads(r.get('notif') or '{}')}
     except ValueError: n = dict(DEF_NOTIF)
-    return {'name': r.get('name') or '', 'created': r.get('created') or 0, 'dob': r.get('dob'), 'gender': r.get('gender'),
+    return {'name': r.get('name') or '', 'created': r.get('created') or 0, 'onboarded': r.get('onboarded') != 0, 'dob': r.get('dob'), 'gender': r.get('gender'),
             'age': age_of(r['dob']) if r.get('dob') else None,
             'prof': {'user': r.get('username') or '', 'phone': r.get('phone') or '', 'country': r.get('country') or '', 'bio': r.get('bio') or '',
                      'exp': r.get('exp_level') or '', 'goal': r.get('goal') or '', 'risk': r.get('risk_pref') or '', 'av': r.get('av') or 0, 'n': n}}
@@ -52,6 +52,7 @@ def update(uid, j):
     if 'n' in j:
         if not isinstance(j['n'], dict): raise ValueError('Bad notifications')
         sets['notif'] = json.dumps({k: 1 if j['n'].get(k) else 0 for k in NOTIF})
+    if j.get('onboarded'): sets['onboarded'] = 1          # one way only: it can be set, never switched back off
     if 'gender' in j:
         if j['gender'] not in GENDER: raise ValueError('Pick an option for gender.')
         sets['gender'] = j['gender']

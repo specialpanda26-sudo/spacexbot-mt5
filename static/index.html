@@ -1177,7 +1177,7 @@ function renderOb(){var s=OB[obI];$("#obBuddy").innerHTML=$("#view-home .buddy")
   $("#obBar").style.width=Math.round((obI+(obPick[s.k]!==undefined?1:0))/OB.length*100)+"%";
   var nx=$("#obNext");nx.disabled=obPick[s.k]===undefined;nx.textContent=obI===OB.length-1?"Finish setup":"Continue";$("#obBack").style.visibility=obI?"visible":"hidden"}
 function obFinish(skip){if(!skip){if(obPick.broker)S.broker=obPick.broker;if(obPick.strategy)S.strategy=obPick.strategy;if(obPick.risk){var r=obPick.risk.split("|");S.risk=+r[0];S.dayLoss=+r[1]}}
-  S.onboarded=true;save();renderBotSettings();renderConnect();show("home");
+  S.onboarded=true;save();if(window.SXA)SXA.finishOnboarding();renderBotSettings();renderConnect();show("home");
   if(!skip)setTimeout(function(){confetti(innerWidth/2,innerHeight*.35);toast("You're all set. The bot is running in demo mode.")},400)}
 
 var _show=show;
@@ -1242,7 +1242,6 @@ applyFold();
 /* ---------- boot ---------- */
 renderRange();renderBot();renderCats();renderFilters();renderCards();renderNews();renderBotSettings();renderTrades();renderConnect();applyTheme();
 show(location.hash.slice(1)||"welcome");
-window.addEventListener("sx-newuser",function(){S.theme="dark";S.onboarded=false;save();applyTheme()});
 booted=true;
 })();
 </script>
@@ -1299,7 +1298,7 @@ var U=null;window.sxToast=tst;
 var PROT=/^#(home|market|bot|trades|connect|profile|onboard)$/;
 window.sxSetUser=function(u,first){U=u;slot();var h=location.hash;
  if(!u){if(PROT.test(h))location.hash="#welcome";return}
- if(first){if(!u.dob){setTimeout(about,500);return}if(!u.verified){setTimeout(verify,500);return}}
+ if(first){if(!u.verified){setTimeout(verify,500);return}if(!u.dob&&!u.onboarded){setTimeout(about,500);return}}
  if(u.verified&&(!h||h==="#"||h==="#welcome"))location.hash="#home";
  else if(!u.verified&&PROT.test(h))location.hash="#welcome";
  if(location.hash==="#profile"&&window.renderProfile)renderProfile()};
@@ -1312,7 +1311,7 @@ function intro(){
  '<div class="gbot"><button class="btn primary big block" data-auth="signup">Get started</button><button class="btn big block ghost" data-auth="login">Log in</button></div></div>';
  ovEl.hidden=false;void ovEl.offsetWidth;ovEl.classList.add("open");$(".x",ovEl).onclick=closeOv;stream($("#sc2"),"#10151E");
 }
-function slot(){landing();var a=$("#authSlot");if(!a)return;
+function slot(){if(U&&typeof U.onboarded==="boolean"&&S.onboarded!==U.onboarded){S.onboarded=U.onboarded;save()}landing();var a=$("#authSlot");if(!a)return;
  a.innerHTML=U?'<button class="avatar" id="avBtn" aria-label="Account">'+esc(U.name.charAt(0).toUpperCase())+'</button>':'<button class="btn login" data-auth="login" style="padding:10px 14px">Log in</button><button class="btn primary" data-auth="start" style="padding:10px 16px">Get started</button>'}
 /* ---- forgot password + profile: front end only. Swap RESET.* and the LS(PK) store for API calls when the back end exists ---- */
 var BK='<button class="icon-btn x" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>';
@@ -1430,7 +1429,7 @@ function auth(mode){
  $(".x",ovEl).onclick=intro;
  $("#aEye").onclick=function(){var i=$("#aP"),sh=i.type==="password";i.type=sh?"text":"password";this.classList.toggle("on",sh);this.setAttribute("aria-label",sh?"Hide password":"Show password");this.setAttribute("aria-pressed",sh)};
  var f=$("#aF");if(f)f.onclick=function(){forgot($("#aE").value.trim())};
- $$("[data-soc]",ovEl).forEach(function(b){b.onclick=function(){SXA.google().then(function(u){U=u;slot();if(!u.dob){about();return}if(!u.verified){verify();return}tst("Logged in");sxGo("#home")}).catch(function(x){$("#aErr").textContent=SXA.err(x)})}});
+ $$("[data-soc]",ovEl).forEach(function(b){b.onclick=function(){SXA.google().then(function(u){U=u;slot();if(!u.verified){verify();return}if(!u.dob&&!u.onboarded){about();return}tst("Logged in");sxGo("#home")}).catch(function(x){$("#aErr").textContent=SXA.err(x)})}});
  function go(){var e=$("#aE").value.trim(),p=$("#aP").value,n=su?$("#aN").value.trim():"",er=$("#aErr");
   if(su&&!n)return er.textContent="Add your name.";
   if(!/^\S+@\S+\.\S+$/.test(e))return er.textContent="Enter a valid email.";
@@ -1438,8 +1437,8 @@ function auth(mode){
   if(su&&!$("#aT").checked)return er.textContent="Please agree to the Terms of Service.";
   er.textContent="";var gb=$("#aGo");dots(gb);
   (su?SXA.signUp(n,e,p):SXA.signIn(e,p,!!($("#aR")&&$("#aR").checked))).then(function(u){if(u.pending){verify(u.email);return}U=u;slot();
-   if(su){window.dispatchEvent(new Event("sx-newuser"));about();return}
-   if(!u.dob){about();return}if(!u.verified){verify();return}
+   if(su){about();return}
+   if(!u.verified){verify();return}if(!u.dob&&!u.onboarded){about();return}
    tst("Logged in");sxGo("#home")
   }).catch(function(x){gb.classList.remove("ld");gb.style.minWidth=gb.style.minHeight="";gb.textContent=su?"Create account":"Log in";er.textContent=SXA.err(x)})}
  $("#aGo").onclick=go;$$("input",ovEl).forEach(function(i){i.onkeydown=function(e){if(e.key==="Enter")go()}})}
@@ -1598,7 +1597,7 @@ function verify(em){
  $(".x",ovEl).onclick=closeOv;var rb=$("#vR"),o;rsCd(rb);
  function rst(g){g.classList.remove("ld");g.style.minWidth=g.style.minHeight="";g.textContent="Verify email"}
  function go(c){var g=$("#vGo");if(g.classList.contains("ld"))return;$("#vE").textContent="";o.lock(true);dots(g);
-  SXA.verifyCode(pe,c).then(function(m){U=m;slot();window.dispatchEvent(new Event("sx-newuser"));if(!m.dob)about();else okPage()}).catch(function(x){rst(g);o.reset();o.shake();$("#vE").textContent=SXA.err(x)})}
+  SXA.verifyCode(pe,c).then(function(m){U=m;slot();if(!m.dob)about();else okPage()}).catch(function(x){rst(g);o.reset();o.shake();$("#vE").textContent=SXA.err(x)})}
  o=otpBind("vO",go);
  $("#vGo").onclick=function(){var c=o.val();if(c.length<6)return $("#vE").textContent="Enter all 6 digits.";go(c)};
  rb.onclick=function(){rb.disabled=true;rb.textContent="Sending";SXA.resendCode(pe).then(function(){$("#vE").textContent="";o.reset();rsCd(rb)}).catch(function(x){rb.disabled=false;rb.textContent="Resend code";$("#vE").textContent=SXA.err(x)})}}
