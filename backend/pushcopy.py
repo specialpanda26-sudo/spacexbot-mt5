@@ -44,7 +44,7 @@ T = {
  4: _closed,
  5: lambda f: ('%s stop moved to breakeven' % f['sym'], 'The stop-loss now sits at your entry price.', 'even'),
  6: lambda f: ('%s partly closed' % f['sym'], 'Part of the position was closed (%s). The rest is still open.' % money(f.get('pnl'), f.get('cur')), 'hi'),
- 7: lambda f: ('Signal found on %s' % f['sym'], '%s idea at %s. Monitor mode is on, so it is waiting for you.' % (_side(f), f['entry']), 'hi'),
+ 7: lambda f: ('Signal found on %s' % f['sym'], '%s at about %s, stop-loss %s, take-profit %s.%s Take or skip it in the app%s.' % (_side(f), f['entry'], f['sl'], f['tp'], (' About %.2f lots at your risk setting.' % f['lots']) if f.get('lots') else '', (' within %s min' % f['mins']) if f.get('mins') else ''), 'hi'),
  8: lambda f: ('Skipped %s' % f['sym'], 'Reason: %s.' % (f.get('reason') or 'it did not pass the rules'), 'even'),
  9: lambda f: ('%s pending order %s' % (f['sym'], f.get('state') or 'updated'), 'Open the app to see where it stands.', 'hi'),
  10: lambda f: ('%s is still open' % f['sym'], 'Open for %s. Floating P/L: %s.' % (f.get('dur') or 'a while', money(f.get('pnl'), f.get('cur'))), 'even'),

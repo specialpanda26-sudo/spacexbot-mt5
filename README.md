@@ -22,6 +22,14 @@ Every subscriber connects **their own** MT5 (Exness or any MT5 broker). Nothing 
 - Memory: candles are kept in server memory per user. Watch Render's memory as users grow (the free plan is small).
 - Existing data: old trades have no owner and belong to the owner's EA. After this update subscribers see their own bot, not the owner's.
 
+## Phone mode (no PC needed)
+For subscribers who only have a phone. Free, nothing to install. The owner's bot finds a signal; the server sends each phone-mode person a notification, and the **Connect** tab shows it with a lot size worked out from *their* balance and risk. They tap **Take it** or **Skip**, place the trade by hand in their MT5 phone app, then log **Won / Lost / Even** (money amount optional). Nothing here places a trade for them.
+- **Needs your own feed running.** Signals come from the owner's EA or desktop app. If it is off, there are no signals to hand out.
+- Switch on: Connect tab > Phone mode > enter balance and risk > Turn on. Not allowed together with the person's own MT5 bot (it would trade the same idea twice).
+- A signal can be taken for 15 minutes. After that the price has probably moved. Sizes assume a USD account and standard lots (gold 100 oz, FX 100,000 units); symbols the server cannot size (for example EURGBP) show no size instead of a guess. The size is rounded down and never risks more than the person asked for; if even 0.01 lot is too much for their balance, the card says so.
+- Routes: `GET /api/assist`, `POST /api/assist/settings`, `/take`, `/skip`, `/result`. Data: tables `assist` and `assist_log`, created on boot (SQLite or Postgres). Deleting an account removes both, and its push devices.
+- The push (kind 7) obeys each person's alert settings and quiet hours (22:00 to 06:00 East Africa time); the signal is still in the app.
+
 ## 1) Deploy (Termux)
     unzip spacexbot-mt5-v2.zip && cd spacexbot-mt5
     git init && git add . && git commit -m "spacexbot mt5 v2" && git branch -M main
@@ -66,6 +74,7 @@ Copy `ea/SpaceXBridge.mq5` to `MQL5/Experts/`, compile, allow WebRequest for you
     python tests/test_admin.py                    # admin user list, grant, revoke
     python tests/test_mail.py                     # Resend receipts and trade alerts (no network)
     python tests/test_locked.py                   # bot lock follows the server plan (needs node)
+    python tests/test_assist.py                   # phone mode: lot sizes, take / skip / result, who gets the push
     python tools/backtest.py XAUUSD_M15.csv XAUUSD_H1.csv --solo
 The backtest ignores news lock, exposure cap and loss limits.
 

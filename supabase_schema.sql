@@ -21,3 +21,10 @@ CREATE INDEX IF NOT EXISTS ix_push_log_uid ON push_log(uid,ts);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_push_log_key ON push_log(uid,k) WHERE k IS NOT NULL;
 ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE push_log ENABLE ROW LEVEL SECURITY;
+
+-- Phone mode (created by the app on boot; paste here only if you want the tables before deploying)
+CREATE TABLE IF NOT EXISTS assist(uid TEXT PRIMARY KEY,enabled INTEGER DEFAULT 0,balance DOUBLE PRECISION,risk DOUBLE PRECISION,updated BIGINT);
+CREATE TABLE IF NOT EXISTS assist_log(uid TEXT,sid BIGINT,action TEXT,ts BIGINT,lots DOUBLE PRECISION,outcome TEXT,pnl DOUBLE PRECISION,done BIGINT,PRIMARY KEY(uid,sid));
+CREATE INDEX IF NOT EXISTS ix_assist_log_uid ON assist_log(uid,ts);
+ALTER TABLE assist ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assist_log ENABLE ROW LEVEL SECURITY;

@@ -125,7 +125,7 @@ def send(uid, kind, body, title=None, key=None, force=False, img=None):
     tk = tokens(uid)
     if not tk: return 0, 'no device'
     title = title or k['title']; ch = CHANNEL[k['ch']]
-    data = {'kind': kind, 'cat': k['cat'], 'route': ROUTE[k['cat']], 'tag': 'k%s' % kind}; n = 0; last = ''
+    data = {'kind': kind, 'cat': k['cat'], 'route': '#connect' if kind == 7 else ROUTE[k['cat']], 'tag': ('k%s-%s' % (kind, key[:40])) if kind == 7 and key else 'k%s' % kind}; n = 0; last = ''
     if img: data['img'] = img
     for t in tk:
         try: ok, why = _fcm(t, title, body, ch, data)

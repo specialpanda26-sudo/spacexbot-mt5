@@ -1,9 +1,9 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, payments as pay
+from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, payments as pay
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
-st.init()
+st.init(); assist.init()
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 _last_scan = {}
 
@@ -78,6 +78,7 @@ def _scan(sym, uid=''):
     sid = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
          (sym, s['side'], s['entry'], s['sl'], s['tp'], links.risk(uid) if uid else st.fget('risk_pct'), s['strategy'], s['score'], 'pending', int(time.time()), uid or None))
     sbauth.notify(f"{s['side'].upper()} {sym}", f"Entry {s['entry']}  SL {s['sl']}  TP {s['tp']}  ({s['strategy']})", key=f'sig{sid}-new', only=uid or None)
+    if not uid: assist.announce(sid)          # phone-mode people get the signal with their own lot size
 
 @app.post('/api/ea/sync')
 def ea_sync():
@@ -229,6 +230,7 @@ def link_mode(u):
 def link_bot(u):
     on = _j().get('on') is True
     if on and not u['active']: return jsonify(error='subscription required'), 402
+    if on and assist.is_on(u['uid']): return jsonify(error='Turn off Phone mode first, so the same signal is not traded twice.'), 400
     return _link_edit(u, lambda: links.set_bot(u['uid'], on))
 
 @app.post('/api/link/risk')
@@ -240,6 +242,44 @@ def link_risk(u): return _link_edit(u, lambda: links.set_risk(u['uid'], _j().get
 def link_del(u):
     if not u['admin']: links.drop(u['uid'])
     return jsonify(ok=True)
+
+# ---------------- phone mode (assist): signals for people with only a phone ----------------
+@app.get('/api/assist')
+@need(verified=True)
+def assist_get(u):
+    if u['admin']: return jsonify(admin=True)
+    s = assist.get(u['uid']); why = ''
+    if not u['active']: why = 'Phone mode needs an active plan.'
+    elif links.bot_on(u['uid']): why = 'Your MT5 bot is on. Stop it first to use phone mode.'
+    out = {**s, 'active': u['active'], 'why': why}
+    if u['active'] and s['on']: out.update(feed=assist.feed(u['uid']), stats=assist.stats(u['uid']))
+    return jsonify(out)
+
+def _assist_do(u, fn):
+    if u['admin']: return jsonify(error='The owner uses the EA, not phone mode.'), 400
+    try: return jsonify(fn())
+    except ValueError as e: return jsonify(error=str(e)), 400
+
+@app.post('/api/assist/settings')
+@need(verified=True, active=True)
+def assist_set(u):
+    j = _j(); on = j.get('on') if isinstance(j.get('on'), bool) else None
+    return _assist_do(u, lambda: assist.save(u['uid'], on, j.get('balance'), j.get('risk')))
+
+@app.post('/api/assist/take')
+@need(verified=True, active=True)
+def assist_take(u):
+    if not u['admin'] and not assist.is_on(u['uid']): return jsonify(error='Turn phone mode on first.'), 400
+    return _assist_do(u, lambda: assist.take(u['uid'], _j().get('id')))
+
+@app.post('/api/assist/skip')
+@need(verified=True)
+def assist_skip(u): return _assist_do(u, lambda: assist.skip(u['uid'], _j().get('id')))
+
+@app.post('/api/assist/result')
+@need(verified=True)
+def assist_result(u):
+    j = _j(); return _assist_do(u, lambda: assist.result(u['uid'], j.get('id'), j.get('outcome'), j.get('pnl')))
 
 @app.post('/api/admin/settings')
 @need(admin=True)

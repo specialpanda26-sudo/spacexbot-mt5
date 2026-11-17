@@ -2169,4 +2169,116 @@ build()})();
 })();
 </script>
 
+<script>
+/* ---- Phone mode card: signals for people with only a phone. Take or skip by hand in your MT5 phone app, then log the result. Uses /api/assist/*. ---- */
+(function () {
+  "use strict";
+  var vc = document.getElementById("view-connect");
+  if (!vc || !window.SXA) return;
+  var P = document.createElement("div"); P.className = "card"; P.id = "phonec";
+  var mt = document.getElementById("mt5c"); vc.insertBefore(P, mt ? mt.nextSibling : vc.firstChild);
+  var D = null, ERR = "", BUSY = false, UID = null, SIG = "", RES = null;       /* RES = {id, outcome} while an amount is being typed */
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function toast(t) { if (window.sxToast) window.sxToast(t); }
+  function me() { try { return SXA.user(); } catch (e) { return null; } }
+  function api(p, m, b) { return SXA.api(p, { method: m || "GET", body: b }); }
+  function usd(v, signed) { var n = Number(v); if (!isFinite(n)) return "-"; return (signed ? (n < 0 ? "-" : n > 0 ? "+" : "") : (n < 0 ? "-" : "")) + "$" + Math.abs(n).toFixed(2); }
+  function ago(t) { var m = Math.max(0, Math.round((Date.now() / 1000 - t) / 60)); return m < 1 ? "just now" : m < 60 ? m + " min ago" : Math.round(m / 60) + " h ago"; }
+  function head(chip) { return '<div class="card-head"><h2>Phone mode</h2>' + (chip || "") + "</div>"; }
+
+  function sigHtml(s) {
+    var buy = s.side === "buy", z = s.size || {}, left = Math.max(0, Math.ceil((s.valid_until - Date.now() / 1000) / 60)), h = "";
+    var chip = { "new": '<span class="chip ok">Open</span>', late: '<span class="chip">Too old</span>', taken: '<span class="chip info">Taken</span>', skipped: '<span class="chip">Skipped</span>', done: '<span class="chip">Logged</span>' }[s.state] || "";
+    h += '<div style="border:2px solid var(--surface2);border-radius:16px;padding:12px 14px;margin-top:10px">';
+    h += '<div class="card-head" style="margin:0"><h2 style="font-size:16px">' + (buy ? "BUY " : "SELL ") + esc(s.symbol) + "</h2>" + chip + "</div>";
+    h += '<p class="note">Entry about ' + esc(s.entry) + " · Stop-loss " + esc(s.sl) + " · Take-profit " + esc(s.tp) + "<br>Found " + ago(s.created) + (s.state === "new" ? ". Take it within " + left + " min." : ".") + "</p>";
+    if (z.lots) h += '<p class="note" style="font-weight:800;color:var(--fg)">Suggested size: ' + esc(z.lots.toFixed(2)) + " lots. Risks about " + usd(z.risk_usd) + ", could make about " + usd(z.win_usd) + ".</p>";
+    else if (z.why) h += '<p class="note">' + esc(z.why) + "</p>";
+    if (s.state === "new" || (s.state === "skipped" && left > 0)) h += '<div class="jrow"><button class="btn primary" data-act="take" data-id="' + s.id + '"' + (BUSY ? " disabled" : "") + '>Take it</button>' + (s.state === "new" ? '<button class="btn" data-act="skip" data-id="' + s.id + '"' + (BUSY ? " disabled" : "") + ">Skip</button>" : "") + "</div>";
+    else if (s.state === "late") h += '<div class="jrow"><button class="btn" data-act="skip" data-id="' + s.id + '"' + (BUSY ? " disabled" : "") + ">Skip</button></div>";
+    else if (s.state === "taken") {
+      if (RES && RES.id === s.id) {
+        h += '<div class="field"><label for="phAmt">' + (RES.outcome === "win" ? "How much did you make?" : RES.outcome === "loss" ? "How much did you lose?" : "Amount (optional)") + ' (optional, in your account money)</label><input class="inp" id="phAmt" type="number" min="0" step="0.01" inputmode="decimal" placeholder="e.g. 12.50"></div>' +
+          '<div class="jrow"><button class="btn" data-act="rno">Cancel</button><button class="btn primary" data-act="rgo" data-id="' + s.id + '">Save result</button></div>';
+      } else {
+        h += '<p class="note">You took it' + (s.mine && s.mine.lots ? " at " + esc(s.mine.lots.toFixed(2)) + " lots" : "") + ". How did it end?" + (s.owner ? " The owner's bot closed its own trade " + (s.owner === "win" ? "in profit." : s.owner === "loss" ? "at a loss." : "about even.") : "") + "</p>" +
+          '<div class="jrow"><button class="btn" data-act="res" data-o="win" data-id="' + s.id + '">Won</button><button class="btn" data-act="res" data-o="loss" data-id="' + s.id + '">Lost</button><button class="btn" data-act="res" data-o="even" data-id="' + s.id + '">Even</button></div>';
+      }
+    } else if (s.state === "done" && s.mine) h += '<p class="note" style="font-weight:800;color:var(--fg)">' + ({ win: "Won", loss: "Lost", even: "Even" }[s.mine.outcome] || "Logged") + (s.mine.pnl != null ? " " + usd(s.mine.pnl, true) : "") + "</p>";
+    return h + "</div>";
+  }
+
+  function main() {
+    var on = D.on, h = head('<span class="chip ' + (on ? "ok" : "") + '"><span class="dot"></span>' + (on ? "On" : "Off") + "</span>");
+    h += '<p class="note">No PC? Phone mode sends you each signal with a lot size for your balance. You place the trade yourself in your MT5 phone app, then log how it ended. It does not trade for you.</p>';
+    h += '<div class="field"><label for="phBal">Your account balance (USD)</label><input class="inp" id="phBal" type="number" min="10" step="any" inputmode="decimal" value="' + (D.balance != null ? esc(D.balance) : "") + '" placeholder="e.g. 500"></div>';
+    h += '<div class="field"><label for="phRisk">Risk per trade (%)</label><input class="inp" id="phRisk" type="number" min="0.1" max="2" step="0.1" inputmode="decimal" value="' + esc(D.risk) + '"></div>';
+    h += '<div class="jrow"><button class="btn" data-act="save"' + (BUSY ? " disabled" : "") + '>Save</button><button class="btn ' + (on ? "" : "primary") + '" data-act="onoff"' + (BUSY ? " disabled" : "") + ">" + (on ? "Turn off" : "Turn on") + "</button></div>";
+    if (!on && D.why) h += '<p class="note">' + esc(D.why) + "</p>";
+    h += '<p class="note">Sizes assume a USD account and standard lots (1 lot = 100 oz of gold or 100,000 units of a currency). Check your broker, cent accounts differ.</p>';
+    if (on) {
+      var s = D.stats || {};
+      h += '<p class="note" style="font-weight:800;color:var(--fg)">' + (s.taken || 0) + " taken · " + (s.won || 0) + " won · " + (s.lost || 0) + " lost" + (s.win_rate != null ? " · " + s.win_rate + "% wins" : "") + (s.pnl ? " · " + usd(s.pnl, true) : "") + "</p>";
+      h += (D.feed && D.feed.length) ? D.feed.map(sigHtml).join("") : '<p class="note">No signals in the last 24 hours. You will get a notification when the bot finds one.</p>';
+    }
+    return h + '<p class="err" role="alert">' + esc(ERR) + '</p><p class="note">Signals are not advice and do not promise profit. You can lose money.</p>';
+  }
+
+  function paint(force) {
+    var ae = document.activeElement;
+    if (!force && ae && P.contains(ae) && ae.tagName === "INPUT") return;       /* never wipe what the person is typing */
+    var u = me(), h;
+    if (!u) h = head('<span class="chip">Log in first</span>') + '<p class="note">Log in to use phone mode.</p>';
+    else if (!u.verified) h = head('<span class="chip stop">Verify email</span>') + '<p class="note">Verify your email first.</p>';
+    else if (u.admin) h = head('<span class="chip info">Owner</span>') + '<p class="note">You are the owner. Your own bot makes the signals that phone-mode people receive.</p>';
+    else if (!u.active) h = head('<span class="chip stop">Plan needed</span>') + '<p class="note">Phone mode needs an active plan.</p>';
+    else if (!D) h = head('<span class="chip">Loading</span>') + (ERR ? '<p class="err">' + esc(ERR) + "</p>" : '<p class="note">Loading.</p>');
+    else h = main();
+    P.innerHTML = h;
+  }
+
+  function load(quiet) {
+    var u = me();
+    if (!u || u.admin || !u.verified || !u.active) { D = null; paint(); return Promise.resolve(); }
+    return api("/api/assist").then(function (j) { D = j; if (!quiet) ERR = ""; })
+      .catch(function (e) { if (!quiet) ERR = e.message || "Could not load."; }).then(function () { paint(); });
+  }
+  function run(p, ok) {
+    if (BUSY) return; BUSY = true; ERR = ""; paint(true);
+    p().then(function () { if (ok) toast(ok); return load(true); })
+      .catch(function (e) { ERR = e.message || "Something went wrong."; }).then(function () { BUSY = false; paint(true); });
+  }
+  function settings(extra) {
+    var b = parseFloat((document.getElementById("phBal") || {}).value), r = parseFloat((document.getElementById("phRisk") || {}).value), body = extra || {};
+    if (isFinite(b)) body.balance = b; if (isFinite(r)) body.risk = r;
+    return body;
+  }
+
+  P.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-act]"); if (!b || BUSY) return;
+    var a = b.dataset.act, id = Number(b.dataset.id);
+    if (a === "save") return run(function () { return api("/api/assist/settings", "POST", settings()); }, "Saved");
+    if (a === "onoff") return run(function () { return api("/api/assist/settings", "POST", settings({ on: !D.on })); }, D.on ? "Phone mode off" : "Phone mode on");
+    if (a === "take") return run(function () { return api("/api/assist/take", "POST", { id: id }); }, "Marked as taken. Place it in MT5 now.");
+    if (a === "skip") return run(function () { return api("/api/assist/skip", "POST", { id: id }); }, "Skipped");
+    if (a === "res") { RES = { id: id, outcome: b.dataset.o }; return paint(true); }
+    if (a === "rno") { RES = null; return paint(true); }
+    if (a === "rgo") {
+      var o = RES && RES.outcome, v = (document.getElementById("phAmt") || {}).value, body = { id: id, outcome: o };
+      if (v !== undefined && v !== "") body.pnl = parseFloat(v);
+      RES = null; return run(function () { return api("/api/assist/result", "POST", body); }, "Result saved");
+    }
+  });
+
+  setInterval(function () {
+    var u = me(), id = u ? u.uid : null, sg = u ? [u.uid, !!u.active, !!u.verified, !!u.admin].join("|") : "";
+    if (sg !== SIG) { if (id !== UID) { D = null; RES = null; ERR = ""; } UID = id; SIG = sg; paint(true); if (u) load(); }
+  }, 1000);
+  setInterval(function () { if (!document.hidden && !BUSY && me() && vc.classList.contains("on")) load(true); }, 15000);
+  new MutationObserver(function () { if (vc.classList.contains("on") && me()) load(true); }).observe(vc, { attributes: true, attributeFilter: ["class"] });
+  paint(true);
+})();
+</script>
+
 </body></html>
