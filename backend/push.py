@@ -60,8 +60,60 @@ def allowed(uid, kind, now=None):
         return False, 'daily cap'
     return True, ''
 
+# ---------- tokens ----------
+def save_token(uid, token, platform='android'):
+    token = str(token or '').strip()
+    if not 20 <= len(token) <= 4096: raise ValueError('Bad token')
+    now = int(time.time())
+    st.x('INSERT INTO push_tokens(token,uid,platform,created,seen) VALUES(?,?,?,?,?) ON CONFLICT(token) DO UPDATE SET uid=excluded.uid,platform=excluded.platform,seen=excluded.seen',
+         (token, uid, str(platform)[:20], now, now))
+
+def drop_token(token): st.x('DELETE FROM push_tokens WHERE token=?', (token,))
+def tokens(uid): return [r['token'] for r in st.q('SELECT token FROM push_tokens WHERE uid=?', (uid,))]
+
+# ---------- FCM HTTP v1 ----------
+_acc = None; _tok = {'v': None, 'exp': 0}; _lk = threading.Lock()
+def _account():
+    global _acc
+    if _acc is None:
+        raw = os.getenv('FCM_SERVICE_ACCOUNT', '').strip()
+        if not raw: _acc = {}
+        else:
+            try: _acc = json.loads(raw if raw.startswith('{') else base64.b64decode(raw).decode('utf-8'))
+            except Exception as e: print('[push] FCM_SERVICE_ACCOUNT unreadable:', e); _acc = {}
+    return _acc
+def configured(): a = _account(); return bool(a.get('private_key') and a.get('client_email') and a.get('project_id'))
+
+def _b64(b): return base64.urlsafe_b64encode(b).rstrip(b'=').decode()
+def _access_token():
+    with _lk:
+        if _tok['v'] and _tok['exp'] > time.time() + 60: return _tok['v']
+        a = _account(); now = int(time.time())
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import padding
+        head = _b64(json.dumps({'alg': 'RS256', 'typ': 'JWT'}).encode())
+        claim = _b64(json.dumps({'iss': a['client_email'], 'scope': 'https://www.googleapis.com/auth/firebase.messaging',
+                                 'aud': 'https://oauth2.googleapis.com/token', 'iat': now, 'exp': now + 3600}).encode())
+        key = serialization.load_pem_private_key(a['private_key'].encode(), password=None)
+        sig = key.sign((head + '.' + claim).encode(), padding.PKCS1v15(), hashes.SHA256())
+        r = requests.post('https://oauth2.googleapis.com/token', data={'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer', 'assertion': head + '.' + claim + '.' + _b64(sig)}, timeout=15)
+        r.raise_for_status(); j = r.json(); _tok['v'] = j['access_token']; _tok['exp'] = now + int(j.get('expires_in', 3600)); return _tok['v']
+
+def _fcm(token, title, body, channel, data):
+    a = _account()
+    msg = {'message': {'token': token, 'notification': {'title': title, 'body': body},
+           'data': {k: str(v) for k, v in data.items()},
+           'android': {'priority': 'HIGH' if channel == 'sxb_high' else 'NORMAL', 'notification': {'channel_id': channel, 'icon': 'ic_stat_sxb', 'tag': data.get('tag', '')[:60] or None}}}}
+    if not msg['message']['android']['notification']['tag']: del msg['message']['android']['notification']['tag']
+    if data.get('img'): msg['message']['notification']['image'] = data['img']
+    r = requests.post('https://fcm.googleapis.com/v1/projects/%s/messages:send' % a['project_id'], json=msg,
+                      headers={'Authorization': 'Bearer ' + _access_token()}, timeout=15)
+    if r.status_code == 200: return True, ''
+    if r.status_code in (404, 400) and ('UNREGISTERED' in r.text or 'INVALID_ARGUMENT' in r.text and 'token' in r.text.lower()): drop_token(token); return False, 'dead token removed'
+    return False, 'FCM %s %s' % (r.status_code, r.text[:160])
+
 # ---------- the one entry point ----------
-def send(uid, kind, body, title=None, key=None, force=False):
+def send(uid, kind, body, title=None, key=None, force=False, img=None):
     """Send one notification kind to one person. key makes it idempotent per person. Returns (sent_count, reason)."""
     if not configured(): return 0, 'FCM not configured'
     k = KINDS.get(kind)
@@ -74,6 +126,7 @@ def send(uid, kind, body, title=None, key=None, force=False):
     if not tk: return 0, 'no device'
     title = title or k['title']; ch = CHANNEL[k['ch']]
     data = {'kind': kind, 'cat': k['cat'], 'route': ROUTE[k['cat']], 'tag': 'k%s' % kind}; n = 0; last = ''
+    if img: data['img'] = img
     for t in tk:
         try: ok, why = _fcm(t, title, body, ch, data)
         except Exception as e: ok, why = False, str(e)[:120]
@@ -89,11 +142,18 @@ def recipients():
         if (r['pu'] or 0) > now or (r['email'] or '').lower() in admins: out.append(r['uid'])
     return out
 
-def broadcast(kind, body, title=None, key=None):
+def broadcast(kind, body, title=None, key=None, img=None):
     """Send in the background so a trade route is never slowed down. Returns immediately."""
     if not configured(): return
     def run():
         for uid in recipients():
-            try: send(uid, kind, body, title, (key + '/' + uid) if key else None)
+            try: send(uid, kind, body, title, (key + '/' + uid) if key else None, img=img)
             except Exception as e: print('[push] failed', e)
     threading.Thread(target=run, daemon=True).start()
+
+def notify(kind, key=None, **facts):
+    """Write the message for this kind from the facts and send it to everyone who should get it. Never raises."""
+    try:
+        from .pushcopy import compose
+        t, b, i = compose(kind, **facts); broadcast(kind, b, t, key, i)
+    except Exception as e: print('[push] notify failed', kind, e)

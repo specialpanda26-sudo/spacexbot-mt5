@@ -1,6 +1,6 @@
 import os, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, bars, brain, risk, sbauth, news, stats, accounts, push, payments as pay
+from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, payments as pay
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init()
@@ -100,9 +100,18 @@ def ea_report():
             title = f"{s['symbol']} {'opened' if stt == 'open' else 'closed'}"
             body = f"{s['side'].upper()} lots {s['lots']}" if stt == 'open' else f"P/L {s['pnl']}"
             sbauth.notify(title, body, key=f'sig{sid}-{stt}')
+            if stt == 'open': push.notify(1, f'sig{sid}-open', sym=s['symbol'], side=s['side'], entry=s['fill'] or s['entry'], sl=s['sl'], tp=s['tp'], risk=s['risk_pct'])
+            else: push.notify({'tp': 2, 'sl': 3}.get(str(d.get('reason')), 4), f'sig{sid}-closed', sym=s['symbol'], pnl=s['pnl'])
+    if stt == 'rejected': push.notify(8, f'sig{sid}-skipped', sym=(st.q('SELECT symbol FROM signals WHERE id=?', (sid,), True) or {}).get('symbol', ''), reason=str(d.get('reason') or '')[:80])
     return jsonify(ok=True)
 
 # ---------------- phone notifications ----------------
+@app.get('/notif/<name>.png')
+def notif_png(name):
+    b = notifart.png(name)
+    return Response(b, mimetype='image/png', headers={'Cache-Control': 'public, max-age=86400'}) if b else ('', 404)
+
+
 @app.post('/api/push/token')
 @need()
 def push_token(u):
