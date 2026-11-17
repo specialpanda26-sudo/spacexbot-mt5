@@ -12,7 +12,7 @@ DEFAULT_PLANS = [{'id': 'p1', 'name': '1 Week', 'days': 7, 'kes': 500, 'usd': 4}
 def plans():
     try:
         p = json.loads(st.get('plans') or '[]')
-        if isinstance(p, list) and p: return p
+        if isinstance(p, list) and p and all(isinstance(x, dict) and x.get('id') and x.get('name') and x.get('days') and x.get('kes') and x.get('usd') for x in p): return p
     except Exception: pass
     return DEFAULT_PLANS
 def plan(pid): return next((p for p in plans() if p['id'] == pid), None)

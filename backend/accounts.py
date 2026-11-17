@@ -54,8 +54,8 @@ def update(uid, j):
         sets['notif'] = json.dumps({k: 1 if j['n'].get(k) else 0 for k in NOTIF})
     if j.get('onboarded'): sets['onboarded'] = 1          # one way only: it can be set, never switched back off
     if 'gender' in j:
-        if j['gender'] not in GENDER: raise ValueError('Pick an option for gender.')
-        sets['gender'] = j['gender']
+        if str(j['gender']) not in GENDER: raise ValueError('Pick an option for gender.')
+        sets['gender'] = str(j['gender'])
     if 'dob' in j:
         try: d = dt.date.fromisoformat(str(j['dob']))
         except ValueError: raise ValueError('Enter a valid date of birth.')

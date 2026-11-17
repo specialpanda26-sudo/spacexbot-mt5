@@ -7,7 +7,12 @@ st.init()
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 _last_scan = {}
 
-def _ea_ok(): return bool(EA_KEY) and hmac.compare_digest(request.headers.get('X-EA-Key', ''), EA_KEY)
+def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
+def _j(force=False):
+    """The JSON body as a dict. Anything else (a list, a number, no body) becomes {} so a bad request cannot crash a route."""
+    j = request.get_json(force=force, silent=True)
+    return j if isinstance(j, dict) else {}
+def _ea_ok(): return bool(EA_KEY) and _same(request.headers.get('X-EA-Key', ''), EA_KEY)
 
 def user():
     h = request.headers.get('Authorization', '')
@@ -69,11 +74,13 @@ def _scan(sym):
 @app.post('/api/ea/sync')
 def ea_sync():
     if not _ea_ok(): return jsonify(error='bad key'), 401
-    d = request.get_json(force=True, silent=True) or {}
-    st.set_acct(d.get('account') or {})
-    for sym, tfs in (d.get('bars') or {}).items():
-        for tf, rows in tfs.items(): bars.merge(sym, tf, rows)
-    for sym in (d.get('bars') or {}): _scan(sym)
+    d = _j(True); bz = d.get('bars') if isinstance(d.get('bars'), dict) else {}
+    st.set_acct(d.get('account') if isinstance(d.get('account'), dict) else {})
+    for sym, tfs in bz.items():
+        for tf, rows in (tfs.items() if isinstance(tfs, dict) else ()):
+            try: bars.merge(sym, tf, rows)
+            except (TypeError, ValueError, IndexError) as e: print('bad bars from EA', sym, tf, e)
+    for sym in bz: _scan(sym)
     now = int(time.time())
     st.x("UPDATE signals SET status='expired' WHERE status IN('pending','sent') AND created<?", (now - 180,))
     s = st.q("SELECT id,symbol,side,sl,tp,risk_pct FROM signals WHERE status='pending' ORDER BY id LIMIT 1", one=True)
@@ -83,7 +90,7 @@ def ea_sync():
 @app.post('/api/ea/report')
 def ea_report():
     if not _ea_ok(): return jsonify(error='bad key'), 401
-    d = request.get_json(force=True, silent=True) or {}; sid = d.get('id'); stt = d.get('status')
+    d = _j(True); sid = d.get('id'); stt = d.get('status')
     if stt == 'open': st.x("UPDATE signals SET status='open',ticket=?,lots=?,fill=? WHERE id=?", (str(d.get('ticket')), d.get('lots'), d.get('price'), sid))
     elif stt == 'rejected': st.x("UPDATE signals SET status='rejected',note=? WHERE id=?", (str(d.get('reason'))[:120], sid))
     elif stt == 'closed': st.x("UPDATE signals SET status='closed',pnl=?,closed=? WHERE id=?", (d.get('pnl'), int(time.time()), sid))
@@ -112,7 +119,7 @@ def me(u):
 @app.post('/api/me/profile')
 @need()
 def me_profile(u):
-    try: accounts.update(u['uid'], request.get_json(silent=True) or {})
+    try: accounts.update(u['uid'], _j())
     except ValueError as e: return jsonify(error=str(e)), 400
     return jsonify(ok=True)
 
@@ -133,8 +140,8 @@ def signals(u): return jsonify(st.q('SELECT id,symbol,side,entry,sl,tp,strategy,
 @app.post('/api/admin/settings')
 @need(admin=True)
 def admin_set(u):
-    for k, v in (request.json or {}).items():
-        if k in st.DEFAULTS: st.put(k, v)
+    for k, v in _j().items():
+        if k in st.DEFAULTS and k != 'plans': st.put(k, v)          # plans have their own checked route (/api/admin/plans)
     return jsonify({k: st.get(k) for k in st.DEFAULTS})
 
 @app.get('/api/status')
@@ -158,13 +165,15 @@ def stats_api(u): return jsonify(summary=stats.summary(), by_strategy=stats.by_s
 @app.post('/api/admin/plans')
 @need(admin=True)
 def admin_plans(u):
-    try: return jsonify(pay.set_plans((request.json or {}).get('plans') or []))
-    except (ValueError, TypeError, KeyError): return jsonify(error='bad plans'), 400
+    try: return jsonify(pay.set_plans(_j().get('plans') or []))
+    except (ValueError, TypeError, KeyError, AttributeError): return jsonify(error='bad plans'), 400
 
 @app.post('/api/admin/grant')
 @need(admin=True)
 def admin_grant(u):
-    j = request.json or {}; em = str(j.get('email', '')).strip().lower(); days = int(j.get('days', 0))
+    j = _j(); em = str(j.get('email', '')).strip().lower()
+    try: days = int(j.get('days', 0))
+    except (TypeError, ValueError): days = 0
     r = st.q('SELECT uid FROM users WHERE lower(email)=?', (em,), True)
     if not r or not (0 < days <= 3650): return jsonify(error='user not found (they must sign in once) or bad days'), 400
     pay.activate(r['uid'], None, days); return jsonify(ok=True)
@@ -181,7 +190,7 @@ def admin_subs(u):
 @app.post('/api/admin/revoke')
 @need(admin=True)
 def admin_revoke(u):
-    em = str((request.json or {}).get('email', '')).strip().lower()
+    em = str(_j().get('email', '')).strip().lower()
     n = st.x('UPDATE users SET plan_until=0 WHERE lower(email)=?', (em,), True)
     return jsonify(ok=True) if n else (jsonify(error='user not found'), 400)
 
@@ -196,7 +205,7 @@ def plans(): return jsonify(pay.plans())
 @app.post('/api/pay/mpesa')
 @need(verified=True)
 def p_mpesa(u):
-    j = request.json or {}
+    j = _j()
     try: return jsonify(ref=pay.stk_push(u['uid'], j.get('plan'), j.get('phone')), msg='Check your phone for the M-Pesa prompt')
     except ValueError as e: return jsonify(error=str(e)), 400
     except PermissionError as e: return jsonify(error=str(e)), 429
@@ -206,7 +215,7 @@ def p_mpesa(u):
 @app.post('/api/pay/payhero/callback')
 def p_cb():
     sec = pay.cb_secret()
-    if not sec or not hmac.compare_digest(request.args.get('s', ''), sec): return 'no', 403
+    if not sec or not _same(request.args.get('s', ''), sec): return 'no', 403
     cb = pay.parse_webhook(request.get_json(force=True, silent=True) or {})
     print('finoq webhook:', cb['ref'] or '(no ref)', cb['status'] or '?', 'amount', cb['amount'] or '?')
     if not cb['ref']: return jsonify(ok=True)
@@ -216,7 +225,7 @@ def p_cb():
 @app.post('/api/pay/paypal')
 @need(verified=True)
 def p_pp(u):
-    try: ref, url = pay.paypal_create(u['uid'], (request.json or {}).get('plan')); return jsonify(ref=ref, url=url)
+    try: ref, url = pay.paypal_create(u['uid'], _j().get('plan')); return jsonify(ref=ref, url=url)
     except ValueError as e: return jsonify(error=str(e)), 400
     except RuntimeError as e: return jsonify(error=str(e)), 503
     except Exception as e: print('paypal create failed', e); return jsonify(error='PayPal is unavailable right now'), 502
