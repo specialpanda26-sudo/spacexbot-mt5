@@ -192,8 +192,9 @@ def paypal_create(uid, pid):
     if not p: raise ValueError('bad plan')
     if not paypal_ready(): raise RuntimeError('PayPal is not set up yet')
     ref = _new(uid, 'paypal', pid, p['usd'], 'USD'); b = _env('BASE_URL').rstrip('/')
-    body = {'intent': 'CAPTURE', 'purchase_units': [{'reference_id': ref, 'custom_id': ref, 'amount': {'currency_code': 'USD', 'value': f"{p['usd']:.2f}"}}],
-            'application_context': {'return_url': f'{b}/api/pay/paypal/return', 'cancel_url': f'{b}/?paid=cancel', 'user_action': 'PAY_NOW'}}
+    body = {'intent': 'CAPTURE', 'purchase_units': [{'reference_id': ref, 'custom_id': ref, 'description': ('spaceXBot ' + str(p['name']) + ' (' + str(p['days']) + ' days)')[:120], 'soft_descriptor': 'SPACEXBOT',
+                        'amount': {'currency_code': 'USD', 'value': f"{p['usd']:.2f}"}}],
+            'application_context': {'brand_name': 'spaceXBot', 'shipping_preference': 'NO_SHIPPING', 'landing_page': 'GUEST_CHECKOUT', 'return_url': f'{b}/api/pay/paypal/return', 'cancel_url': f'{b}/?paid=cancel', 'user_action': 'PAY_NOW'}}
     try:
         r = requests.post(_pp_base() + '/v2/checkout/orders', json=body, headers={'Authorization': 'Bearer ' + _pp_token(), 'PayPal-Request-Id': ref}, timeout=25)
         if r.status_code >= 300: print('paypal refused the order', r.status_code, r.text[:300]); raise RuntimeError('refused')
