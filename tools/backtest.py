@@ -39,7 +39,7 @@ def run(m15, h1=None, min_conf=2, rr=2.0, risk=1.0, cooldown=4, off=()):
             hit_sl = b['l'] <= sl if side == 'buy' else b['h'] >= sl
             hit_tp = b['h'] >= tp if side == 'buy' else b['l'] <= tp
             if hit_sl: res = -1.0; break            # SL first when both hit (pessimistic)
-            if hit_tp: res = rr; break
+            if hit_tp: res = abs(tp - s['entry']) / abs(s['entry'] - sl); break
         if res is None: i += 1; continue
         eq *= 1 + risk / 100 * res; peak = max(peak, eq); mdd = max(mdd, (peak - eq) / peak * 100)
         trades.append(res); i = j + cooldown

@@ -142,10 +142,11 @@ def star_reversal(m, h):
     if lw >= 2 * body and uw <= 0.3 * body and b['l'] <= min(x['l'] for x in m[-11:-1]) and r < 38 and b['h'] - b['l'] >= 0.6 * a:
         return {'side': 'buy', 'sl': b['l'] - 0.2 * a, 'name': 'star_reversal'}
 
-ALL = [ema_pullback, sr_retest, fvg_retrace, london_breakout, bb_reversion, macd_cross, heikin_flip, psar_flip, awesome_osc, dual_thrust, star_reversal]
+from .jg_pullback import jg_pullback
+ALL = [jg_pullback, ema_pullback, sr_retest, fvg_retrace, london_breakout, bb_reversion, macd_cross, heikin_flip, psar_flip, awesome_osc, dual_thrust, star_reversal]
 # regime groups: reversion setups are skipped in strong trends; trend setups are skipped in dead ranges
 REVERSION = {'bb_reversion', 'star_reversal'}
-TREND = {'ema_pullback', 'fvg_retrace', 'macd_cross', 'heikin_flip', 'psar_flip', 'dual_thrust', 'london_breakout'}
+TREND = {'jg_pullback', 'ema_pullback', 'fvg_retrace', 'macd_cross', 'heikin_flip', 'psar_flip', 'dual_thrust', 'london_breakout'}
 
 try:
     from . import taught; taught.load(ALL, REVERSION, TREND)

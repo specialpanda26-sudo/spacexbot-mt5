@@ -23,5 +23,8 @@ def evaluate(m15, h1, min_conf=2, rr=2.0, off=(), adx_trend_min=18.0, adx_rev_ma
     dist = abs(entry - sl)
     if not (0.5 * a <= dist <= 3.5 * a): return None
     tp = entry + rr * dist if side == 'buy' else entry - rr * dist
+    if len(grp) == 1 and grp[0].get('tp'):      # a lone strategy that brings its own target (video-1 setup)
+        t = grp[0]['tp']
+        if (side == 'buy' and t > entry) or (side == 'sell' and t < entry): tp = t
     return {'side': side, 'entry': round(entry, 5), 'sl': round(sl, 5), 'tp': round(tp, 5),
             'strategy': '+'.join(x['name'] for x in grp), 'score': len(grp), 'adx': round(ax, 1)}
