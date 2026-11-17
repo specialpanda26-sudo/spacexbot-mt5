@@ -21,6 +21,8 @@ CREATE INDEX IF NOT EXISTS ix_push_tokens_uid ON push_tokens(uid);
 CREATE TABLE IF NOT EXISTS push_log(uid TEXT,kind INTEGER,k TEXT,ts INTEGER);
 CREATE INDEX IF NOT EXISTS ix_push_log_uid ON push_log(uid,ts);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_push_log_key ON push_log(uid,k) WHERE k IS NOT NULL;
+CREATE TABLE IF NOT EXISTS brain_events(id INTEGER PRIMARY KEY AUTOINCREMENT,uid TEXT,kind TEXT,strategy TEXT,symbol TEXT,side TEXT,pnl REAL,data TEXT,ts INTEGER);
+CREATE INDEX IF NOT EXISTS ix_brain_kind ON brain_events(kind,ts);
 """
 PG_SCHEMA = """
 CREATE TABLE IF NOT EXISTS users(uid TEXT PRIMARY KEY,email TEXT,name TEXT,plan_until BIGINT DEFAULT 0,created BIGINT,
@@ -48,7 +50,9 @@ CREATE TABLE IF NOT EXISTS push_log(uid TEXT,kind BIGINT,k TEXT,ts BIGINT);
 CREATE INDEX IF NOT EXISTS ix_push_log_uid ON push_log(uid,ts);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_push_log_key ON push_log(uid,k) WHERE k IS NOT NULL;
 ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY;
-ALTER TABLE push_log ENABLE ROW LEVEL SECURITY;
+CREATE TABLE IF NOT EXISTS brain_events(id BIGSERIAL PRIMARY KEY,uid TEXT,kind TEXT,strategy TEXT,symbol TEXT,side TEXT,pnl DOUBLE PRECISION,data TEXT,ts BIGINT);
+CREATE INDEX IF NOT EXISTS ix_brain_kind ON brain_events(kind,ts);
+ALTER TABLE brain_events ENABLE ROW LEVEL SECURITY;
 """
 
 # ---------------- Postgres plumbing (only used when DATABASE_URL is set) ----------------

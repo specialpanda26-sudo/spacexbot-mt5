@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, payments as pay
+from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -84,6 +84,7 @@ def _scan(sym, uid=''):
     sid = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
          (sym, s['side'], s['entry'], s['sl'], s['tp'], links.risk(uid) if uid else st.fget('risk_pct'), s['strategy'], s['score'], 'pending', int(time.time()), uid or None))
     sbauth.notify(f"{s['side'].upper()} {sym}", f"Entry {s['entry']}  SL {s['sl']}  TP {s['tp']}  ({s['strategy']})", key=f'sig{sid}-new', only=uid or None)
+    learn.log(uid, 'signal', s['strategy'], sym, s['side'], data={'score': s['score'], 'adx': s['adx'], 'entry': s['entry']})
     if not uid: assist.announce(sid)          # phone-mode people get the signal with their own lot size
 
 @app.post('/api/ea/sync')
@@ -125,6 +126,7 @@ def ea_report():
     if stt in ('open', 'closed'):
         s = st.q('SELECT * FROM signals WHERE id=?', (sid,), True)
         if s:
+            if stt == 'closed': learn.log(who, 'closed', s['strategy'], s['symbol'], s['side'], s['pnl'], {'reason': str(d.get('reason') or '')})
             title = f"{s['symbol']} {'opened' if stt == 'open' else 'closed'}"
             body = f"{s['side'].upper()} lots {s['lots']}" if stt == 'open' else f"P/L {s['pnl']}"
             sbauth.notify(title, body, key=f'sig{sid}-{stt}', only=only)
@@ -220,6 +222,7 @@ def _link_edit(u, fn):
     if not links.get(u['uid']): return jsonify(error='Make your key first.'), 400
     try: fn()
     except ValueError as e: return jsonify(error=str(e)), 400
+    learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in _j().items() if k in ('mode', 'on', 'risk')}})
     return jsonify(links.view(u['uid']))
 
 @app.post('/api/link/mode')
@@ -311,6 +314,10 @@ def status(u):
 @app.get('/api/stats')
 @need(active=True)
 def stats_api(u): return jsonify(summary=stats.summary(_mine(u)), by_strategy=stats.by_strategy(_mine(u)))
+
+@app.get('/api/admin/brain')
+@need(admin=True)
+def admin_brain(u): return jsonify(summary=learn.summary(), by_strategy=learn.by_strategy())
 
 @app.post('/api/admin/plans')
 @need(admin=True)
