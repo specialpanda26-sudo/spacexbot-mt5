@@ -561,6 +561,7 @@ body.scrolled .top::before{border-bottom-color:var(--line)}
 #off.on{opacity:1;visibility:visible;transition-delay:0s}
 #off .oc{width:100%;max-width:360px;display:grid;gap:12px;text-align:center;transform:translateY(24px) scale(.96);transition:transform .6s var(--spring)}#off.on .oc{transform:none}
 #off .oc.sh{animation:sxsh .35s}#off h2{font-size:28px}#off .ill2{width:190px}
+#offb{position:fixed;left:0;right:0;top:0;z-index:199;padding:calc(6px + env(safe-area-inset-top,0px)) 12px 6px;text-align:center;font-size:12px;font-weight:800;background:var(--sun-soft);color:var(--fg);transform:translateY(-110%);transition:transform .3s}#offb.on{transform:none}
 @media(prefers-reduced-motion:reduce){.card>.fb,.card>.fb>.fbi,.ov .panel{transition:none}.ov.open .panel>*{animation:none!important}}
 </style>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="mk" viewBox="50 50 412 412"><g transform="translate(256 262) scale(.76) translate(-315 -287)"><g transform="translate(315 370) rotate(-34.6)" fill="none"><ellipse rx="273" ry="90" stroke="var(--mk-edge)" stroke-width="13"/><ellipse rx="273" ry="90" stroke="var(--mk-body)" stroke-width="7"/></g><path fill="var(--mk-body)" opacity=".6" d="M333 168L346 150L413 30L360 152Z"/><path fill="var(--mk-body)" d="M346 150L413 30L372 158Z"/><path fill="var(--mk-visor)" d="M318 160Q335 148 358 152L362 170Q335 180 320 172Z"/><ellipse cx="295" cy="345" rx="186" ry="178" fill="var(--mk-body)"/><ellipse cx="478" cy="338" rx="22" ry="34" fill="var(--mk-visor)" opacity=".75"/><path fill="var(--mk-visor)" d="M138 268C205 300 380 298 448 252C474 330 456 424 402 470C332 522 195 520 152 440C124 390 124 322 138 268Z"/><path d="M148 330C150 300 156 282 168 270" stroke="var(--mk-eye)" stroke-width="5" stroke-linecap="round" opacity=".5" fill="none"/><ellipse cx="178" cy="384" rx="31" ry="14" transform="rotate(24 178 384)" fill="var(--mk-eye)"/><ellipse cx="329" cy="380" rx="51" ry="17" transform="rotate(-11 329 380)" fill="var(--mk-eye)"/><g transform="translate(315 370) rotate(-34.6)" fill="none"><path d="M-273 0A273 90 0 0 0 273 0" stroke="var(--mk-edge)" stroke-width="13"/><path d="M-273 0A273 90 0 0 0 273 0" stroke="var(--mk-body)" stroke-width="7"/></g></g></symbol></svg>
@@ -1317,7 +1318,7 @@ function profNudge(){
   if(!us&&!ph&&!co)return $("#npE").textContent="Fill in at least one detail, or tap Skip.";
   var o={};if(us)o.user=us;if(ph)o.phone=ph;if(co)o.country=co;dots(b);
   SXA.save(o).then(function(m){U=m;slot();tst(profDone(m)?"Profile saved":"Saved. A few details are still missing.");closeOv()}).catch(function(x){b.classList.remove("ld");b.style.minWidth=b.style.minHeight="";b.textContent="Save";$("#npE").textContent=SXA.err(x)})}}
-window.sxSetUser=function(u,first){U=u;slot();var h=location.hash;
+window.sxSetUser=function(u,first){U=u;slot();setTimeout(function(){window.sxNet&&window.sxNet()},0);var h=location.hash;
  if(!u){if(PROT.test(h))location.hash="#welcome";return}
  if(first){var gf=gfl();if(!u.verified){setTimeout(verify,500);return}if(!u.dob&&!u.onboarded&&gf){setTimeout(about,500);return}}
  if(u.verified&&(!h||h==="#"||h==="#welcome"))location.hash="#home";
@@ -1584,8 +1585,10 @@ fixArt();new MutationObserver(fixArt).observe(document.body,{childList:true,subt
 /* ---- offline screen ---- */
 var off=document.createElement("div");off.id="off";off.setAttribute("role","alertdialog");off.setAttribute("aria-label","No internet connection");
 off.innerHTML='<div class="oc">'+IL2.off+'<h2>Oops! No internet</h2><p class="muted">You are offline. Check your Wi-Fi or mobile data, then try again. Your settings are safe on this device.</p><button class="btn primary big block" id="offGo">Try again</button></div>';document.body.appendChild(off);
-function net(){var on=navigator.onLine!==false;off.classList.toggle("on",!on);return on}
-window.addEventListener("offline",net);window.addEventListener("online",function(){if(off.classList.contains("on")){net();tst("Back online")}});
+var offb=document.createElement("div");offb.id="offb";offb.setAttribute("role","status");offb.textContent="Offline. Showing your last saved data.";document.body.appendChild(offb);
+function net(){var on=navigator.onLine!==false,keep=!on&&!!U;off.classList.toggle("on",!on&&!keep);offb.classList.toggle("on",keep);return on}
+window.sxNet=net;
+window.addEventListener("offline",net);window.addEventListener("online",function(){var was=off.classList.contains("on")||offb.classList.contains("on");net();if(was){tst("Back online");if(window.SXA&&SXA.refresh)SXA.refresh().catch(function(){})}});
 $("#offGo").onclick=function(){var b=this;dots(b);setTimeout(function(){b.classList.remove("ld");b.style.minWidth=b.style.minHeight="";b.textContent="Try again";if(net())tst("Back online");else{var c=$(".oc",off);c.classList.remove("sh");void c.offsetWidth;c.classList.add("sh")}},900)};
 net();
 /* ---- cancelled payment ---- */

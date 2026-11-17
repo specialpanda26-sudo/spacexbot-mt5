@@ -20,7 +20,20 @@
       });
     });
   }
-  function load() { return api("/api/me").then(function (j) { ME = norm(j); lastUid = ME.uid; return ME; }); }
+  function clr() { try { Object.keys(localStorage).filter(function (k) { return k === "sxb_me" || k.indexOf("sxb_c:") === 0; }).forEach(function (k) { localStorage.removeItem(k); }); } catch (x) {} }
+  function jget(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (x) { return null; } }
+  function jput(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (x) {} }
+  /* online: remember the answer. No network (not a server refusal): use the last saved account, but only for the person still signed in. */
+  function load() {
+    return api("/api/me").then(function (j) { jput("sxb_me", j); ME = norm(j); lastUid = ME.uid; return ME; }).catch(function (e) {
+      var c = jget("sxb_me"); if ((e && e.status) || !c || !S) throw e;
+      return S.auth.getSession().then(function (r) {
+        var u = r.data && r.data.session && r.data.session.user;
+        if (!u || u.id !== c.uid) throw e;
+        ME = norm(c); ME.offline = true; lastUid = ME.uid; return ME;
+      });
+    });
+  }
   function fire() { if (sink && !HOLD) sink(ME, first); }
   function need() { if (!ok) return Promise.reject(Object.assign(new Error("Sign-in is not set up on this server yet."), { code: "sxb/config" })); return null; }
   function chk(r) { if (r.error) throw r.error; return r.data; }
@@ -32,7 +45,7 @@
       if (ev === "TOKEN_REFRESHED" || ev === "USER_UPDATED") return;
       if (ev === "SIGNED_IN" && ses && ses.user && ses.user.id === lastUid) return;
       setTimeout(function () {   /* never call Supabase inside its own callback */
-        var p = ses ? load().catch(function () { ME = null; if (window.sxToast) window.sxToast("Cannot reach the server. Try again shortly."); }) : (ME = null, lastUid = null, Promise.resolve());
+        var p = ses ? load().catch(function () { ME = null; if (window.sxToast) window.sxToast("Cannot reach the server. Try again shortly."); }) : (ME = null, lastUid = null, ev === "SIGNED_OUT" && clr(), Promise.resolve());
         p.then(function () { var f = !done; done = true; first = f; fire(); first = false; res(); });
       }, 0);
     });
@@ -42,6 +55,13 @@
     ready: ready, api: api, user: function () { return ME; }, resolved: function () { return done; }, configured: ok,
     bind: function (fn) { sink = fn; if (done) { first = true; fire(); first = false; } },
     refresh: function () { return load().then(function (m) { fire(); return m; }); },
+    /* GET with a saved copy: {data, stale, at}. Online it saves the fresh answer; offline it returns the last one. */
+    cached: function (path) {
+      return api(path).then(function (j) { jput("sxb_c:" + path, { t: Date.now(), j: j }); return { data: j, stale: false, at: Date.now() }; }).catch(function (e) {
+        var c = jget("sxb_c:" + path); if ((e && e.status) || !c) throw e;
+        return { data: c.j, stale: true, at: c.t };
+      });
+    },
     signUp: function (name, email, pw, extra) {
       var n = need(); if (n) return n;
       return S.auth.signUp({ email: email, password: pw, options: { data: { full_name: name, dob: extra && extra.dob, gender: extra && extra.gender } } }).then(chk).then(function (d) {
