@@ -146,3 +146,7 @@ ALL = [ema_pullback, sr_retest, fvg_retrace, london_breakout, bb_reversion, macd
 # regime groups: reversion setups are skipped in strong trends; trend setups are skipped in dead ranges
 REVERSION = {'bb_reversion', 'star_reversal'}
 TREND = {'ema_pullback', 'fvg_retrace', 'macd_cross', 'heikin_flip', 'psar_flip', 'dual_thrust', 'london_breakout'}
+
+try:
+    from . import taught; taught.load(ALL, REVERSION, TREND)
+except Exception as e: print('taught strategies not loaded:', e)

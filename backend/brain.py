@@ -17,7 +17,7 @@ def evaluate(m15, h1, min_conf=2, rr=2.0, off=(), adx_trend_min=18.0, adx_rev_ma
     buys = [x for x in hits if x['side'] == 'buy']; sells = [x for x in hits if x['side'] == 'sell']
     if len(buys) == len(sells): return None
     grp, side = (buys, 'buy') if len(buys) > len(sells) else (sells, 'sell')
-    if len(grp) < min_conf: return None
+    if len(grp) < min_conf and not any(x.get('solo') for x in grp): return None
     entry = m15[-1]['c']; a = atr(m15)[-1]
     sl = min(x['sl'] for x in grp) if side == 'buy' else max(x['sl'] for x in grp)   # widest = safest
     dist = abs(entry - sl)

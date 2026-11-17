@@ -1,0 +1,1 @@
+{"strategies":[{"name":"example_rsi_bounce","enabled":false,"kind":"reversion","buy":["rsi(14) cross_above 30","close > ema(200)"],"sell":["rsi(14) cross_below 70","close < ema(200)"],"sl_atr":1.5,"hours":[7,16],"solo":false}]}
