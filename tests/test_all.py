@@ -272,6 +272,18 @@ def _():
         P.requests.post = lambda *a, **k: Resp(201, {'id': 'O9', 'links': []}); assert 'no-approve-link' in go().json['error']
     finally:
         del os.environ['PAYPAL_CLIENT_ID'], os.environ['PAYPAL_SECRET']; P._pp_token = keep; P.requests.post = fake_post
+@T('paypal: order body uses a landing_page PayPal accepts, and a refusal names the bad field')
+def _():
+    os.environ.update(PAYPAL_CLIENT_ID='i', PAYPAL_SECRET='s'); keep = P._pp_token; P._pp_token = lambda: 't'; seen = {}
+    def cap(*a, **k): seen.update(k.get('json') or {}); return Resp(201, {'id': 'O7', 'links': [{'rel': 'approve', 'href': 'https://pp/a'}]})
+    try:
+        P.requests.post = cap; assert C.post('/api/pay/paypal', json={'plan': 'p1'}, headers=U).status_code == 200
+        lp = seen['application_context']['landing_page']; assert lp in ('LOGIN', 'BILLING', 'NO_PREFERENCE') and lp != 'GUEST_CHECKOUT', lp
+        bad = Resp(400, {'name': 'INVALID_REQUEST', 'details': [{'field': '/application_context/landing_page', 'issue': 'INVALID_PARAMETER_VALUE'}]})
+        assert P._pp_code(bad) == 'http400-INVALID_PARAMETER_VALUE@landing_page', P._pp_code(bad)
+        assert P._pp_code(Resp(422, {'details': [{'issue': 'CURRENCY_NOT_SUPPORTED'}]})) == 'http422-CURRENCY_NOT_SUPPORTED'
+    finally:
+        del os.environ['PAYPAL_CLIENT_ID'], os.environ['PAYPAL_SECRET']; P._pp_token = keep; P.requests.post = fake_post
 @T('paypal: the return page redirects with the real result and the payment ref')
 def _():
     st.x('UPDATE users SET plan_until=0'); ref, oid = pp_row(); P._pp_token = lambda: 't'

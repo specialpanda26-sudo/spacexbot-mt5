@@ -195,7 +195,9 @@ def _pp_code(r):
     d = j.get('details'); why = ''
     if isinstance(d, list) and d and isinstance(d[0], dict): why = d[0].get('issue') or ''
     why = why or j.get('error') or j.get('name') or ''
-    return ('http%s-%s' % (r.status_code, ''.join(c for c in str(why) if c.isalnum() or c in '_-')))[:60].rstrip('-')
+    fld = d[0].get('field') if isinstance(d, list) and d and isinstance(d[0], dict) else ''
+    fld = ''.join(c for c in str(fld or '').split('/')[-1] if c.isalnum() or c == '_')      # last part only, e.g. landing_page
+    return ('http%s-%s%s' % (r.status_code, ''.join(c for c in str(why) if c.isalnum() or c in '_-'), ('@' + fld) if fld else ''))[:60].rstrip('-')
 
 def paypal_create(uid, pid):
     p = plan(pid)
@@ -204,7 +206,7 @@ def paypal_create(uid, pid):
     ref = _new(uid, 'paypal', pid, p['usd'], 'USD'); b = _env('BASE_URL').rstrip('/')
     body = {'intent': 'CAPTURE', 'purchase_units': [{'reference_id': ref, 'custom_id': ref, 'description': ('spaceXBot ' + str(p['name']) + ' (' + str(p['days']) + ' days)')[:120], 'soft_descriptor': 'SPACEXBOT',
                         'amount': {'currency_code': 'USD', 'value': f"{p['usd']:.2f}"}}],
-            'application_context': {'brand_name': 'spaceXBot', 'shipping_preference': 'NO_SHIPPING', 'landing_page': 'GUEST_CHECKOUT', 'return_url': f'{b}/api/pay/paypal/return', 'cancel_url': f'{b}/?paid=cancel', 'user_action': 'PAY_NOW'}}
+            'application_context': {'brand_name': 'spaceXBot', 'shipping_preference': 'NO_SHIPPING', 'landing_page': 'BILLING', 'return_url': f'{b}/api/pay/paypal/return', 'cancel_url': f'{b}/?paid=cancel', 'user_action': 'PAY_NOW'}}
     code = 'unknown'
     try:
         r = requests.post(_pp_base() + '/v2/checkout/orders', json=body, headers={'Authorization': 'Bearer ' + _pp_token(), 'PayPal-Request-Id': ref}, timeout=25)
