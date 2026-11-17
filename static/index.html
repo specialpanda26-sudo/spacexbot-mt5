@@ -1996,4 +1996,177 @@ setInterval(sync,700);sync();
 build()})();
 </script>
 
+<script>
+/* ---- Connect MT5 card: personal key, Demo/Real switch, Start/Stop bot. Uses /api/link/* and /api/status. ---- */
+(function () {
+  "use strict";
+  var vc = document.getElementById("view-connect");
+  if (!vc || !window.SXA) return;
+  var C = document.createElement("div"); C.className = "card"; C.id = "mt5c"; vc.insertBefore(C, vc.firstChild);
+  var L = null, ST = null, KEY = null, UID = null, SIG = "", ERR = "", BUSY = false, REAL = false, NEWK = false, DEL = false, tNew = 0, tDel = 0;
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function toast(t) { if (window.sxToast) window.sxToast(t); }
+  function me() { try { return SXA.user(); } catch (e) { return null; } }
+  function api(p, m, b) { return SXA.api(p, { method: m || "GET", body: b }); }
+  function num(v) { var n = Number(v); return isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "-"; }
+
+  /* what the server's gate said, in plain words */
+  function why(w) {
+    w = String(w || "");
+    if (/real account/.test(w)) return L && L.mode === "real" ? "Real mode is on, but the EA has AllowLive switched off. Turn it on in the EA inputs." : "This MT5 account is not a demo account. Turn on Real mode, or log MT5 into a demo account.";
+    if (/weekend/.test(w)) return "Paused for the weekend. It resumes when the new week opens.";
+    if (/max open/.test(w)) return "Waiting. The most open trades allowed is reached.";
+    if (/max trades/.test(w)) return "Today's trade limit is reached. It resumes tomorrow.";
+    if (/daily loss/.test(w)) return "Today's loss limit is reached. It resumes tomorrow.";
+    if (/weekly loss/.test(w)) return "This week's loss limit is reached. It resumes next week.";
+    if (/in a row/.test(w)) return "Cooling down after losses in a row.";
+    if (/offline/.test(w)) return "Your MT5 went quiet. Check that it is open and the EA is running.";
+    return w ? "Waiting: " + w + "." : "Waiting.";
+  }
+  function statusText() {
+    if (!L || !L.linked) return "";
+    if (!L.online) return L.bot ? "The bot is on, but your MT5 is offline. Open MT5 and check the EA is running." : "Your MT5 is not reporting yet. Put the key in the EA and keep MT5 open.";
+    if (!L.bot) return "Your MT5 is connected. The bot is stopped.";
+    if (ST && ST.can_trade) return "Bot running on your " + (L.mode === "real" ? "real" : "demo") + " account. Watching for setups.";
+    return ST ? why(ST.why) : "Bot running. Checking the safety gates.";
+  }
+
+  /* ---------- the card ---------- */
+  function head(chip) { return '<div class="card-head"><h2>Connect your MT5</h2>' + (chip || "") + "</div>"; }
+  function paint(force) {
+    var ae = document.activeElement;
+    if (!force && ae && C.contains(ae) && ae.tagName === "INPUT") return;       /* never wipe what the person is typing */
+    var u = me(), h;
+    if (!u) h = head('<span class="chip">Log in first</span>') + '<p class="note">Log in to make your personal key and link your own MT5.</p>';
+    else if (!u.verified) h = head('<span class="chip stop">Verify email</span>') + '<p class="note">Verify your email first. Then you can make your key.</p>';
+    else if (u.admin) h = head('<span class="chip info">Owner</span>') + '<p class="note">You are the owner. Your own EA uses the main <code>EA_KEY</code>, so there is no personal key to make here.</p>';
+    else if (!u.active) h = head('<span class="chip stop">Plan needed</span>') + '<p class="note">Linking your MT5 needs an active plan. The bot and your EA stay off until then.</p><button class="btn primary block" data-act="plan">Choose a plan</button>';
+    else if (!L) h = head('<span class="chip">Loading</span>') + (ERR ? '<p class="err">' + esc(ERR) + "</p>" : '<p class="note">Loading your link.</p>');
+    else if (!L.linked) h = head('<span class="chip">Not linked</span>') + '<p class="note">Make your personal key, then paste it into the EA on your own MT5. Your trades, limits and results stay separate from everyone else.</p><button class="btn primary block" data-act="mk"' + (BUSY ? " disabled" : "") + '>Make my key</button><p class="err" role="alert">' + esc(ERR) + "</p>" + steps();
+    else h = linked();
+    C.innerHTML = h;
+  }
+  function steps() {
+    return '<ol class="steps"><li><div><b>Install the EA</b><span>Copy <code>SpaceXBridge.mq5</code> into <code>MQL5/Experts</code> in MT5 and compile it.</span></div></li>' +
+      '<li><div><b>Paste your key</b><span>Put the key in the EA input <code>EAKey</code>. Keep <code>AllowLive</code> off while you practise.</span></div></li>' +
+      '<li><div><b>Allow the address</b><span>In MT5, Tools, Options, Expert Advisors, allow WebRequest for <code>' + esc(location.origin) + "</code>.</span></div></li>" +
+      "<li><div><b>Keep MT5 open</b><span>MT5 must stay running on a PC or VPS. This page is the remote control.</span></div></li></ol>";
+  }
+  function linked() {
+    var real = L.mode === "real", st = statusText(), bits = [];
+    if (L.online && L.balance != null) bits.push("Balance " + num(L.balance));
+    if (L.online && L.equity != null) bits.push("Equity " + num(L.equity));
+    if (L.online && L.open != null) bits.push(num(L.open) + " open");
+    var o = head('<span class="chip ' + (L.online ? "ok" : "stop") + '"><span class="dot"></span>' + (L.online ? "MT5 online" : "MT5 offline") + "</span>");
+    o += '<p class="note" id="mt5st" style="font-weight:800;color:var(--fg)">' + esc(st) + "</p>" + (bits.length ? '<p class="note">' + esc(bits.join(" · ")) + "</p>" : "");
+    o += '<div class="field"><label>Account mode</label><div class="seg" role="group" aria-label="Account mode"><button type="button" data-act="demo" aria-pressed="' + (!real && !REAL) + '">Demo</button><button type="button" data-act="real" aria-pressed="' + (real || REAL) + '">Real</button></div>' +
+      '<p class="note">' + (real ? "Real mode is on. Trades use real money." : "Demo is the default. It is the safe way to practise.") + " Switching mode stops the bot.</p></div>";
+    if (REAL && !real) o += '<div class="field" style="border:2px solid var(--bad);border-radius:16px;padding:14px"><p class="note" style="color:var(--bad);font-weight:800">Real mode trades real money and you can lose it all. The EA must also have AllowLive on. Nothing here is a promise of profit.</p>' +
+      '<label for="mt5rc">Type REAL to confirm</label><input class="inp" id="mt5rc" autocomplete="off" autocapitalize="characters" spellcheck="false">' +
+      '<div class="jrow"><button class="btn" data-act="realno">Cancel</button><button class="btn primary" data-act="realgo">Turn on Real</button></div></div>';
+    o += '<button class="btn ' + (L.bot ? "" : "primary") + ' block" data-act="bot"' + (BUSY ? " disabled" : "") + ">" + (L.bot ? "Stop bot" : "Start bot") + "</button>";
+    o += '<div class="field"><label for="mt5r">Risk per trade (%)</label><div class="jrow"><input class="inp" id="mt5r" type="number" min="0.1" max="2" step="0.1" inputmode="decimal" value="' + esc(L.risk) + '"><button class="btn" data-act="risk">Save</button></div></div>';
+    if (KEY) o += '<div class="field"><label>Your key. Shown once, copy it now.</label><code id="mt5k" style="display:block;padding:12px 14px;border-radius:14px;background:var(--surface2);word-break:break-all;font-weight:800;user-select:all">' + esc(KEY) + '</code><button class="btn block" data-act="cp">Copy key</button></div>' + steps();
+    else o += '<p class="note">Your key was shown when you made it. Lost it? Make a new one. The old key stops at once and the bot stops too.</p>';
+    o += '<button class="btn block" data-act="nk">' + (NEWK ? "Tap again to make a new key" : "Make a new key") + "</button>";
+    o += '<button class="btn block" data-act="del">' + (DEL ? "Tap again to remove the link" : "Remove link") + "</button>";
+    return o + '<p class="err" role="alert">' + esc(ERR) + "</p>";
+  }
+
+  /* ---------- server calls ---------- */
+  function load(quiet) {
+    var u = me();
+    if (!u || u.admin || !u.verified) { L = null; ST = null; paint(); return Promise.resolve(); }
+    return api("/api/link").then(function (j) {
+      L = j; if (!quiet) ERR = "";
+      if (j.linked && u.active) return api("/api/status").then(function (s) { ST = s; }, function () { ST = null; });
+      ST = null;
+    }).catch(function (e) { if (!quiet) ERR = e.message || "Could not load."; }).then(function () { paint(); home(); });
+  }
+  function run(p, ok) {
+    if (BUSY) return; BUSY = true; ERR = ""; paint(true);
+    p().then(function (j) { if (j && j.linked !== undefined) L = j; if (ok) toast(ok); return load(true); })
+      .catch(function (e) { ERR = e.message || "Something went wrong."; }).then(function () { BUSY = false; paint(true); home(); });
+  }
+  function toggleBot() { run(function () { return api("/api/link/bot", "POST", { on: !L.bot }); }, L.bot ? "Bot stopped" : "Bot started"); }
+
+  function copy() {
+    var t = KEY || ""; if (!t) return;
+    var done = function () { toast("Key copied"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, fb); else fb();
+    function fb() { var k = document.getElementById("mt5k"); if (k) { var r = document.createRange(); r.selectNodeContents(k); var s = getSelection(); s.removeAllRanges(); s.addRange(r); try { document.execCommand("copy"); done(); } catch (e) { toast("Press and hold the key to copy it"); } } }
+  }
+
+  C.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-act]"); if (!b || BUSY) return;
+    var a = b.dataset.act;
+    if (a !== "nk") NEWK = false; if (a !== "del") DEL = false;
+    if (a === "plan") { var t = document.getElementById("botToggle"); if (t) t.click(); return; }
+    if (a === "mk") return run(function () { return api("/api/link/key", "POST", {}).then(function (j) { KEY = j.key; delete j.key; return j; }); }, "Key made");
+    if (a === "cp") return copy();
+    if (a === "nk") {
+      if (!NEWK) { NEWK = true; clearTimeout(tNew); tNew = setTimeout(function () { NEWK = false; paint(); }, 5000); return paint(true); }
+      NEWK = false; return run(function () { return api("/api/link/key", "POST", {}).then(function (j) { KEY = j.key; delete j.key; return j; }); }, "New key made. The old one stopped working.");
+    }
+    if (a === "del") {
+      if (!DEL) { DEL = true; clearTimeout(tDel); tDel = setTimeout(function () { DEL = false; paint(); }, 5000); return paint(true); }
+      DEL = false; return run(function () { return api("/api/link", "DELETE").then(function () { KEY = null; REAL = false; return { linked: false }; }); }, "Link removed");
+    }
+    if (a === "demo") { REAL = false; if (L && L.mode === "demo") return paint(true); return run(function () { return api("/api/link/mode", "POST", { mode: "demo" }); }, "Demo mode on. Bot stopped."); }
+    if (a === "real") { if (L && L.mode === "real") return; REAL = true; return paint(true); }
+    if (a === "realno") { REAL = false; return paint(true); }
+    if (a === "realgo") {
+      var v = (document.getElementById("mt5rc") || {}).value || "";
+      if (v.trim() !== "REAL") { ERR = "Type REAL in capital letters to confirm."; return paint(true); }
+      REAL = false; return run(function () { return api("/api/link/mode", "POST", { mode: "real", confirm: "REAL" }); }, "Real mode on. Bot stopped.");
+    }
+    if (a === "bot") return toggleBot();
+    if (a === "risk") {
+      var r = parseFloat((document.getElementById("mt5r") || {}).value);
+      if (!(r >= 0.1 && r <= 2)) { ERR = "Risk must be between 0.1 and 2 percent."; return paint(true); }
+      return run(function () { return api("/api/link/risk", "POST", { risk: r }); }, "Risk saved");
+    }
+  });
+
+  /* ---------- the Home tab's Start/Pause button follows the real bot for people with a link ---------- */
+  function set(el, html, text, cls) { if (!el) return; if (el.textContent.trim() !== text) el.innerHTML = html; if (cls !== undefined && el.className !== cls) el.className = cls; }
+  function home() {
+    var u = me(); if (!u || u.admin || !u.active || !L || !L.linked) return;
+    var run_ = !!L.bot, txt, cls;
+    if (!L.online) { txt = "Waiting for MT5"; cls = "chip watch"; }
+    else if (!run_) { txt = "Stopped"; cls = "chip"; }
+    else if (ST && ST.can_trade === false) { txt = "Waiting"; cls = "chip watch"; }
+    else { txt = "Running"; cls = "chip ok"; }
+    set(document.getElementById("botChip"), '<span class="dot"></span>' + txt, txt, cls);
+    set(document.getElementById("botToggle"), run_ ? "Stop bot" : "Start bot", run_ ? "Stop bot" : "Start bot", "btn " + (run_ ? "" : "primary"));
+    set(document.getElementById("pillTxt"), run_ ? "Bot running" : "Bot stopped", run_ ? "Bot running" : "Bot stopped");
+    var d = document.querySelector("#botPill .dot"); if (d) { var dc = "dot" + (run_ && L.online ? " run" : ""); if (d.className !== dc) d.className = dc; }
+    var bu = document.getElementById("bubble"), s = statusText(); if (bu && s && bu.textContent !== s) bu.textContent = s;
+  }
+  document.addEventListener("click", function (e) {
+    if (!(e.target.closest && e.target.closest("#botToggle,#botPill"))) return;
+    var u = me(); if (!u || u.admin || !u.active) return;       /* the owner and unpaid people keep the existing behaviour */
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    if (BUSY) return;
+    if (L === null) { toast("One moment, loading your link"); load(); return; }
+    if (!L.linked) { toast("Make your MT5 key on the Connect tab first"); var n = document.querySelector('.nav [data-go="connect"]'); if (n) n.click(); return; }
+    toggleBot();
+  }, true);
+
+  /* ---------- keep it fresh ---------- */
+  setInterval(function () {
+    var u = me(), id = u ? u.uid : null, sg = u ? [u.uid, !!u.active, !!u.verified, !!u.admin].join("|") : "";
+    if (sg !== SIG) {      /* signed in or out, switched account, or the plan just started or ended */
+      if (id !== UID) { KEY = null; L = null; ST = null; REAL = NEWK = DEL = false; ERR = ""; }
+      UID = id; SIG = sg; paint(true); if (u) load(); return;
+    }
+    home();
+  }, 1000);
+  setInterval(function () { if (!document.hidden && !BUSY && me()) load(true); }, 12000);
+  new MutationObserver(function () { if (vc.classList.contains("on") && me()) load(true); }).observe(vc, { attributes: true, attributeFilter: ["class"] });
+  paint(true);
+})();
+</script>
+
 </body></html>

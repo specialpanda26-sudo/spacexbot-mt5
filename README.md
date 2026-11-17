@@ -18,7 +18,7 @@ Every subscriber connects **their own** MT5 (Exness or any MT5 broker). Nothing 
 - The user puts that key in the EA's `EAKey` (the owner's own EA keeps using `EA_KEY`). Their candles, signals, limits, alerts and results stay separate; one user can never read or change another's.
 - **Demo / Real:** Demo is the default. Real needs the user to type `REAL`, and the server refuses to trade a non-demo account unless Real mode is on **and** the EA reports `AllowLive=true`. Switching mode stops the bot.
 - When a plan ends, the EA is told to stop and nothing new is stored. Only symbols in the admin's `symbols` setting are accepted from user EAs (max 12, 500 candles each).
-- Routes: `GET /api/link`, `POST /api/link/key`, `/api/link/mode`, `/api/link/bot`, `/api/link/risk`, `DELETE /api/link`. The Bot tab in the website is still a demo simulation: wiring it to these routes is the next section.
+- Routes: `GET /api/link`, `POST /api/link/key`, `/api/link/mode`, `/api/link/bot`, `/api/link/risk`, `DELETE /api/link`. The **Connect** tab has a Connect MT5 card wired to these routes: make or replace the key (shown once, with Copy), Demo/Real switch (Real asks to type `REAL`), Start/Stop bot and risk per trade. For a subscriber with a link, the Home Start/Stop button controls the real bot. Charts and sample numbers elsewhere are still demo.
 - Memory: candles are kept in server memory per user. Watch Render's memory as users grow (the free plan is small).
 - Existing data: old trades have no owner and belong to the owner's EA. After this update subscribers see their own bot, not the owner's.
 
