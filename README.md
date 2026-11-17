@@ -78,6 +78,15 @@ Copy `ea/SpaceXBridge.mq5` to `MQL5/Experts/`, compile, allow WebRequest for you
     python tools/backtest.py XAUUSD_M15.csv XAUUSD_H1.csv --solo
 The backtest ignores news lock, exposure cap and loss limits.
 
+## Windows app (laptop mode)
+A small window for a Windows PC that runs the same bot as the EA, with no MQL5 needed. It uses your own MetaTrader 5 and your personal key. Free.
+- **Get the .exe:** GitHub > Actions > Build Windows app > Run workflow (it also builds by itself when `desktop/` changes on main). The file appears under Releases as **desktop-latest > spacexbot-desktop.exe**. The Connect tab has a **Download for Windows** card, shown only on a Windows PC. The repo must be public for visitors to download. The Android release stays the "latest" one; this one is kept apart on purpose so both links keep working.
+- **Use it:** open MetaTrader 5 on the PC, log in to a **demo** account, switch **Algo Trading** on. Open the app, paste your server address and personal key (Connect tab > Make my key), press **Start**. Leave "Allow REAL-money accounts" off until you have watched it on demo for weeks.
+- **Windows SmartScreen:** the first run may say *Windows protected your PC*. That is because the .exe has no paid code-signing certificate (they cost money, and this project stays free) and it is new, so Windows has no reputation for it yet. It does not mean the file is infected. Choose **More info > Run anyway**, but only for a file you downloaded from your own spaceXBot site or Releases page. You can compare the SHA-256 printed in the release notes with `Get-FileHash .\spacexbot-desktop.exe` in PowerShell.
+- **Antivirus:** apps made with PyInstaller are sometimes flagged by antivirus programs even when harmless. If yours blocks it, do not turn your antivirus off. Run from source instead: install Python 3.12 from python.org (tick "Add to PATH"), then in the project folder `pip install requests MetaTrader5` and `python -m desktop.gui`.
+- **If the window will not open:** look for `crash.log` in the `.spacexbot` folder inside your Windows user folder and send it to support.
+- **Not tested on a live terminal.** The window logic is tested with fakes. The connection to a real MetaTrader 5 has not been run yet. Start on a demo account.
+
 ## Android app
 GitHub > Actions > Build Android APK > Run workflow builds `spacexbot.apk` (see Releases). It is a thin wrapper that opens your Render site, so `android-wrapper/capacitor.config.json` must point at your own Render address (it is set to `spacexbot-gn73.onrender.com`). Signing needs the four `ANDROID_*` secrets (see `android-wrapper/setup-signing.sh`).
 PayPal opens in the phone's browser; when the person returns to the app it checks the order and credits the plan. This has only been tested against a fake server, so try both M-Pesa and PayPal on a real phone before taking real money.

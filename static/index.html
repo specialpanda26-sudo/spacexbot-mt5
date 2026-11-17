@@ -2281,4 +2281,22 @@ build()})();
 })();
 </script>
 
+<script>
+/* ---- Windows app card on the Connect tab. Shown only on a Windows PC, never on phones or in the Android app. ---- */
+(function () {
+  try {
+    var c = window.Capacitor, native = !!(c && c.isNativePlatform && c.isNativePlatform()), ua = navigator.userAgent;
+    if (native || !/Windows NT/.test(ua) || /Android|; wv\)|iPhone|iPad|iPod/.test(ua)) return;
+    var vc = document.getElementById("view-connect"); if (!vc || document.getElementById("winapp")) return;
+    var W = document.createElement("div"); W.className = "card"; W.id = "winapp";
+    W.innerHTML = '<div class="card-head"><h2>Windows app</h2></div>' +
+      '<p class="note">Runs your bot on this PC with your own MetaTrader 5. Free. It only trades while the app and MetaTrader 5 are both open and logged in. Try a demo account first.</p>' +
+      '<a class="btn primary block" href="https://github.com/specialpanda26-sudo/spacexbot-mt5./releases/download/desktop-latest/spacexbot-desktop.exe" rel="noopener">Download for Windows</a>' +
+      '<p class="note">Windows may say "Windows protected your PC" because this free app has no paid signature. Choose More info, then Run anyway, only if you got the file from here. Signals are not advice and do not promise profit.</p>';
+    var after = document.getElementById("phonec") || document.getElementById("mt5c");
+    vc.insertBefore(W, after ? after.nextSibling : vc.firstChild);
+  } catch (e) {}
+})();
+</script>
+
 </body></html>
