@@ -187,6 +187,16 @@ def _pp_get(order_id):
     r = requests.get(f'{_pp_base()}/v2/checkout/orders/{order_id}', headers={'Authorization': 'Bearer ' + _pp_token()}, timeout=25)
     return r.json() if r.status_code < 300 else None
 
+def _pp_code(r):
+    """Short reason from a PayPal error answer. Safe to show, never holds a key. e.g. http401-invalid_client, http422-CURRENCY_NOT_SUPPORTED."""
+    try: j = r.json()
+    except Exception: j = {}
+    if not isinstance(j, dict): j = {}
+    d = j.get('details'); why = ''
+    if isinstance(d, list) and d and isinstance(d[0], dict): why = d[0].get('issue') or ''
+    why = why or j.get('error') or j.get('name') or ''
+    return ('http%s-%s' % (r.status_code, ''.join(c for c in str(why) if c.isalnum() or c in '_-')))[:60].rstrip('-')
+
 def paypal_create(uid, pid):
     p = plan(pid)
     if not p: raise ValueError('bad plan')
@@ -195,12 +205,17 @@ def paypal_create(uid, pid):
     body = {'intent': 'CAPTURE', 'purchase_units': [{'reference_id': ref, 'custom_id': ref, 'description': ('spaceXBot ' + str(p['name']) + ' (' + str(p['days']) + ' days)')[:120], 'soft_descriptor': 'SPACEXBOT',
                         'amount': {'currency_code': 'USD', 'value': f"{p['usd']:.2f}"}}],
             'application_context': {'brand_name': 'spaceXBot', 'shipping_preference': 'NO_SHIPPING', 'landing_page': 'GUEST_CHECKOUT', 'return_url': f'{b}/api/pay/paypal/return', 'cancel_url': f'{b}/?paid=cancel', 'user_action': 'PAY_NOW'}}
+    code = 'unknown'
     try:
         r = requests.post(_pp_base() + '/v2/checkout/orders', json=body, headers={'Authorization': 'Bearer ' + _pp_token(), 'PayPal-Request-Id': ref}, timeout=25)
-        if r.status_code >= 300: print('paypal refused the order', r.status_code, r.text[:300]); raise RuntimeError('refused')
-        o = r.json(); link = next(l['href'] for l in o['links'] if l['rel'] in ('approve', 'payer-action'))
+        if r.status_code >= 300: print('paypal refused the order', r.status_code, r.text[:300]); code = _pp_code(r); raise RuntimeError('refused')
+        o = r.json(); code = 'no-approve-link'; link = next(l['href'] for l in o['links'] if l['rel'] in ('approve', 'payer-action'))
     except Exception as e:
-        _mark(ref, 'failed', 'not_sent'); raise RuntimeError('PayPal is unavailable right now') from e
+        resp = getattr(e, 'response', None)
+        if resp is not None and hasattr(resp, 'status_code'): code = _pp_code(resp)      # sign-in refused: wrong keys, or live keys with PAYPAL_ENV=sandbox
+        elif code == 'unknown': code = 'net-' + type(e).__name__                         # no answer from PayPal at all
+        print('paypal create failed:', code, '|', str(e)[:200])
+        _mark(ref, 'failed', 'not_sent'); raise RuntimeError('PayPal is unavailable right now (' + code + ')') from e
     st.x('UPDATE payments SET checkout_id=? WHERE ref=?', (o['id'], ref))
     return ref, link
 

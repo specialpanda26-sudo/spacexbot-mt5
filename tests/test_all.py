@@ -257,6 +257,21 @@ def _():
         assert st.q('SELECT status FROM payments ORDER BY created DESC,rowid DESC LIMIT 1', one=True)['status'] == 'failed'
     finally:
         del os.environ['PAYPAL_CLIENT_ID'], os.environ['PAYPAL_SECRET']; P.requests.post = fake_post
+@T('paypal: when create fails the app says why with a short code, never a key')
+def _():
+    os.environ.update(PAYPAL_CLIENT_ID='i', PAYPAL_SECRET='SECRETVALUE'); keep = P._pp_token
+    def go(): return C.post('/api/pay/paypal', json={'plan': 'p1'}, headers=U)
+    def deny(): raise P.requests.HTTPError('401', response=Resp(401, {'error': 'invalid_client'}))
+    def boom(*a, **k): raise P.requests.ConnectionError('x')
+    bad = Resp(422, {'details': [{'issue': 'CURRENCY_NOT_SUPPORTED'}]}); bad.text = '{}'
+    try:
+        P._pp_token = deny; r = go(); assert r.status_code == 503 and 'http401-invalid_client' in r.json['error'] and 'SECRETVALUE' not in r.json['error']
+        P._pp_token = lambda: 't'
+        P.requests.post = lambda *a, **k: bad; assert 'http422-CURRENCY_NOT_SUPPORTED' in go().json['error']
+        P.requests.post = boom; assert 'net-ConnectionError' in go().json['error']
+        P.requests.post = lambda *a, **k: Resp(201, {'id': 'O9', 'links': []}); assert 'no-approve-link' in go().json['error']
+    finally:
+        del os.environ['PAYPAL_CLIENT_ID'], os.environ['PAYPAL_SECRET']; P._pp_token = keep; P.requests.post = fake_post
 @T('paypal: the return page redirects with the real result and the payment ref')
 def _():
     st.x('UPDATE users SET plan_until=0'); ref, oid = pp_row(); P._pp_token = lambda: 't'

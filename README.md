@@ -62,6 +62,7 @@ The backtest ignores news lock, exposure cap and loss limits.
 ## Android app
 GitHub > Actions > Build Android APK > Run workflow builds `spacexbot.apk` (see Releases). It is a thin wrapper that opens your Render site, so `android-wrapper/capacitor.config.json` must point at your own Render address (it is set to `spacexbot-gn73.onrender.com`). Signing needs the four `ANDROID_*` secrets (see `android-wrapper/setup-signing.sh`).
 PayPal opens in the phone's browser; when the person returns to the app it checks the order and credits the plan. This has only been tested against a fake server, so try both M-Pesa and PayPal on a real phone before taking real money.
+If PayPal fails, the app now shows a short code, e.g. `PayPal is unavailable right now (http401-invalid_client)`. `http401` = keys do not match `PAYPAL_ENV`; `http403` or `PAYEE_ACCOUNT_RESTRICTED` = the PayPal account is not approved for live payments; `net-...` = PayPal could not be reached. The Render log line `paypal create failed:` has the same code.
 
 ## Known limits
 - **SQLite on Render free is wiped on every redeploy.** Users, plans and payments reset. Move to Supabase Postgres before taking real money.
