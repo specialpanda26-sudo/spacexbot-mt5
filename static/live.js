@@ -75,6 +75,7 @@
     google: function () {
       var n = need(); if (n) return n;
       var cap = window.Capacitor, gid = (window.SXB && window.SXB.gid) || "";
+      var wv = /; wv\)/.test(navigator.userAgent), isNat = !!(cap && cap.isNativePlatform && cap.isNativePlatform());   /* sxb-no-browser */
       if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.registerPlugin && gid) {
         var raw = Array.prototype.map.call(crypto.getRandomValues(new Uint8Array(16)), function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
         return crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw)).then(function (h) {
@@ -85,9 +86,16 @@
           return S.auth.signInWithIdToken({ provider: "google", token: r.idToken, nonce: raw });
         }).then(chk).then(load).catch(function (e) {
           if (e && (e.code === "CANCELLED" || /^cancel/i.test(String(e.message || "")))) { var c = new Error("Google sign-in was cancelled."); c.code = "cancelled"; throw c; }
+          var c0 = e && e.code;
+          if (c0 === "NO_ACCOUNT" || c0 === "FAILED" || c0 === "UNIMPLEMENTED") {
+            var m0 = String((e && e.message) || c0); try { localStorage.setItem("sxb_g_why", m0 + " @ " + new Date().toISOString()); } catch (x) {}
+            throw new Error("Google account list could not open: " + m0.slice(0, 160));
+          }
           throw e;
         });
       }
+      /* inside the app the browser page is never used: say what is missing instead */
+      if (wv || isNat) return Promise.reject(new Error("The app could not open your Google accounts. (Capacitor " + (cap ? "found" : "missing") + ", native " + isNat + ", plugin " + typeof (cap && cap.registerPlugin) + ", id " + (gid ? "set" : "empty") + ")"));
       return S.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + "/" } }).then(chk).then(function () { return new Promise(function () {}); });
     },
     signOut: function () { ME = null; lastUid = null; return S ? S.auth.signOut() : Promise.resolve(); },
