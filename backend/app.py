@@ -1,6 +1,6 @@
-import os, time, json, hmac, threading, functools
+import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, payments as pay
+from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, payments as pay
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init()
@@ -12,7 +12,14 @@ def _j(force=False):
     """The JSON body as a dict. Anything else (a list, a number, no body) becomes {} so a bad request cannot crash a route."""
     j = request.get_json(force=force, silent=True)
     return j if isinstance(j, dict) else {}
-def _ea_ok(): return bool(EA_KEY) and _same(request.headers.get('X-EA-Key', ''), EA_KEY)
+def _ea_who():
+    """Who is calling the EA routes: '' = the owner's own EA (EA_KEY), a uid = that subscriber's personal key, None = refused."""
+    k = request.headers.get('X-EA-Key', '')
+    if EA_KEY and _same(k, EA_KEY): return ''
+    return links.by_key(k) if k else None
+def _paid(uid):
+    r = st.q('SELECT email,plan_until FROM users WHERE uid=?', (uid,), True)
+    return bool(r) and ((r['plan_until'] or 0) > time.time() or (r['email'] or '').lower() in ADMINS)
 
 def user():
     h = request.headers.get('Authorization', '')
@@ -51,46 +58,60 @@ def cfgjs():
     return Response(f'window.SXB={{sb:{json.dumps(sbauth.public_config())},gid:{json.dumps(os.getenv("GOOGLE_WEB_CLIENT_ID", ""))},plans:{json.dumps(pay.plans())}}};', mimetype='application/javascript')
 
 # ---------------- EA bridge ----------------
-def _scan(sym):
-    if time.time() - _last_scan.get(sym, 0) < 20: return
-    _last_scan[sym] = time.time()
-    m15 = bars.get(sym, 'M15'); h1 = bars.get(sym, 'H1')
+def _scan(sym, uid=''):
+    k = (uid, sym)
+    if time.time() - _last_scan.get(k, 0) < 20: return
+    _last_scan[k] = time.time()
+    m15 = bars.get(sym, 'M15', uid); h1 = bars.get(sym, 'H1', uid)
     if not m15: return
-    key = f'lastbar:{sym}'
+    key = f'lastbar:{uid}:{sym}' if uid else f'lastbar:{sym}'
     if st.get(key) == str(m15[-1]['t']): return          # already evaluated this candle
     st.put(key, m15[-1]['t'])
-    ok, why = risk.global_gate()
+    ok, why = risk.global_gate(uid=uid)
     if not ok: return
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
-    if st.get('auto_disable') == '1': off |= stats.losers(int(st.fget('auto_disable_min_trades')))
+    if st.get('auto_disable') == '1': off |= stats.losers(int(st.fget('auto_disable_min_trades')), uid)
     s = brain.evaluate(m15, h1, int(st.fget('min_confluence')), st.fget('rr'), off)
     if not s: return
-    ok, why = risk.symbol_gate(sym, s['side'])
+    ok, why = risk.symbol_gate(sym, s['side'], uid=uid)
     if not ok: print('skip', sym, s['side'], why); return
-    sid = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created) VALUES(?,?,?,?,?,?,?,?,?,?)',
-         (sym, s['side'], s['entry'], s['sl'], s['tp'], st.fget('risk_pct'), s['strategy'], s['score'], 'pending', int(time.time())))
-    sbauth.notify(f"{s['side'].upper()} {sym}", f"Entry {s['entry']}  SL {s['sl']}  TP {s['tp']}  ({s['strategy']})", key=f'sig{sid}-new')
+    sid = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+         (sym, s['side'], s['entry'], s['sl'], s['tp'], links.risk(uid) if uid else st.fget('risk_pct'), s['strategy'], s['score'], 'pending', int(time.time()), uid or None))
+    sbauth.notify(f"{s['side'].upper()} {sym}", f"Entry {s['entry']}  SL {s['sl']}  TP {s['tp']}  ({s['strategy']})", key=f'sig{sid}-new', only=uid or None)
 
 @app.post('/api/ea/sync')
 def ea_sync():
-    if not _ea_ok(): return jsonify(error='bad key'), 401
-    d = _j(True); bz = d.get('bars') if isinstance(d.get('bars'), dict) else {}
-    st.set_acct(d.get('account') if isinstance(d.get('account'), dict) else {})
+    who = _ea_who()
+    if who is None: return jsonify(error='bad key'), 401
+    d = _j(True); a = d.get('account') if isinstance(d.get('account'), dict) else {}; bz = d.get('bars') if isinstance(d.get('bars'), dict) else {}
+    if who:
+        if not _paid(who): return jsonify(signal=None, bot=False, expired=True, symbols=st.get('symbols'))          # plan ended: nothing is stored or traded
+        a = {k: a[k] for k in ('balance', 'equity', 'open', 'demo', 'allow_live', 'login') if k in a}                   # only the fields we know
+        ok = {x.strip() for x in (st.get('symbols') or '').split(',') if x.strip()}
+        bz = {s: v for s, v in list(bz.items())[:12] if s in ok}                                                        # only the owner's symbol list
+    st.set_acct(a, who)
     for sym, tfs in bz.items():
         for tf, rows in (tfs.items() if isinstance(tfs, dict) else ()):
-            try: bars.merge(sym, tf, rows)
+            if who and (tf not in ('M15', 'H1') or not isinstance(rows, list)): continue
+            try: bars.merge(sym, tf, rows[:500] if who else rows, uid=who)
             except (TypeError, ValueError, IndexError) as e: print('bad bars from EA', sym, tf, e)
-    for sym in bz: _scan(sym)
+    for sym in bz:
+        try: _scan(sym, who)
+        except Exception as e: print('scan failed', sym, str(e)[:120])
     now = int(time.time())
-    st.x("UPDATE signals SET status='expired' WHERE status IN('pending','sent') AND created<?", (now - 180,))
-    s = st.q("SELECT id,symbol,side,sl,tp,risk_pct FROM signals WHERE status='pending' ORDER BY id LIMIT 1", one=True)
+    st.x("UPDATE signals SET status='expired' WHERE status IN('pending','sent') AND created<? AND COALESCE(uid,'')=?", (now - 180, who))
+    s = st.q("SELECT id,symbol,side,sl,tp,risk_pct FROM signals WHERE status='pending' AND COALESCE(uid,'')=? ORDER BY id LIMIT 1", (who,), one=True)
     if s: st.x("UPDATE signals SET status='sent' WHERE id=?", (s['id'],))
-    return jsonify(signal=s, bot=st.get('bot_enabled') == '1', symbols=st.get('symbols'))
+    return jsonify(signal=s, bot=links.bot_on(who), symbols=st.get('symbols'))
 
 @app.post('/api/ea/report')
 def ea_report():
-    if not _ea_ok(): return jsonify(error='bad key'), 401
-    d = _j(True); sid = d.get('id'); stt = d.get('status')
+    who = _ea_who()
+    if who is None: return jsonify(error='bad key'), 401
+    d = _j(True); stt = d.get('status'); only = who or None
+    try: sid = int(d.get('id'))
+    except (TypeError, ValueError): return jsonify(ok=True)
+    if not st.q("SELECT 1 FROM signals WHERE id=? AND COALESCE(uid,'')=?", (sid, who), True): return jsonify(ok=True)      # not this caller's trade: change nothing, reveal nothing
     if stt == 'open': st.x("UPDATE signals SET status='open',ticket=?,lots=?,fill=? WHERE id=?", (str(d.get('ticket')), d.get('lots'), d.get('price'), sid))
     elif stt == 'rejected': st.x("UPDATE signals SET status='rejected',note=? WHERE id=?", (str(d.get('reason'))[:120], sid))
     elif stt == 'closed': st.x("UPDATE signals SET status='closed',pnl=?,closed=? WHERE id=?", (d.get('pnl'), int(time.time()), sid))
@@ -99,10 +120,10 @@ def ea_report():
         if s:
             title = f"{s['symbol']} {'opened' if stt == 'open' else 'closed'}"
             body = f"{s['side'].upper()} lots {s['lots']}" if stt == 'open' else f"P/L {s['pnl']}"
-            sbauth.notify(title, body, key=f'sig{sid}-{stt}')
-            if stt == 'open': push.notify(1, f'sig{sid}-open', sym=s['symbol'], side=s['side'], entry=s['fill'] or s['entry'], sl=s['sl'], tp=s['tp'], risk=s['risk_pct'])
-            else: push.notify({'tp': 2, 'sl': 3}.get(str(d.get('reason')), 4), f'sig{sid}-closed', sym=s['symbol'], pnl=s['pnl'])
-    if stt == 'rejected': push.notify(8, f'sig{sid}-skipped', sym=(st.q('SELECT symbol FROM signals WHERE id=?', (sid,), True) or {}).get('symbol', ''), reason=str(d.get('reason') or '')[:80])
+            sbauth.notify(title, body, key=f'sig{sid}-{stt}', only=only)
+            if stt == 'open': push.notify(1, f'sig{sid}-open', sym=s['symbol'], side=s['side'], entry=s['fill'] or s['entry'], sl=s['sl'], tp=s['tp'], risk=s['risk_pct'], only=only)
+            else: push.notify({'tp': 2, 'sl': 3}.get(str(d.get('reason')), 4), f'sig{sid}-closed', sym=s['symbol'], pnl=s['pnl'], only=only)
+    if stt == 'rejected': push.notify(8, f'sig{sid}-skipped', sym=(st.q('SELECT symbol FROM signals WHERE id=?', (sid,), True) or {}).get('symbol', ''), reason=str(d.get('reason') or '')[:80], only=only)
     return jsonify(ok=True)
 
 # ---------------- phone notifications ----------------
@@ -138,13 +159,14 @@ def push_test(u):
 @app.get('/api/me')
 @need()
 def me(u):
-    a = st.acct(); online = time.time() - a.get('seen', 0) < 120
+    sc = _mine(u); a = st.acct(sc); online = time.time() - a.get('seen', 0) < 120
     out = {'uid': u['uid'], 'email': u['email'], 'verified': bool(u.get('verified')), 'admin': u['admin'], 'active': u['active'], 'plan_until': u['plan_until'], **accounts.view(u['uid'])}
     out['name'] = out['name'] or u.get('name') or u['email'].split('@')[0]
     if u['active']:
         since = st.day_start()
-        out.update(bot=st.get('bot_enabled') == '1', ea_online=online, account=a if u['admin'] else {'demo': a.get('demo')},
-                   today=st.q("SELECT COUNT(*) n, COALESCE(SUM(pnl),0) pnl FROM signals WHERE created>=?", (since,), True))
+        out.update(bot=links.bot_on(sc), ea_online=online, account=a if u['admin'] else {'demo': a.get('demo')},
+                   today=st.q("SELECT COUNT(*) n, COALESCE(SUM(pnl),0) pnl FROM signals WHERE created>=? AND COALESCE(uid,'')=?", (since, sc), True))
+        if not u['admin']: out['link'] = links.view(u['uid'])
         if u['admin']: out['settings'] = {k: st.get(k) for k in st.DEFAULTS}
     return jsonify(out)
 
@@ -167,7 +189,57 @@ def me_signout(u): return jsonify(ok=sbauth.revoke(u['uid']))
 
 @app.get('/api/signals')
 @need(active=True)
-def signals(u): return jsonify(st.q('SELECT id,symbol,side,entry,sl,tp,strategy,score,status,created,pnl FROM signals ORDER BY id DESC LIMIT 50'))
+def signals(u): return jsonify(st.q("SELECT id,symbol,side,entry,sl,tp,strategy,score,status,created,pnl FROM signals WHERE COALESCE(uid,'')=? ORDER BY id DESC LIMIT 50", (_mine(u),)))
+
+# ---------------- each subscriber's own MT5 link ----------------
+def _mine(u):
+    """The data scope of this person: '' (the owner's own EA) for admins, their own link for everyone else."""
+    return '' if u['admin'] else u['uid']
+
+@app.get('/api/link')
+@need(verified=True)
+def link_get(u):
+    if u['admin']: return jsonify(linked=False, admin=True)
+    return jsonify(links.view(u['uid']))
+
+@app.post('/api/link/key')
+@need(verified=True, active=True)
+def link_key(u):
+    if u['admin']: return jsonify(error='Admins use the main EA key (EA_KEY).'), 400
+    key = links.new_key(u['uid']); return jsonify(key=key, **links.view(u['uid']))      # the only time the key is shown
+
+def _link_edit(u, fn):
+    if u['admin']: return jsonify(error='Admins use the main EA key (EA_KEY).'), 400
+    if not links.get(u['uid']): return jsonify(error='Make your key first.'), 400
+    try: fn()
+    except ValueError as e: return jsonify(error=str(e)), 400
+    return jsonify(links.view(u['uid']))
+
+@app.post('/api/link/mode')
+@need(verified=True)
+def link_mode(u):
+    j = _j(); m = j.get('mode')
+    if m == 'real':
+        if not u['active']: return jsonify(error='subscription required'), 402
+        if j.get('confirm') != 'REAL': return jsonify(error='Type REAL to confirm. Real mode trades real money.'), 400
+    return _link_edit(u, lambda: links.set_mode(u['uid'], m))
+
+@app.post('/api/link/bot')
+@need(verified=True)
+def link_bot(u):
+    on = _j().get('on') is True
+    if on and not u['active']: return jsonify(error='subscription required'), 402
+    return _link_edit(u, lambda: links.set_bot(u['uid'], on))
+
+@app.post('/api/link/risk')
+@need(verified=True)
+def link_risk(u): return _link_edit(u, lambda: links.set_risk(u['uid'], _j().get('risk')))
+
+@app.delete('/api/link')
+@need(verified=True)
+def link_del(u):
+    if not u['admin']: links.drop(u['uid'])
+    return jsonify(ok=True)
 
 @app.post('/api/admin/settings')
 @need(admin=True)
@@ -180,19 +252,19 @@ def admin_set(u):
 @need(active=True)
 def status(u):
     """Everything the Bot tab's gates card shows, from the real gate code."""
-    a = st.acct(); now = time.time(); bal = float(a.get('balance') or 0); since = st.day_start()
-    dpnl = st.q("SELECT COALESCE(SUM(pnl),0) p FROM signals WHERE closed>=?", (since,), True)['p']
-    ok, why = risk.global_gate()
+    sc = _mine(u); a = st.acct(sc); now = time.time(); bal = float(a.get('balance') or 0); since = st.day_start()
+    dpnl = st.q("SELECT COALESCE(SUM(pnl),0) p FROM signals WHERE closed>=? AND COALESCE(uid,'')=?", (since, sc), True)['p']
+    ok, why = risk.global_gate(uid=sc)
     nh = news.next_high(now)
-    return jsonify(bot=st.get('bot_enabled') == '1', ea_online=now - a.get('seen', 0) < 120, can_trade=ok, why=why,
+    return jsonify(bot=links.bot_on(sc), ea_online=now - a.get('seen', 0) < 120, can_trade=ok, why=why,
                    day_loss_pct=round(max(0, -dpnl) / bal * 100, 2) if bal else 0, day_loss_limit=st.fget('max_daily_loss_pct'),
                    open=int(a.get('open', 0)), max_open=int(st.fget('max_open')), news_next=nh, news_loaded=news.loaded(),
-                   news_lock=st.get('news_lock') == '1', exposure=risk.exposure(), demo=a.get('demo'),
+                   news_lock=st.get('news_lock') == '1', exposure=risk.exposure(sc), demo=a.get('demo'),
                    strategies=[f.__name__ for f in __import__('backend.strategies', fromlist=['ALL']).ALL], off=[x for x in (st.get('strategies_off') or '').split(',') if x])
 
 @app.get('/api/stats')
 @need(active=True)
-def stats_api(u): return jsonify(summary=stats.summary(), by_strategy=stats.by_strategy())
+def stats_api(u): return jsonify(summary=stats.summary(_mine(u)), by_strategy=stats.by_strategy(_mine(u)))
 
 @app.post('/api/admin/plans')
 @need(admin=True)

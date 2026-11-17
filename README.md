@@ -12,6 +12,16 @@ The backend does the thinking (11 rule-based strategies, regime filter, safety g
 - **Stats:** `/api/stats` shows results per strategy; `python tools/backtest.py M15.csv H1.csv --solo` tests each strategy alone on your own data.
 - Plans are editable by the admin (`/api/admin/plans`), `/api/admin/grant` gives a user days.
 
+## Per-user MT5 link (each subscriber's own broker)
+Every subscriber connects **their own** MT5 (Exness or any MT5 broker). Nothing is shared and no paid service is used.
+- The app makes a personal key (`sxb_...`), shown **once**. Only its hash is stored. A new key replaces the old one and starts in Demo mode with the bot off.
+- The user puts that key in the EA's `EAKey` (the owner's own EA keeps using `EA_KEY`). Their candles, signals, limits, alerts and results stay separate; one user can never read or change another's.
+- **Demo / Real:** Demo is the default. Real needs the user to type `REAL`, and the server refuses to trade a non-demo account unless Real mode is on **and** the EA reports `AllowLive=true`. Switching mode stops the bot.
+- When a plan ends, the EA is told to stop and nothing new is stored. Only symbols in the admin's `symbols` setting are accepted from user EAs (max 12, 500 candles each).
+- Routes: `GET /api/link`, `POST /api/link/key`, `/api/link/mode`, `/api/link/bot`, `/api/link/risk`, `DELETE /api/link`. The Bot tab in the website is still a demo simulation: wiring it to these routes is the next section.
+- Memory: candles are kept in server memory per user. Watch Render's memory as users grow (the free plan is small).
+- Existing data: old trades have no owner and belong to the owner's EA. After this update subscribers see their own bot, not the owner's.
+
 ## 1) Deploy (Termux)
     unzip spacexbot-mt5-v2.zip && cd spacexbot-mt5
     git init && git add . && git commit -m "spacexbot mt5 v2" && git branch -M main

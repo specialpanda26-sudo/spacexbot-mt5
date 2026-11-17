@@ -2,7 +2,7 @@
 data message; the app's native service shows it as one pinned notification that updates in place.
 Admins see balance and floating profit. Subscribers see only what the app already shows them: bot status, today, open trades."""
 import os, time, json, threading
-from . import store as st, push
+from . import store as st, push, links
 
 PERIOD, HEARTBEAT = 60, 170          # check every 60 s; resend an unchanged notification every 170 s so it never times out
 CUR = os.getenv('LIVE_CUR', '$')
@@ -15,11 +15,11 @@ def _m(v, signed=False):
     s = format(abs(x), ',.2f')
     return ('+' if x > 0 and signed else '-' if x < 0 else '') + CUR + s
 
-def snapshot(now=None):
-    now = now or time.time(); a = st.acct()
-    on = st.get('bot_enabled') == '1' and now - a.get('seen', 0) < 120
-    t = st.q('SELECT COUNT(*) n, COALESCE(SUM(pnl),0) pnl FROM signals WHERE created>=?', (st.day_start(),), True) or {}
-    opn = st.q("SELECT symbol,side,fill,entry FROM signals WHERE status='open' ORDER BY id DESC LIMIT 6") or []
+def snapshot(now=None, uid=''):
+    now = now or time.time(); a = st.acct(uid)
+    on = links.bot_on(uid) and now - a.get('seen', 0) < 120
+    t = st.q("SELECT COUNT(*) n, COALESCE(SUM(pnl),0) pnl FROM signals WHERE created>=? AND COALESCE(uid,'')=?", (st.day_start(), uid), True) or {}
+    opn = st.q("SELECT symbol,side,fill,entry FROM signals WHERE status='open' AND COALESCE(uid,'')=? ORDER BY id DESC LIMIT 6", (uid,)) or []
     return {'on': on, 'a': a, 'today': t.get('pnl') or 0, 'open': list(opn), 'now': now}
 
 def build(admin, s):
@@ -37,7 +37,7 @@ def build(admin, s):
     return {'type': 'live', 'title': title, 'text': text, 'big': '\n'.join(lines), 'ts': int(s['now'])}
 
 def tick(now=None):
-    s = snapshot(now); now = s['now']
+    now = now or time.time(); snaps = {}
     admins = {x.strip().lower() for x in os.getenv('ADMIN_EMAILS', '').split(',') if x.strip()}
     for r in st.q('SELECT DISTINCT u.uid AS uid,u.email AS email,u.plan_until AS pu,u.notif AS notif FROM users u JOIN push_tokens t ON t.uid=u.uid'):
         uid = r['uid']; admin = (r['email'] or '').lower() in admins
@@ -45,6 +45,7 @@ def tick(now=None):
         try: pref = json.loads(r.get('notif') or '{}').get('live', 1) not in (0, False, '0')
         except ValueError: pref = True
         if not pref: continue
+        sc = '' if admin else uid; s = snaps.get(sc) or snaps.setdefault(sc, snapshot(now, sc))
         data = build(admin, s) if s['on'] else {'type': 'live', 'off': '1'}
         sig = json.dumps({k: v for k, v in data.items() if k != 'ts'}, sort_keys=True); prev = _last.get(uid)
         if not s['on'] and (not prev or prev[0] == sig): continue          # nothing showing, or already told to hide

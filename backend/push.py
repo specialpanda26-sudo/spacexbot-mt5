@@ -142,11 +142,12 @@ def recipients():
         if (r['pu'] or 0) > now or (r['email'] or '').lower() in admins: out.append(r['uid'])
     return out
 
-def broadcast(kind, body, title=None, key=None, img=None):
+def broadcast(kind, body, title=None, key=None, img=None, only=None):
     """Send in the background so a trade route is never slowed down. Returns immediately."""
     if not configured(): return
     def run():
         for uid in recipients():
+            if only and uid != only: continue
             try: send(uid, kind, body, title, (key + '/' + uid) if key else None, img=img)
             except Exception as e: print('[push] failed', e)
     threading.Thread(target=run, daemon=True).start()
@@ -155,7 +156,7 @@ def notify(kind, key=None, **facts):
     """Write the message for this kind from the facts and send it to everyone who should get it. Never raises."""
     try:
         from .pushcopy import compose
-        t, b, i = compose(kind, **facts); broadcast(kind, b, t, key, i)
+        only = facts.pop('only', None); t, b, i = compose(kind, **facts); broadcast(kind, b, t, key, i, only)
     except Exception as e: print('[push] notify failed', kind, e)
 
 def send_data(uid, data):

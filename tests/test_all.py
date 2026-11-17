@@ -321,6 +321,86 @@ def _():
     assert C.post('/api/ea/report', json={'id': sig['id'], 'status': 'open', 'ticket': 5, 'lots': .1, 'price': 2300}, headers=H).json['ok']
     C.post('/api/ea/report', json={'id': sig['id'], 'status': 'closed', 'pnl': 12.5}, headers=H); assert stats.summary()['net'] == 12.5
 
+# ---------- per-user MT5 links ----------
+import backend.app as AP
+from backend import links, bars, push as PUSH, mailer as MAIL, accounts as ACC
+JU = 'dev-joe@x.com'
+def grant(): C.get('/api/me', headers=U); assert C.post('/api/admin/grant', json={'email': 'joe@x.com', 'days': 5}, headers=A).status_code == 200
+def link_reset(): st.x('DELETE FROM links'); st.x('DELETE FROM signals'); st.x('DELETE FROM kv'); bars._d.clear()
+def uacct(uid, **k): a = {'balance': 1000, 'open': 0, 'demo': True, 'allow_live': False, 'seen': int(WED), **k}; st.x('UPDATE links SET acct=?,seen=? WHERE uid=?', (json.dumps(a), int(WED), uid))
+def sig(uid): return st.x("INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid) VALUES('XAUUSD','buy',2300,2295,2310,1,'ema_pullback',2,'pending',?,?)", (int(time.time()), uid))
+@T('link: a personal key is shown once, stored only as a hash, and a new key kills the old one')
+def _():
+    link_reset(); grant(); r = C.post('/api/link/key', headers=U); assert r.status_code == 200, r.json
+    k = r.json['key']; assert k.startswith('sxb_') and r.json['linked'] and r.json['mode'] == 'demo' and r.json['bot'] is False
+    row = links.get(JU); assert k not in json.dumps(row) and row['key_hash'] == links._h(k)
+    assert links.by_key(k) == JU and links.by_key('sxb_nope') is None and links.by_key('') is None
+    k2 = C.post('/api/link/key', headers=U).json['key']; assert k2 != k and links.by_key(k) is None and links.by_key(k2) == JU
+    g = C.get('/api/link', headers=U).json; assert g['linked'] is True and 'key' not in g
+    assert C.post('/api/link/key', headers=A).status_code == 400 and C.post('/api/link/key').status_code == 401
+    assert C.post('/api/link/risk', json={'risk': 0.5}, headers=U).json['risk'] == 0.5
+    assert C.post('/api/link/risk', json={'risk': 9}, headers=U).status_code == 400 and C.post('/api/link/risk', json={'risk': 'abc'}, headers=U).status_code == 400
+@T('link: a user EA sees only its own signals and candles, and cannot report on anyone else\'s trade')
+def _():
+    link_reset(); grant(); k = C.post('/api/link/key', headers=U).json['key']; H = {'X-EA-Key': k}; HO = {'X-EA-Key': 'k'}
+    mine = sig(JU); theirs = sig(None); rows = [[WED + i * 900, 2300, 2301, 2299, 2300.5, 10] for i in range(3)]
+    r = C.post('/api/ea/sync', json={'account': {'balance': 500, 'demo': True, 'evil': 'x'}, 'bars': {'XAUUSD': {'M15': rows}, 'BTCUSD': {'M15': rows}}}, headers=H).json
+    assert r['signal']['id'] == mine and r['bot'] is False
+    assert len(bars.get('XAUUSD', 'M15', JU)) == 3 and bars.get('XAUUSD', 'M15') == [] and bars.get('BTCUSD', 'M15', JU) == []
+    assert 'evil' not in st.acct(JU) and st.acct(JU)['balance'] == 500
+    assert C.post('/api/ea/report', json={'id': theirs, 'status': 'closed', 'pnl': 99}, headers=H).json['ok']
+    assert st.q('SELECT status FROM signals WHERE id=?', (theirs,), True)['status'] == 'pending'
+    assert C.post('/api/ea/report', json={'id': mine, 'status': 'open', 'ticket': 1, 'lots': .1, 'price': 2300}, headers=H).json['ok']
+    assert st.q('SELECT status FROM signals WHERE id=?', (mine,), True)['status'] == 'open'
+    assert C.post('/api/ea/report', json={'id': 'abc', 'status': 'open'}, headers=H).json['ok']
+    assert C.post('/api/ea/sync', json={}, headers=HO).json['signal']['id'] == theirs
+@T('link: Real mode needs a typed confirmation, a real account is blocked until it is on, and any switch stops the bot')
+def _():
+    link_reset(); grant(); C.post('/api/link/key', headers=U)
+    assert C.post('/api/link/mode', json={'mode': 'real'}, headers=U).status_code == 400
+    assert C.post('/api/link/mode', json={'mode': 'real', 'confirm': 'nope'}, headers=U).status_code == 400
+    assert C.post('/api/link/mode', json={'mode': 'x'}, headers=U).status_code == 400
+    uacct(JU); links.set_bot(JU, True); assert risk.global_gate(WED, uid=JU) == (True, 'ok')
+    uacct(JU, demo=False, allow_live=True); ok, w = risk.global_gate(WED, uid=JU); assert not ok and 'Real mode' in w, w
+    uacct(JU, demo=None); ok, w = risk.global_gate(WED, uid=JU); assert not ok and 'Real mode' in w, w          # unknown account type counts as real
+    r = C.post('/api/link/mode', json={'mode': 'real', 'confirm': 'REAL'}, headers=U); assert r.status_code == 200 and r.json['mode'] == 'real' and r.json['bot'] is False
+    uacct(JU, demo=False, allow_live=True); ok, w = risk.global_gate(WED, uid=JU); assert not ok and w == 'bot off'
+    assert C.post('/api/link/bot', json={'on': True}, headers=U).json['bot'] is True and risk.global_gate(WED, uid=JU) == (True, 'ok')
+    uacct(JU, demo=False, allow_live=False); ok, w = risk.global_gate(WED, uid=JU); assert not ok and 'Real mode' in w, w
+    assert C.post('/api/link/mode', json={'mode': 'demo'}, headers=U).json['bot'] is False
+@T('link: trade alerts and app views are per user, never sent to everyone')
+def _():
+    link_reset(); grant(); k = C.post('/api/link/key', headers=U).json['key']; H = {'X-EA-Key': k}; got = []
+    keep = (MAIL.trade_alert, PUSH.broadcast)
+    MAIL.trade_alert = lambda t, b, key=None, only=None: got.append(('mail', only)); PUSH.broadcast = lambda kind, body, title=None, key=None, img=None, only=None: got.append(('push', only))
+    try:
+        mine = sig(JU); theirs = sig(None)
+        C.post('/api/ea/report', json={'id': mine, 'status': 'open', 'ticket': 1, 'lots': .1, 'price': 2300}, headers=H)
+        C.post('/api/ea/report', json={'id': theirs, 'status': 'open', 'ticket': 2, 'lots': .1, 'price': 2300}, headers={'X-EA-Key': 'k'})
+    finally: MAIL.trade_alert, PUSH.broadcast = keep
+    assert ('mail', JU) in got and ('push', JU) in got and ('mail', None) in got and ('push', None) in got, got
+    assert [x['id'] for x in C.get('/api/signals', headers=U).json] == [mine] and [x['id'] for x in C.get('/api/signals', headers=A).json] == [theirs]
+    assert C.get('/api/me', headers=U).json['link']['linked'] is True
+@T('link: after the plan ends the EA is told to stop and nothing new is stored')
+def _():
+    link_reset(); grant(); k = C.post('/api/link/key', headers=U).json['key']; H = {'X-EA-Key': k}
+    assert C.post('/api/admin/revoke', json={'email': 'joe@x.com'}, headers=A).status_code == 200; sig(JU)
+    r = C.post('/api/ea/sync', json={'account': {'balance': 1}, 'bars': {'XAUUSD': {'M15': [[WED, 1, 2, 1, 2, 1]]}}}, headers=H).json
+    assert r['expired'] is True and r['signal'] is None and r['bot'] is False and links.get(JU)['acct'] is None and bars.get('XAUUSD', 'M15', JU) == []
+    assert C.post('/api/link/bot', json={'on': True}, headers=U).status_code == 402 and C.post('/api/link/bot', json={'on': False}, headers=U).status_code == 200
+    grant()
+@T('link: a scan writes a signal for that user only; deleting the account removes the link and its trades')
+def _():
+    link_reset(); grant(); C.post('/api/link/key', headers=U); links.set_bot(JU, True)
+    keep = (risk.global_gate, risk.symbol_gate, brain.evaluate, MAIL.trade_alert, PUSH.broadcast)
+    risk.global_gate = lambda now=None, uid='': (True, 'ok'); risk.symbol_gate = lambda sym, side, now=None, uid='': (True, 'ok')
+    brain.evaluate = lambda *a, **k: {'side': 'buy', 'entry': 2300.0, 'sl': 2295.0, 'tp': 2310.0, 'strategy': 'x', 'score': 2, 'adx': 20}
+    MAIL.trade_alert = lambda *a, **k: None; PUSH.broadcast = lambda *a, **k: None
+    try: bars.merge('XAUUSD', 'M15', [[WED, 1, 2, .5, 1.5, 1]], uid=JU); AP._last_scan.clear(); AP._scan('XAUUSD', JU)
+    finally: risk.global_gate, risk.symbol_gate, brain.evaluate, MAIL.trade_alert, PUSH.broadcast = keep
+    r = st.q('SELECT uid,risk_pct,status FROM signals'); assert len(r) == 1 and r[0]['uid'] == JU and r[0]['status'] == 'pending' and r[0]['risk_pct'] == links.risk(JU), r
+    ACC.erase(JU); assert links.get(JU) is None and st.q('SELECT 1 FROM signals WHERE uid=?', (JU,)) == []
+
 w = max(len(n) for n, _, _ in R)
 for n, ok, e in R: print(('PASS ' if ok else 'FAIL ') + n.ljust(w), '' if ok else ' <- ' + e)
 bad = [n for n, ok, _ in R if not ok]; print(f'\n{len(R) - len(bad)}/{len(R)} passed'); sys.exit(1 if bad else 0)

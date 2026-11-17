@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS signals(id INTEGER PRIMARY KEY AUTOINCREMENT,symbol T
   strategy TEXT,score INTEGER,status TEXT,created INTEGER,ticket TEXT,lots REAL,fill REAL,pnl REAL,closed INTEGER,note TEXT);
 CREATE TABLE IF NOT EXISTS payments(ref TEXT PRIMARY KEY,uid TEXT,provider TEXT,plan TEXT,amount REAL,currency TEXT,status TEXT,created INTEGER,extra TEXT);
 CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY,v TEXT);
+CREATE TABLE IF NOT EXISTS links(uid TEXT PRIMARY KEY,key_hash TEXT,mode TEXT DEFAULT 'demo',bot INTEGER DEFAULT 0,risk REAL,acct TEXT,seen INTEGER DEFAULT 0,created INTEGER);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_links_key ON links(key_hash);
 CREATE TABLE IF NOT EXISTS push_tokens(token TEXT PRIMARY KEY,uid TEXT,platform TEXT,created INTEGER,seen INTEGER);
 CREATE INDEX IF NOT EXISTS ix_push_tokens_uid ON push_tokens(uid);
 CREATE TABLE IF NOT EXISTS push_log(uid TEXT,kind INTEGER,k TEXT,ts INTEGER);
@@ -35,6 +37,11 @@ ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE signals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kv ENABLE ROW LEVEL SECURITY;
+ALTER TABLE signals ADD COLUMN IF NOT EXISTS uid TEXT;
+CREATE INDEX IF NOT EXISTS ix_signals_uid ON signals(uid);
+CREATE TABLE IF NOT EXISTS links(uid TEXT PRIMARY KEY,key_hash TEXT,mode TEXT DEFAULT 'demo',bot INTEGER DEFAULT 0,risk DOUBLE PRECISION,acct TEXT,seen BIGINT DEFAULT 0,created BIGINT);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_links_key ON links(key_hash);
+ALTER TABLE links ENABLE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS push_tokens(token TEXT PRIMARY KEY,uid TEXT,platform TEXT,created BIGINT,seen BIGINT);
 CREATE INDEX IF NOT EXISTS ix_push_tokens_uid ON push_tokens(uid);
 CREATE TABLE IF NOT EXISTS push_log(uid TEXT,kind BIGINT,k TEXT,ts BIGINT);
@@ -81,6 +88,9 @@ def init():
             try: c.execute('ALTER TABLE users ADD COLUMN ' + col)
             except sqlite3.OperationalError: pass
         c.execute('CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL')
+        try: c.execute('ALTER TABLE signals ADD COLUMN uid TEXT')
+        except sqlite3.OperationalError: pass
+        c.execute('CREATE INDEX IF NOT EXISTS ix_signals_uid ON signals(uid)')
         c.commit()
 
 def q(sql, a=(), one=False):
@@ -118,7 +128,15 @@ def get(k):
     r = q('SELECT v FROM kv WHERE k=?', (k,), True); return r['v'] if r else DEFAULTS.get(k)
 def put(k, v): x('INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', (k, str(v)))
 def fget(k): return float(get(k))
-def acct():
+def acct(uid=''):
+    """The EA account snapshot. uid '' = the owner's own EA; otherwise that subscriber's link."""
+    if uid:
+        r = q('SELECT acct FROM links WHERE uid=?', (uid,), True)
+        try: return json.loads(r['acct']) if r and r['acct'] else {}
+        except ValueError: return {}
     r = q("SELECT v FROM kv WHERE k='acct'", one=True); return json.loads(r['v']) if r else {}
-def set_acct(a): a['seen'] = int(time.time()); put('acct', json.dumps(a))
+def set_acct(a, uid=''):
+    a['seen'] = int(time.time())
+    if uid: x('UPDATE links SET acct=?,seen=? WHERE uid=?', (json.dumps(a), a['seen'], uid))
+    else: put('acct', json.dumps(a))
 def day_start(): t = time.time(); return int(t - t % 86400)

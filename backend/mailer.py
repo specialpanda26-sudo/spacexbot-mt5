@@ -74,19 +74,20 @@ def _recipients():
         out.append((r['uid'], em))
     return out
 
-def _alerts(title, body, key=None):
+def _alerts(title, body, key=None, only=None):
     if not configured(): return 0
     h, t = _page(title, [('Details', body)], 'You get this because Trade alerts are on. Turn them off in Profile > Notifications. Not financial advice; trading can lose money.')
     n = 0
     for uid, em in _recipients():
+        if only and uid != only: continue
         ok, info = send(em, 'spaceXBot: ' + title, h, t, idem=(key + '/' + uid) if key else None, kind='alert')
         if ok: n += 1
         elif info.startswith('Daily email cap'): print('[mail] alert cap reached for today'); break
         else: print('[mail] alert not sent:', info)
     return n
 
-def trade_alert(title, body, key=None):
-    if configured(): threading.Thread(target=_alerts, args=(title, body, key), daemon=True).start()
+def trade_alert(title, body, key=None, only=None):
+    if configured(): threading.Thread(target=_alerts, args=(title, body, key, only), daemon=True).start()
 
 # ---------- receipts ----------
 def _receipt_now(ref):
