@@ -57,7 +57,13 @@ jobs:
           npm install --no-audit --no-fund
           npx cap add android
 
-      - name: Permissions, version, native Google sign-in
+      - name: Firebase file (push notifications)
+        env:
+          GS_B64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -n "$GS_B64" ]; then echo "$GS_B64" | base64 -d > android/app/google-services.json; echo "google-services.json written"; else echo "No GOOGLE_SERVICES_JSON_BASE64 secret: push notifications disabled in this build"; fi
+
+      - name: Permissions, version, native Google sign-in, push
         run: VERSION_CODE=${{ env.BUILD_N }} VERSION_NAME=1.0.${{ env.BUILD_N }} python3 prepare.py
 
       - name: Build and sign

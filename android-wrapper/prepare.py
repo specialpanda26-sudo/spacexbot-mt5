@@ -61,4 +61,32 @@ def patch_google_signin():
     print('native Google sign-in ready')
 
 if not (MAIN / 'AndroidManifest.xml').exists(): sys.exit('STOP: run `npx cap add android` first')
-patch_manifest(); patch_version(); patch_google_signin()
+
+ICON_XML = """<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FFFFFFFF" android:pathData="M12,2 L14.6,8.9 L22,9.3 L16.2,13.9 L18.2,21 L12,17 L5.8,21 L7.8,13.9 L2,9.3 L9.4,8.9 Z"/></vector>"""
+
+def patch_push():
+    """Push notifications: Firebase build plugin, permission, status-bar icon, default channel."""
+    if not (APP / 'google-services.json').exists():
+        print('no google-services.json: push notifications skipped'); return
+    root = HERE / 'android' / 'build.gradle'; s = root.read_text(encoding='utf-8')
+    if 'com.google.gms:google-services' not in s:
+        s, n = re.subn(r"(classpath\s+['\"]com\.android\.tools\.build:gradle:[^'\"]+['\"])", r"\1\n        classpath 'com.google.gms:google-services:4.4.2'", s, count=1)
+        if not n: sys.exit('STOP: no Android Gradle Plugin line for google-services')
+        root.write_text(s, encoding='utf-8')
+    g = APP / 'build.gradle'; s = g.read_text(encoding='utf-8')
+    if 'google-services' not in s:
+        s += "\napply plugin: 'com.google.gms.google-services'\n"; g.write_text(s, encoding='utf-8')
+    d = MAIN / 'res' / 'drawable'; d.mkdir(parents=True, exist_ok=True)
+    (d / 'ic_stat_sxb.xml').write_text(ICON_XML, encoding='utf-8')
+    m = MAIN / 'AndroidManifest.xml'; s = m.read_text(encoding='utf-8')
+    if 'POST_NOTIFICATIONS' not in s:
+        s = s.replace('</manifest>', '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n</manifest>', 1)
+    if 'default_notification_icon' not in s:
+        if '</application>' not in s: sys.exit('STOP: no </application> in manifest')
+        meta = ('    <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_sxb" />\n'
+                '    <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@android:color/white" />\n'
+                '    <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="sxb_high" />\n')
+        s = s.replace('</application>', meta + '</application>', 1)
+    m.write_text(s, encoding='utf-8'); print('push notifications ready')
+
+patch_manifest(); patch_version(); patch_google_signin(); patch_push()
