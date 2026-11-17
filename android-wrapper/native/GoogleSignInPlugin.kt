@@ -128,6 +128,6 @@ class GoogleSignInPlugin : Plugin() {
         private const val TAG = "SXBGoogleSignIn"
         // Web client ID (type "Web application"). Must be the SAME ID your server checks in GOOGLE_CLIENT_ID.
         const val WEB_CLIENT_ID =
-            ""
+            "97744928595-s2j9p5vvb2rknnsf37c1c2vtdanlgff5.apps.googleusercontent.com"
     }
 }
