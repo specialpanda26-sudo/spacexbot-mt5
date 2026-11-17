@@ -1,6 +1,6 @@
 import os, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, bars, brain, risk, sbauth, news, stats, accounts, payments as pay
+from . import store as st, bars, brain, risk, sbauth, news, stats, accounts, push, payments as pay
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init()
@@ -101,6 +101,29 @@ def ea_report():
             body = f"{s['side'].upper()} lots {s['lots']}" if stt == 'open' else f"P/L {s['pnl']}"
             sbauth.notify(title, body, key=f'sig{sid}-{stt}')
     return jsonify(ok=True)
+
+# ---------------- phone notifications ----------------
+@app.post('/api/push/token')
+@need()
+def push_token(u):
+    j = _j()
+    try: push.save_token(u['uid'], j.get('token'), j.get('platform') or 'android')
+    except ValueError as e: return jsonify(error=str(e)), 400
+    return jsonify(ok=True)
+
+@app.post('/api/push/unregister')
+@need()
+def push_unreg(u):
+    t = str(_j().get('token') or '')
+    if t and st.q('SELECT 1 FROM push_tokens WHERE token=? AND uid=?', (t, u['uid']), True): push.drop_token(t)
+    return jsonify(ok=True)
+
+@app.post('/api/admin/push/test')
+@need(admin=True)
+def push_test(u):
+    if not push.configured(): return jsonify(error='FCM_SERVICE_ACCOUNT is not set on the server'), 400
+    n, why = push.send(u['uid'], 1, 'Test notification. If you can read this, phone alerts work.', title='spaceXBot test', force=True)
+    return jsonify(sent=n, reason=why, devices=len(push.tokens(u['uid']))) if n else (jsonify(error=why or 'not sent', devices=len(push.tokens(u['uid']))), 400)
 
 # ---------------- app API ----------------
 @app.get('/api/me')

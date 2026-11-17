@@ -14,6 +14,11 @@ CREATE TABLE IF NOT EXISTS signals(id INTEGER PRIMARY KEY AUTOINCREMENT,symbol T
   strategy TEXT,score INTEGER,status TEXT,created INTEGER,ticket TEXT,lots REAL,fill REAL,pnl REAL,closed INTEGER,note TEXT);
 CREATE TABLE IF NOT EXISTS payments(ref TEXT PRIMARY KEY,uid TEXT,provider TEXT,plan TEXT,amount REAL,currency TEXT,status TEXT,created INTEGER,extra TEXT);
 CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY,v TEXT);
+CREATE TABLE IF NOT EXISTS push_tokens(token TEXT PRIMARY KEY,uid TEXT,platform TEXT,created INTEGER,seen INTEGER);
+CREATE INDEX IF NOT EXISTS ix_push_tokens_uid ON push_tokens(uid);
+CREATE TABLE IF NOT EXISTS push_log(uid TEXT,kind INTEGER,k TEXT,ts INTEGER);
+CREATE INDEX IF NOT EXISTS ix_push_log_uid ON push_log(uid,ts);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_push_log_key ON push_log(uid,k) WHERE k IS NOT NULL;
 """
 PG_SCHEMA = """
 CREATE TABLE IF NOT EXISTS users(uid TEXT PRIMARY KEY,email TEXT,name TEXT,plan_until BIGINT DEFAULT 0,created BIGINT,
@@ -30,6 +35,13 @@ ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE signals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kv ENABLE ROW LEVEL SECURITY;
+CREATE TABLE IF NOT EXISTS push_tokens(token TEXT PRIMARY KEY,uid TEXT,platform TEXT,created BIGINT,seen BIGINT);
+CREATE INDEX IF NOT EXISTS ix_push_tokens_uid ON push_tokens(uid);
+CREATE TABLE IF NOT EXISTS push_log(uid TEXT,kind BIGINT,k TEXT,ts BIGINT);
+CREATE INDEX IF NOT EXISTS ix_push_log_uid ON push_log(uid,ts);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_push_log_key ON push_log(uid,k) WHERE k IS NOT NULL;
+ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE push_log ENABLE ROW LEVEL SECURITY;
 """
 
 # ---------------- Postgres plumbing (only used when DATABASE_URL is set) ----------------

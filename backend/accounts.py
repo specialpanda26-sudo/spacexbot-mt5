@@ -4,8 +4,8 @@ from . import store as st
 
 EXP = {'Beginner', 'Intermediate', 'Advanced'}; GOAL = {'Learn', 'Steady', 'Active'}; RISK = {'Low', 'Medium', 'High'}
 GENDER = {'Female', 'Male', 'Non-binary', 'Prefer not to say'}
-NOTIF = ('trade', 'news', 'daily', 'tips')
-DEF_NOTIF = {'trade': 1, 'news': 1, 'daily': 0, 'tips': 0}
+NOTIF = ('trade', 'risk', 'news', 'daily', 'tips', 'system', 'billing')
+DEF_NOTIF = {'trade': 1, 'risk': 1, 'news': 1, 'daily': 1, 'tips': 1, 'system': 1, 'billing': 1}
 
 def age_of(dob):
     y, m, d = map(int, dob.split('-')); t = dt.date.today()
@@ -51,7 +51,8 @@ def update(uid, j):
         sets['av'] = a
     if 'n' in j:
         if not isinstance(j['n'], dict): raise ValueError('Bad notifications')
-        sets['notif'] = json.dumps({k: 1 if j['n'].get(k) else 0 for k in NOTIF})
+        cur = view(uid)['prof']['n']
+        sets['notif'] = json.dumps({k: (1 if j['n'].get(k) else 0) if k in j['n'] else (1 if cur.get(k) else 0) for k in NOTIF})
     if j.get('onboarded'): sets['onboarded'] = 1          # one way only: it can be set, never switched back off
     if 'gender' in j:
         if str(j['gender']) not in GENDER: raise ValueError('Pick an option for gender.')
