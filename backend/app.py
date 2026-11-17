@@ -4,6 +4,12 @@ from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, acc
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
+
+@app.errorhandler(Exception)
+def _boom(e):
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException): return e
+    print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped. Please try again.'), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 _last_scan = {}
 

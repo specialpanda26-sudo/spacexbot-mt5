@@ -59,7 +59,7 @@ def _pg():
         from psycopg2.pool import ThreadedConnectionPool
         import psycopg2.extensions as ext
         ext.register_type(ext.new_type(ext.DECIMAL.values, 'NUM2FLOAT', lambda v, c: float(v) if v is not None else None))
-        _pool = ThreadedConnectionPool(1, int(os.getenv('DB_POOL', '5')), URL, connect_timeout=10)
+        _pool = ThreadedConnectionPool(1, int(os.getenv('DB_POOL', '5')), URL, connect_timeout=10, keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=3)
     return _pool
 @contextmanager
 def _pgc():
@@ -140,3 +140,12 @@ def set_acct(a, uid=''):
     if uid: x('UPDATE links SET acct=?,seen=? WHERE uid=?', (json.dumps(a), a['seen'], uid))
     else: put('acct', json.dumps(a))
 def day_start(): t = time.time(); return int(t - t % 86400)
+
+def _retry(f):
+    def w(*a, **k):
+        if not PG: return f(*a, **k)
+        import psycopg2
+        try: return f(*a, **k)
+        except (psycopg2.OperationalError, psycopg2.InterfaceError): return f(*a, **k)
+    w.__name__ = f.__name__; return w
+q = _retry(q); x = _retry(x)
