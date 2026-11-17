@@ -1,1 +1,1 @@
-Put your logo here as logo.png (square, 1024x1024, transparent background is best).
+logo.png: the app icon, splash logo and notification icon are made from this file (square 1024x1024, transparent). It was drawn by make_logo.py (same shapes as the website logo). To use your own, replace it with a PNG of the same size and push; the next APK build picks it up.
