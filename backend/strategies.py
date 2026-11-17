@@ -143,7 +143,8 @@ def star_reversal(m, h):
         return {'side': 'buy', 'sl': b['l'] - 0.2 * a, 'name': 'star_reversal'}
 
 from .jg_pullback import jg_pullback
-ALL = [jg_pullback, ema_pullback, sr_retest, fvg_retrace, london_breakout, bb_reversion, macd_cross, heikin_flip, psar_flip, awesome_osc, dual_thrust, star_reversal]
+from .pa_structure import pa_bos
+ALL = [pa_bos, jg_pullback, ema_pullback, sr_retest, fvg_retrace, london_breakout, bb_reversion, macd_cross, heikin_flip, psar_flip, awesome_osc, dual_thrust, star_reversal]
 # regime groups: reversion setups are skipped in strong trends; trend setups are skipped in dead ranges
 REVERSION = {'bb_reversion', 'star_reversal'}
 TREND = {'jg_pullback', 'ema_pullback', 'fvg_retrace', 'macd_cross', 'heikin_flip', 'psar_flip', 'dual_thrust', 'london_breakout'}
