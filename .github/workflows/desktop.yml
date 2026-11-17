@@ -1,0 +1,102 @@
+name: Build Windows app
+
+# Run by hand: GitHub > Actions > Build Windows app > Run workflow.
+# The finished file appears under Releases (tag desktop-latest) as spacexbot-desktop.exe.
+# It also runs by itself when anything in desktop/ changes on main.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'desktop_app.py'
+      - '.github/workflows/desktop.yml'
+
+concurrency:
+  group: desktop-exe
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build number (always higher than the last one)
+        run: echo "BUILD_N=$(( ($(date +%s) - 1700000000) / 60 + 1000 ))" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r desktop/requirements.txt pyinstaller==6.11.1
+
+      - name: Window tests (information only, they do not block the build)
+        continue-on-error: true
+        run: python tests/test_gui.py
+
+      - name: Build one-file exe with no console window
+        run: |
+          pyinstaller --onefile --noconsole --clean --name spacexbot-desktop \
+            --collect-all MetaTrader5 \
+            --hidden-import desktop.config --hidden-import desktop.client --hidden-import desktop.broker \
+            --hidden-import desktop.engine --hidden-import desktop.presenter --hidden-import desktop.gui \
+            desktop_app.py
+          test "$(stat -c%s dist/spacexbot-desktop.exe)" -gt 5000000 || { echo "exe is too small, something went wrong"; exit 1; }
+
+      - name: Self-test the finished exe (are all its parts inside?)
+        shell: pwsh
+        run: |
+          $out = Join-Path $PWD "selftest.txt"
+          $p = Start-Process -FilePath ".\dist\spacexbot-desktop.exe" -ArgumentList "--selftest", $out -Wait -PassThru
+          if (Test-Path $out) { Get-Content $out } else { Write-Host "no self-test file was written" }
+          if ($p.ExitCode -ne 0) { throw "self-test failed (exit code $($p.ExitCode))" }
+
+      - name: Fingerprint and release notes
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash dist\spacexbot-desktop.exe -Algorithm SHA256).Hash.ToLower()
+          $lines = @(
+            "spaceXBot desktop app for Windows, build $env:BUILD_N.",
+            "",
+            "Needs: Windows 10 or 11, MetaTrader 5 installed, open and logged in (use a DEMO account first).",
+            "",
+            "Windows may show 'Windows protected your PC' (SmartScreen) because this free app is not signed with a paid certificate. Click More info, then Run anyway, only if you downloaded it from this page or from your own spaceXBot site.",
+            "Some antivirus programs also distrust new, unsigned apps. If yours blocks it, do not switch your antivirus off: run from source instead (see the README).",
+            "",
+            "To check your download is the same file, run in PowerShell:  Get-FileHash .\spacexbot-desktop.exe",
+            "SHA-256: $h",
+            "",
+            "Nothing here is proven profitable. You can lose money."
+          )
+          $lines | Set-Content -Encoding utf8 release-notes.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spacexbot-desktop
+          path: dist/spacexbot-desktop.exe
+
+      - name: Point the desktop-latest tag at this build
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git tag -f desktop-latest
+          git push -f origin refs/tags/desktop-latest
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-latest
+          name: spaceXBot desktop app for Windows (build ${{ env.BUILD_N }})
+          body_path: release-notes.md
+          make_latest: false
+          files: dist/spacexbot-desktop.exe
