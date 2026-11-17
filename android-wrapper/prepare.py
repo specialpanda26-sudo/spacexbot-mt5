@@ -90,3 +90,6 @@ def patch_push():
     m.write_text(s, encoding='utf-8'); print('push notifications ready')
 
 patch_manifest(); patch_version(); patch_google_signin(); patch_push()
+
+import live_patch; live_patch.run(MAIN, APP, HERE, PKG)
+import launch_patch; launch_patch.run(MAIN, HERE)

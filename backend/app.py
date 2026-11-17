@@ -287,3 +287,7 @@ def _reconciler():
         try: pay.reconcile()
         except Exception as e: print('reconcile loop', e)
 threading.Thread(target=_reconciler, daemon=True).start()
+
+try:
+    from . import live; live.start()
+except Exception as e: print('[live] not started', e)

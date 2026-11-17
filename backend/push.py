@@ -157,3 +157,18 @@ def notify(kind, key=None, **facts):
         from .pushcopy import compose
         t, b, i = compose(kind, **facts); broadcast(kind, b, t, key, i)
     except Exception as e: print('[push] notify failed', kind, e)
+
+def send_data(uid, data):
+    """Silent data message: no banner of its own. The app's native service turns it into the live 'Bot running' notification."""
+    if not configured(): return 0
+    n = 0
+    for t in tokens(uid):
+        try:
+            a = _account()
+            msg = {'message': {'token': t, 'data': {k: str(v) for k, v in data.items()}, 'android': {'priority': 'HIGH', 'ttl': '120s'}}}
+            r = requests.post('https://fcm.googleapis.com/v1/projects/%s/messages:send' % a['project_id'], json=msg,
+                              headers={'Authorization': 'Bearer ' + _access_token()}, timeout=15)
+            if r.status_code == 200: n += 1
+            elif r.status_code in (404, 400) and 'UNREGISTERED' in r.text: drop_token(t)
+        except Exception as e: print('[push] data send failed', str(e)[:120])
+    return n

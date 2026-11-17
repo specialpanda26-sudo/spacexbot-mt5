@@ -2,7 +2,7 @@
   "appId": "com.spacexbot.app",
   "appName": "spaceXBot",
   "webDir": "www",
-  "backgroundColor": "#000000",
+  "backgroundColor": "#10151E",
   "server": {
     "url": "https://spacexbot-gn73.onrender.com",
     "androidScheme": "https",
