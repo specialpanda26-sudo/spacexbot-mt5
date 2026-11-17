@@ -1298,11 +1298,31 @@ var XB='<button class="icon-btn x" aria-label="Close"><svg width="18" height="18
 /* ---- auth: sign up / create account / log in ---- */
 var U=null;window.sxToast=tst;
 var PROT=/^#(home|market|bot|trades|connect|profile|onboard)$/;
+/* ---- finish-your-profile prompt: shown after sign-in while username, phone or country is missing. Skip hides it for a day. ---- */
+var PSK="sxb_pskip";
+function profDone(u){var p=(u&&u.prof)||{};return !!(p.user&&p.phone&&p.country)}
+function profNudge(){
+ if(!U||!U.verified||profDone(U)||!ovEl.hidden||location.hash==="#onboard")return;
+ var t=+LS(PSK)||0;if(Date.now()-t<864e5)return;
+ LS(PSK,Date.now());                      /* any way of closing it counts as a skip */
+ var P=U.prof||{};
+ function f(id,l,v,x){return'<div class="field"><label for="'+id+'">'+l+'</label><input class="inp" id="'+id+'" value="'+esc(v||"")+'" '+x+'></div>'}
+ ov(IL2.rocket+'<h2>Finish your profile</h2><p class="muted" style="text-align:center">Add a few details to complete your account. You can skip for now.</p>'+
+  f("npU","Username",P.user,'autocomplete="username" placeholder="e.g. amina_fx" maxlength="20"')+
+  f("npP","Phone",P.phone,'type="tel" autocomplete="tel" placeholder="+254 700 000 000"')+
+  f("npC","Country",P.country,'autocomplete="country-name" placeholder="Kenya"')+
+  '<p class="err" id="npE" role="alert"></p><button class="btn primary big block" id="npGo">Save</button><button class="btn ghost block" id="npSkip" type="button">Skip for now</button>',1);
+ $("#npSkip").onclick=function(){closeOv()};
+ $("#npGo").onclick=function(){var us=$("#npU").value.trim(),ph=$("#npP").value.trim(),co=$("#npC").value.trim(),b=this;
+  if(!us&&!ph&&!co)return $("#npE").textContent="Fill in at least one detail, or tap Skip.";
+  var o={};if(us)o.user=us;if(ph)o.phone=ph;if(co)o.country=co;dots(b);
+  SXA.save(o).then(function(m){U=m;slot();tst(profDone(m)?"Profile saved":"Saved. A few details are still missing.");closeOv()}).catch(function(x){b.classList.remove("ld");b.style.minWidth=b.style.minHeight="";b.textContent="Save";$("#npE").textContent=SXA.err(x)})}}
 window.sxSetUser=function(u,first){U=u;slot();var h=location.hash;
  if(!u){if(PROT.test(h))location.hash="#welcome";return}
  if(first){var gf=gfl();if(!u.verified){setTimeout(verify,500);return}if(!u.dob&&!u.onboarded&&gf){setTimeout(about,500);return}}
  if(u.verified&&(!h||h==="#"||h==="#welcome"))location.hash="#home";
  else if(!u.verified&&PROT.test(h))location.hash="#welcome";
+ setTimeout(profNudge,1500);
  if(location.hash==="#profile"&&window.renderProfile)renderProfile()};
 window.addEventListener("hashchange",function(){if(SXA.resolved()&&!U&&PROT.test(location.hash))location.hash="#welcome"});
 function landing(){var h=$("#view-welcome");if(!h)return;[$(".hero .btn.primary",h),$(".ctaband .btn",h)].forEach(function(p,i){if(p){p.dataset.auth=U?"dash":"start";p.textContent=U?"Open dashboard":(i?"Create free account":"Get started free")}});var l=$(".hero .lnk",h);if(l&&l.parentNode)l.parentNode.hidden=!!U}
