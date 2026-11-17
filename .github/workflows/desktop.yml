@@ -51,7 +51,7 @@ jobs:
           mkdir -p logs
           set -o pipefail
           pyinstaller --onefile --noconsole --clean --name spacexbot-desktop \
-            --collect-all MetaTrader5 --hidden-import numpy \
+            --collect-all MetaTrader5 --hidden-import numpy --hidden-import tkinter --collect-submodules desktop \
             --hidden-import desktop.config --hidden-import desktop.client --hidden-import desktop.broker \
             --hidden-import desktop.engine --hidden-import desktop.presenter --hidden-import desktop.gui \
             desktop_app.py 2>&1 | tee logs/pyinstaller.txt
