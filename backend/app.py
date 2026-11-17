@@ -257,7 +257,7 @@ def p_cb():
 @app.post('/api/pay/paypal')
 @need(verified=True)
 def p_pp(u):
-    try: ref, url = pay.paypal_create(u['uid'], _j().get('plan')); return jsonify(ref=ref, url=url)
+    try: ref, url = pay.paypal_create(u['uid'], _j().get('plan'), 'card' if _j().get('mode') == 'card' else 'paypal'); return jsonify(ref=ref, url=url)
     except ValueError as e: return jsonify(error=str(e)), 400
     except RuntimeError as e: return jsonify(error=str(e)), 503
     except Exception as e: print('paypal create failed', e); return jsonify(error='PayPal is unavailable right now'), 502

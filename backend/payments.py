@@ -199,14 +199,14 @@ def _pp_code(r):
     fld = ''.join(c for c in str(fld or '').split('/')[-1] if c.isalnum() or c == '_')      # last part only, e.g. landing_page
     return ('http%s-%s%s' % (r.status_code, ''.join(c for c in str(why) if c.isalnum() or c in '_-'), ('@' + fld) if fld else ''))[:60].rstrip('-')
 
-def paypal_create(uid, pid):
+def paypal_create(uid, pid, mode='paypal'):
     p = plan(pid)
     if not p: raise ValueError('bad plan')
     if not paypal_ready(): raise RuntimeError('PayPal is not set up yet')
     ref = _new(uid, 'paypal', pid, p['usd'], 'USD'); b = _env('BASE_URL').rstrip('/')
     body = {'intent': 'CAPTURE', 'purchase_units': [{'reference_id': ref, 'custom_id': ref, 'description': ('spaceXBot ' + str(p['name']) + ' (' + str(p['days']) + ' days)')[:120], 'soft_descriptor': 'SPACEXBOT',
                         'amount': {'currency_code': 'USD', 'value': f"{p['usd']:.2f}"}}],
-            'application_context': {'brand_name': 'spaceXBot', 'shipping_preference': 'NO_SHIPPING', 'landing_page': 'BILLING', 'return_url': f'{b}/api/pay/paypal/return', 'cancel_url': f'{b}/?paid=cancel', 'user_action': 'PAY_NOW'}}
+            'application_context': {'brand_name': 'spaceXBot', 'shipping_preference': 'NO_SHIPPING', 'landing_page': 'BILLING' if mode == 'card' else 'LOGIN', 'return_url': f'{b}/api/pay/paypal/return', 'cancel_url': f'{b}/?paid=cancel', 'user_action': 'PAY_NOW'}}
     code = 'unknown'
     try:
         r = requests.post(_pp_base() + '/v2/checkout/orders', json=body, headers={'Authorization': 'Bearer ' + _pp_token(), 'PayPal-Request-Id': ref}, timeout=25)

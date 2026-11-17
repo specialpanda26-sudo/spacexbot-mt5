@@ -279,6 +279,9 @@ def _():
     try:
         P.requests.post = cap; assert C.post('/api/pay/paypal', json={'plan': 'p1'}, headers=U).status_code == 200
         lp = seen['application_context']['landing_page']; assert lp in ('LOGIN', 'BILLING', 'NO_PREFERENCE') and lp != 'GUEST_CHECKOUT', lp
+        assert lp == 'LOGIN', lp                      # PayPal tab
+        assert C.post('/api/pay/paypal', json={'plan': 'p1', 'mode': 'card'}, headers=U).status_code == 200 and seen['application_context']['landing_page'] == 'BILLING'   # Card tab
+        assert C.post('/api/pay/paypal', json={'plan': 'p1', 'mode': 'x'}, headers=U).status_code == 200 and seen['application_context']['landing_page'] == 'LOGIN'
         bad = Resp(400, {'name': 'INVALID_REQUEST', 'details': [{'field': '/application_context/landing_page', 'issue': 'INVALID_PARAMETER_VALUE'}]})
         assert P._pp_code(bad) == 'http400-INVALID_PARAMETER_VALUE@landing_page', P._pp_code(bad)
         assert P._pp_code(Resp(422, {'details': [{'issue': 'CURRENCY_NOT_SUPPORTED'}]})) == 'http422-CURRENCY_NOT_SUPPORTED'
