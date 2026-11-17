@@ -1300,7 +1300,7 @@ var U=null;window.sxToast=tst;
 var PROT=/^#(home|market|bot|trades|connect|profile|onboard)$/;
 window.sxSetUser=function(u,first){U=u;slot();var h=location.hash;
  if(!u){if(PROT.test(h))location.hash="#welcome";return}
- if(first){if(!u.verified){setTimeout(verify,500);return}if(!u.dob&&!u.onboarded){setTimeout(about,500);return}}
+ if(first){var gf=gfl();if(!u.verified){setTimeout(verify,500);return}if(!u.dob&&!u.onboarded&&gf){setTimeout(about,500);return}}
  if(u.verified&&(!h||h==="#"||h==="#welcome"))location.hash="#home";
  else if(!u.verified&&PROT.test(h))location.hash="#welcome";
  if(location.hash==="#profile"&&window.renderProfile)renderProfile()};
@@ -1432,18 +1432,20 @@ function auth(mode){
  $(".x",ovEl).onclick=intro;
  $("#aEye").onclick=function(){var i=$("#aP"),sh=i.type==="password";i.type=sh?"text":"password";this.classList.toggle("on",sh);this.setAttribute("aria-label",sh?"Hide password":"Show password");this.setAttribute("aria-pressed",sh)};
  var f=$("#aF");if(f)f.onclick=function(){forgot($("#aE").value.trim())};
- $$("[data-soc]",ovEl).forEach(function(b){b.onclick=function(){SXA.google().then(function(u){U=u;slot();if(!u.verified){verify();return}if(!u.dob&&!u.onboarded){about();return}tst("Logged in");sxGo("#home")}).catch(function(x){$("#aErr").textContent=SXA.err(x)})}});
+ $$("[data-soc]",ovEl).forEach(function(b){b.onclick=function(){try{sessionStorage.setItem("sxg","1")}catch(e){}SXA.google().then(function(u){try{sessionStorage.removeItem("sxg")}catch(e){}U=u;slot();if(!u.verified){verify();return}if(!u.dob&&!u.onboarded){about();return}tst("Logged in");sxGo("#home")}).catch(function(x){$("#aErr").textContent=SXA.err(x)})}});
  function go(){var e=$("#aE").value.trim(),p=$("#aP").value,n=su?$("#aN").value.trim():"",er=$("#aErr");
   if(su&&!n)return er.textContent="Add your name.";
   if(!/^\S+@\S+\.\S+$/.test(e))return er.textContent="Enter a valid email.";
   if(p.length<8)return er.textContent="Password needs 8 or more characters.";
   if(su&&!$("#aT").checked)return er.textContent="Please agree to the Terms of Service.";
-  er.textContent="";var gb=$("#aGo");dots(gb);
-  (su?SXA.signUp(n,e,p):SXA.signIn(e,p,!!($("#aR")&&$("#aR").checked))).then(function(u){if(u.pending){verify(u.email);return}U=u;slot();
-   if(su){about();return}
-   if(!u.verified){verify();return}if(!u.dob&&!u.onboarded){about();return}
+  er.textContent="";
+  if(su){var bk=function(m){auth("signup");$("#aN").value=n;$("#aE").value=e;$("#aT").checked=true;if(m)$("#aErr").textContent=m};
+   about(function(ex){SXA.signUp(n,e,p,ex).then(function(u){if(u.pending){verify(u.email);return}U=u;slot();if(u.verified)welcome();else verify()}).catch(function(x){bk(SXA.err(x))})},function(){bk()});return}
+  var gb=$("#aGo");dots(gb);
+  SXA.signIn(e,p,!!($("#aR")&&$("#aR").checked)).then(function(u){if(u.pending){verify(u.email);return}U=u;slot();
+   if(!u.verified){verify();return}
    tst("Logged in");sxGo("#home")
-  }).catch(function(x){gb.classList.remove("ld");gb.style.minWidth=gb.style.minHeight="";gb.textContent=su?"Create account":"Log in";er.textContent=SXA.err(x)})}
+  }).catch(function(x){gb.classList.remove("ld");gb.style.minWidth=gb.style.minHeight="";gb.textContent="Log in";er.textContent=SXA.err(x)})}
  $("#aGo").onclick=go;$$("input",ovEl).forEach(function(i){i.onkeydown=function(e){if(e.key==="Enter")go()}})}
 document.addEventListener("click",function(e){var a=e.target.closest("[data-auth]");if(a){e.preventDefault();if(a.dataset.auth==="dash")location.hash="#home";else auth(a.dataset.auth);return}
  if(e.target.closest("#avBtn")){location.hash="#profile";return}
@@ -1579,20 +1581,21 @@ function wheel(el,items,idx,onch){el.innerHTML='<div class="sp"></div>'+items.ma
  el.onscroll=function(){if(!raf)raf=requestAnimationFrame(paint);var i=Math.max(0,Math.min(items.length-1,Math.round(el.scrollTop/44)));if(i!==cur){if(cur>=0&&navigator.vibrate)navigator.vibrate(4);cur=i;onch&&onch(i)}};
  kids.forEach(function(k,i){k.onclick=function(){el.scrollTo({top:i*44,behavior:"smooth"})}});
  el.style.scrollBehavior="auto";el.scrollTop=idx*44;cur=idx;paint();return{get i(){return cur}}}
-function about(){var wd,wm,wy,dn=0,g="",last="";
+function gfl(){try{var v=sessionStorage.getItem("sxg");sessionStorage.removeItem("sxg");return !!v}catch(e){return false}}
+function about(cb,back){var wd,wm,wy,dn=0,g="",last="";
  ov('<button class="icon-btn x" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>'+BR+IL2.rocket+
  '<h2>About you</h2><p class="muted" style="text-align:center">Your age and gender help us tailor tips. You must be 18 or older to trade.</p>'+
  '<div class="field"><label>Date of birth</label><div class="whs"><div class="wh" id="wD"></div><div class="wh" id="wM"></div><div class="wh" id="wY"></div></div><p class="wsum" id="wS" aria-live="polite"></p></div>'+
  '<div class="field"><label>Gender</label><div class="gg" id="gG">'+["Female","Male","Non-binary","Prefer not to say"].map(function(x){return'<button type="button" class="pk gd" aria-pressed="false">'+x+'</button>'}).join("")+'</div></div>'+
  '<p class="err" id="wE" role="alert"></p><button class="btn primary big block" id="wGo">Continue</button>',1);
- $(".x",ovEl).onclick=function(){SXA.signOut();U=null;slot();auth("login")};
+ $(".x",ovEl).onclick=function(){if(cb){back&&back();return}SXA.signOut();U=null;slot();auth("login")};
  function age(){var t=new Date(),d=wd.i+1,m=wm.i,y=YR[wy.i];return t.getFullYear()-y-((t.getMonth()<m||(t.getMonth()===m&&t.getDate()<d))?1:0)}
  function sum(){if(!wd||!wm||!wy)return;var t=(wd.i+1)+" "+MON[wm.i]+" "+YR[wy.i]+" \u00b7 Age "+age(),e=$("#wS");if(t===last)return;last=t;e.textContent=t;e.classList.remove("pop");void e.offsetWidth;e.classList.add("pop")}
  function days(keep){var n=new Date(YR[wy.i],wm.i+1,0).getDate();if(n===dn&&wd)return;dn=n;wd=wheel($("#wD"),Array.from({length:n},function(_,i){return i+1}),Math.min(keep||0,n-1),sum)}
  setTimeout(function(){wm=wheel($("#wM"),MON,5,function(){days(wd.i);sum()});wy=wheel($("#wY"),YR,YR.indexOf(MAXY-8),function(){days(wd.i);sum()});wd=wheel($("#wD"),Array.from({length:30},function(_,i){return i+1}),14,sum);dn=30;days(14);sum()},60);
  $("#gG").onclick=function(e){var b=e.target.closest(".gd");if(!b)return;g=b.textContent;$$(".gd",ovEl).forEach(function(c){c.setAttribute("aria-pressed",c===b)});$("#wE").textContent=""};
  $("#wGo").onclick=function(){var a=age();if(!g)return $("#wE").textContent="Pick an option for gender.";if(a<18)return $("#wE").textContent="You must be 18 or older to use spaceXBot.";
-  var dob=YR[wy.i]+"-"+("0"+(wm.i+1)).slice(-2)+"-"+("0"+(wd.i+1)).slice(-2),wb=this;dots(wb);
+  var dob=YR[wy.i]+"-"+("0"+(wm.i+1)).slice(-2)+"-"+("0"+(wd.i+1)).slice(-2),wb=this;dots(wb);if(cb){cb({dob:dob,gender:g});return}
   SXA.save({dob:dob,gender:g}).then(function(m){U=m;slot();if(m.verified)welcome();else verify()}).catch(function(x){wb.classList.remove("ld");wb.style.minWidth=wb.style.minHeight="";wb.textContent="Continue";$("#wE").textContent=SXA.err(x)})}}
 function verify(em){
  var pe=em||(U&&U.email)||"";

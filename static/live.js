@@ -42,12 +42,12 @@
     ready: ready, api: api, user: function () { return ME; }, resolved: function () { return done; }, configured: ok,
     bind: function (fn) { sink = fn; if (done) { first = true; fire(); first = false; } },
     refresh: function () { return load().then(function (m) { fire(); return m; }); },
-    signUp: function (name, email, pw) {
+    signUp: function (name, email, pw, extra) {
       var n = need(); if (n) return n;
-      return S.auth.signUp({ email: email, password: pw, options: { data: { full_name: name } } }).then(chk).then(function (d) {
+      return S.auth.signUp({ email: email, password: pw, options: { data: { full_name: name, dob: extra && extra.dob, gender: extra && extra.gender } } }).then(chk).then(function (d) {
         if (d.user && d.user.identities && !d.user.identities.length) { var e = new Error("That email already has an account. Log in instead."); e.code = "user_already_exists"; throw e; }
-        if (d.session) return load();
-        PEND = { email: email, name: name }; return { pending: true, email: email, name: name };
+        if (d.session) return extra ? api("/api/me/profile", { method: "POST", body: extra }).then(load) : load();
+        PEND = { email: email, name: name, extra: extra || null }; return { pending: true, email: email, name: name };
       });
     },
     signIn: function (email, pw) {
@@ -67,8 +67,8 @@
     verifyCode: function (email, code) {
       var n = need(); if (n) return n;
       return S.auth.verifyOtp({ email: email, token: code, type: "signup" }).then(chk).then(load).then(function (m) {
-        var nm = PEND && PEND.name; PEND = null;
-        return nm ? api("/api/me/profile", { method: "POST", body: { name: nm } }).then(load) : m;
+        var nm = PEND && PEND.name, b = Object.assign({}, (PEND && PEND.extra) || {}); PEND = null; if (nm) b.name = nm;
+        return Object.keys(b).length ? api("/api/me/profile", { method: "POST", body: b }).then(load) : m;
       });
     },
     resendCode: function (email) { var n = need(); return n || S.auth.resend({ type: "signup", email: email }).then(chk); },
