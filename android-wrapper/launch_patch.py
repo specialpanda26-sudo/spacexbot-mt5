@@ -13,6 +13,10 @@ def run(MAIN, HERE):
     for f in res.glob('drawable*/splash.png'): f.unlink()
     _write(res / 'values' / 'sxb_colors.xml', '<?xml version="1.0" encoding="utf-8"?>\n<resources><color name="sxb_bg">' + BG + '</color></resources>\n')
     _write(res / 'values' / 'ic_launcher_background.xml', '<?xml version="1.0" encoding="utf-8"?>\n<resources><color name="ic_launcher_background">' + BG + '</color></resources>\n')
+    if not LOGO.exists():                       # no logo supplied: draw the website's logo
+        try:
+            import make_logo; LOGO.parent.mkdir(parents=True, exist_ok=True); make_logo.render(LOGO)
+        except Exception as e: print('could not draw logo:', str(e)[:120])
     have = LOGO.exists()
     if have:
         from PIL import Image
