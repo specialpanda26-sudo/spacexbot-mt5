@@ -39,7 +39,8 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r desktop/requirements.txt pyinstaller==6.11.1
+          python -m pip install -r desktop/requirements.txt "numpy>=1.26,<2" pyinstaller==6.11.1
+          python -m pip list
 
       - name: Window tests (information only, they do not block the build)
         continue-on-error: true
@@ -47,11 +48,13 @@ jobs:
 
       - name: Build one-file exe with no console window
         run: |
+          mkdir -p logs
+          set -o pipefail
           pyinstaller --onefile --noconsole --clean --name spacexbot-desktop \
-            --collect-all MetaTrader5 \
+            --collect-all MetaTrader5 --hidden-import numpy \
             --hidden-import desktop.config --hidden-import desktop.client --hidden-import desktop.broker \
             --hidden-import desktop.engine --hidden-import desktop.presenter --hidden-import desktop.gui \
-            desktop_app.py
+            desktop_app.py 2>&1 | tee logs/pyinstaller.txt
           test "$(stat -c%s dist/spacexbot-desktop.exe)" -gt 5000000 || { echo "exe is too small, something went wrong"; exit 1; }
 
       - name: Self-test the finished exe (are all its parts inside?)
@@ -59,8 +62,17 @@ jobs:
         run: |
           $out = Join-Path $PWD "selftest.txt"
           $p = Start-Process -FilePath ".\dist\spacexbot-desktop.exe" -ArgumentList "--selftest", $out -Wait -PassThru
-          if (Test-Path $out) { Get-Content $out } else { Write-Host "no self-test file was written" }
+          New-Item -ItemType Directory -Force logs | Out-Null
+          if (Test-Path $out) { Get-Content $out; Copy-Item $out logs\selftest.txt } else { Write-Host "no self-test file was written" }
           if ($p.ExitCode -ne 0) { throw "self-test failed (exit code $($p.ExitCode))" }
+
+      - name: Keep the build logs (also when something failed)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-build-logs
+          path: logs/
+          if-no-files-found: ignore
 
       - name: Fingerprint and release notes
         shell: pwsh
