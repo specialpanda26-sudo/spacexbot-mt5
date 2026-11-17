@@ -75,12 +75,19 @@
     google: function () {
       var n = need(); if (n) return n;
       var cap = window.Capacitor, gid = (window.SXB && window.SXB.gid) || "";
+      var sxbPlug = function (c) { /* sxb-plugin-find: remote page gets only the native bridge, so registerPlugin may not exist */
+        if (!c) return null;
+        if (c.registerPlugin) { try { return c.registerPlugin("GoogleSignIn"); } catch (x) {} }
+        if (c.Plugins && c.Plugins.GoogleSignIn) return c.Plugins.GoogleSignIn;
+        if (c.nativePromise) return { signIn: function (o) { return c.nativePromise("GoogleSignIn", "signIn", o); } };
+        return null;
+      }, plug = sxbPlug(cap);
       var wv = /; wv\)/.test(navigator.userAgent), isNat = !!(cap && cap.isNativePlatform && cap.isNativePlatform());   /* sxb-no-browser */
-      if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.registerPlugin && gid) {
+      if (isNat && plug && gid) {
         var raw = Array.prototype.map.call(crypto.getRandomValues(new Uint8Array(16)), function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
         return crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw)).then(function (h) {
           var hashed = Array.prototype.map.call(new Uint8Array(h), function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
-          return cap.registerPlugin("GoogleSignIn").signIn({ serverClientId: gid, nonce: hashed });
+          return plug.signIn({ serverClientId: gid, nonce: hashed });
         }).then(function (r) {
           if (!r || !r.idToken) throw new Error("Google sign-in failed. Try again.");
           return S.auth.signInWithIdToken({ provider: "google", token: r.idToken, nonce: raw });
@@ -95,7 +102,7 @@
         });
       }
       /* inside the app the browser page is never used: say what is missing instead */
-      if (wv || isNat) return Promise.reject(new Error("The app could not open your Google accounts. (Capacitor " + (cap ? "found" : "missing") + ", native " + isNat + ", plugin " + typeof (cap && cap.registerPlugin) + ", id " + (gid ? "set" : "empty") + ")"));
+      if (wv || isNat) return Promise.reject(new Error("The app could not open your Google accounts. (Capacitor " + (cap ? "found" : "missing") + ", native " + isNat + ", plugin " + (plug ? "ok" : "missing") + ", cap keys " + (cap ? Object.keys(cap).slice(0, 14).join("/") : "-") + ", id " + (gid ? "set" : "empty") + ")"));
       return S.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + "/" } }).then(chk).then(function () { return new Promise(function () {}); });
     },
     signOut: function () { ME = null; lastUid = null; return S ? S.auth.signOut() : Promise.resolve(); },
