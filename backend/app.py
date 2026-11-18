@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap
+from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -330,6 +330,14 @@ def stats_api(u): return jsonify(summary=stats.summary(_mine(u)), by_strategy=st
 @app.get('/api/admin/brain')
 @need(admin=True)
 def admin_brain(u): return jsonify(summary=learn.summary(), by_strategy=learn.by_strategy())
+
+@app.get('/api/admin/strategies')
+@need(admin=True)
+def admin_strategies(u):
+    """Every strategy with a readable name, description, group, on/off, and the results of all users' closed trades."""
+    from . import strategies as S
+    off = {x for x in (st.get('strategies_off') or '').split(',') if x}
+    return jsonify(si.listing([f.__name__ for f in S.ALL], S.TREND, S.REVERSION, off, learn.by_strategy()))
 
 @app.post('/api/admin/plans')
 @need(admin=True)
