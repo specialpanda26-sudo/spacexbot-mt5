@@ -48,7 +48,7 @@ def ws_url(token, acct, http=None):
     if code != 200 or not isinstance(u, str) or not u.startswith('wss://'): raise ConnectionError('Deriv would not open a trading link for this account.')
     return u
 
-def verify(uid, http=None, now=None):
+def verify(uid, http=None, now=None, connect=None):
     """Check the saved Deriv token. Sets status 'verified' or 'rejected'. Returns (ok, message). Needs DERIV_APP_ID on Render."""
     now = now or time.time()
     if now - _last.get(uid, 0) < 8: return False, 'Wait a few seconds and try again.'
@@ -63,7 +63,17 @@ def verify(uid, http=None, now=None):
     except ConnectionError as e: return False, str(e)
     _mark(uid, 'verified')
     demo = [a for a in accts if a['demo']]
+    try: _snapshot(uid, sec['token'], demo[0] if demo else None, http, connect)          # show the balance right away; never blocks the check
+    except Exception: pass
     return True, 'Deriv connected. Demo account found.' if demo else 'Deriv connected, but no demo account was found. Trading stays off until you add one.'
+
+def _snapshot(uid, token, acct, http=None, connect=None):
+    if not acct: return
+    sess = Session((connect or _connect)(ws_url(token, acct['id'], http)))
+    try:
+        bal = balance(sess)
+        if bal is not None: bk.set_bal(uid, 'Deriv', bal, acct['currency'], acct['demo'])
+    finally: sess.close()
 
 def _mark(uid, status): st.x("UPDATE broker_links SET status=?,updated=? WHERE uid=? AND broker='Deriv'", (status, int(time.time()), uid))
 
@@ -130,6 +140,7 @@ def run_once(uid, scan, paid, connect=None, http=None, now=None):
         if bal is None: return 'no balance'
         n_open = st.q("SELECT COUNT(*) n FROM signals WHERE status='open' AND COALESCE(uid,'')=?", (uid,), True)['n']
         st.set_acct({'balance': bal, 'equity': bal, 'open': n_open, 'demo': acct['demo'], 'allow_live': real}, uid)
+        bk.set_bal(uid, 'Deriv', bal, acct['currency'], acct['demo'])
         for sym in [x.strip() for x in (st.get('symbols') or '').split(',') if x.strip()][:8]:
             try:
                 for tf in ('M15', 'H1'):

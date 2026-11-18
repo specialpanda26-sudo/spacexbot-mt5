@@ -38,6 +38,7 @@ def save(uid, name, f):
             if not (_BKEY.match(s('key')) and _BKEY.match(s('secret'))): raise ValueError('That key or secret does not look right. Copy each one whole.')
             vals, label = {'key': s('key'), 'secret': s('secret')}, '...' + s('key')[-4:]
         enc = lock.encrypt(json.dumps({'u': uid, 'b': n, 'v': vals}).encode('utf-8')).decode('ascii')
+    st.x('DELETE FROM kv WHERE k=?', ('bal:%s:%s' % (uid, n),))          # a new key may be a different account: forget the old balance
     mine = {r['broker'] for r in st.q('SELECT broker FROM broker_links WHERE uid=?', (uid,))}
     if n not in mine and len(mine) >= MAX_PER_USER: raise ValueError('Too many connections. Remove one first.')
     now = int(time.time())
@@ -45,11 +46,27 @@ def save(uid, name, f):
          "ON CONFLICT(uid,broker) DO UPDATE SET kind=excluded.kind,secret_enc=excluded.secret_enc,label=excluded.label,mode='demo',status='saved',updated=excluded.updated",
          (uid, n, kind, enc, label, now, now))         # new keys always start in demo mode
 
+def set_bal(uid, name, bal, cur='USD', demo=True, now=None):
+    """Remember the last balance we saw for this broker connection (shown on its tile). Only the owner ever sees it."""
+    cur = str(cur or 'USD').upper(); cur = cur if re.match(r'^[A-Z]{2,6}$', cur) else 'USD'
+    st.put('bal:%s:%s' % (uid, name), json.dumps({'balance': round(float(bal), 2), 'currency': cur, 'demo': bool(demo), 't': int(now or time.time())}))
+def _bals(uid):
+    out, pre = {}, 'bal:%s:' % uid
+    for r in st.q("SELECT k,v FROM kv WHERE k LIKE ?", (pre + '%',)):
+        if r['k'].startswith(pre):
+            try: out[r['k'][len(pre):]] = json.loads(r['v'])
+            except ValueError: pass
+    return out
+
 def view(uid):
     """What the app may see: name, kind, a short tail of the key, mode, status. Never the secret."""
-    return [{'name': r['broker'], 'kind': r['kind'], 'label': r['label'], 'mode': r['mode'] or 'demo', 'status': r['status'] or 'saved'}
+    b = _bals(uid)
+    return [dict({'name': r['broker'], 'kind': r['kind'], 'label': r['label'], 'mode': r['mode'] or 'demo', 'status': r['status'] or 'saved'},
+                 **({'balance': b[r['broker']].get('balance'), 'currency': b[r['broker']].get('currency'), 'acct_demo': b[r['broker']].get('demo'), 'bal_t': b[r['broker']].get('t')} if r['broker'] in b else {}))
             for r in st.q('SELECT broker,kind,label,mode,status FROM broker_links WHERE uid=? ORDER BY created', (uid,))]
-def drop(uid, name): return st.x('DELETE FROM broker_links WHERE uid=? AND broker=?', (uid, name), True)
+def drop(uid, name):
+    st.x('DELETE FROM kv WHERE k=?', ('bal:%s:%s' % (uid, name),))
+    return st.x('DELETE FROM broker_links WHERE uid=? AND broker=?', (uid, name), True)
 
 def secret(uid, name):
     """For the trading code only (Sections 2 and 3). The decrypted values, or None if missing, tampered, or the lock key changed."""
