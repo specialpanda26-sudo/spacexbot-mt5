@@ -146,11 +146,12 @@ from .jg_pullback import jg_pullback
 from .pa_structure import pa_bos; from .pa_level import pa_level; from .pa_candle import pa_candle; from .pa_pattern import pa_pattern; from .pa_trendline import pa_trendline; from .ma_cross import ma_cross; from .ma_bounce import ma_bounce
 from .ema200_filter import with_ema200, psar_raw, supertrend_flip
 from .gold_scalp import gold_scalp
+from .gold_scalp_c import gold_scalp_c
 psar_e200 = with_ema200(psar_raw, 'psar_e200', skip_if=(psar_flip,)); supertrend_e200 = with_ema200(supertrend_flip, 'supertrend_e200')
-ALL = [pa_level, pa_bos, pa_candle, pa_pattern, pa_trendline, ma_cross, ma_bounce, psar_e200, supertrend_e200, gold_scalp, jg_pullback, ema_pullback, sr_retest, fvg_retrace, london_breakout, bb_reversion, macd_cross, heikin_flip, psar_flip, awesome_osc, dual_thrust, star_reversal]
+ALL = [pa_level, pa_bos, pa_candle, pa_pattern, pa_trendline, ma_cross, ma_bounce, psar_e200, supertrend_e200, gold_scalp, gold_scalp_c, jg_pullback, ema_pullback, sr_retest, fvg_retrace, london_breakout, bb_reversion, macd_cross, heikin_flip, psar_flip, awesome_osc, dual_thrust, star_reversal]
 # regime groups: reversion setups are skipped in strong trends; trend setups are skipped in dead ranges
 REVERSION = {'bb_reversion', 'star_reversal'}
-TREND = {'pa_level', 'jg_pullback', 'ema_pullback', 'fvg_retrace', 'macd_cross', 'heikin_flip', 'psar_flip', 'dual_thrust', 'london_breakout', 'ma_cross', 'ma_bounce', 'psar_e200', 'supertrend_e200', 'gold_scalp'}
+TREND = {'pa_level', 'jg_pullback', 'ema_pullback', 'fvg_retrace', 'macd_cross', 'heikin_flip', 'psar_flip', 'dual_thrust', 'london_breakout', 'ma_cross', 'ma_bounce', 'psar_e200', 'supertrend_e200', 'gold_scalp', 'gold_scalp_c'}
 
 try:
     from . import taught; taught.load(ALL, REVERSION, TREND)
