@@ -2209,11 +2209,18 @@ build()})();
   function ago(t) { var m = Math.max(0, Math.round((Date.now() / 1000 - t) / 60)); return m < 1 ? "just now" : m < 60 ? m + " min ago" : Math.round(m / 60) + " h ago"; }
   function head(chip) { return '<div class="card-head"><h2>Phone mode</h2>' + (chip || "") + "</div>"; }
 
+  /*A4-start*/
+  function stratLine(s) {      /* readable strategy name: the server sends strategy_name; an older reply only has the raw id */
+    var n = s.strategy_name || (s.strategy ? String(s.strategy).replace(/_/g, " ").replace(/\+/g, " + ") : "");
+    if (!s.strategy_name && n) n = n.charAt(0).toUpperCase() + n.slice(1);
+    return n ? '<p class="note" style="font-weight:800;color:var(--fg)">Strategy: ' + esc(n) + "</p>" : "";
+  }
   function sigHtml(s) {
     var buy = s.side === "buy", z = s.size || {}, left = Math.max(0, Math.ceil((s.valid_until - Date.now() / 1000) / 60)), h = "";
     var chip = { "new": '<span class="chip ok">Open</span>', late: '<span class="chip">Too old</span>', taken: '<span class="chip info">Taken</span>', skipped: '<span class="chip">Skipped</span>', done: '<span class="chip">Logged</span>' }[s.state] || "";
     h += '<div style="border:2px solid var(--surface2);border-radius:16px;padding:12px 14px;margin-top:10px">';
     h += '<div class="card-head" style="margin:0"><h2 style="font-size:16px">' + (buy ? "BUY " : "SELL ") + esc(s.symbol) + "</h2>" + chip + "</div>";
+    h += stratLine(s);
     h += '<p class="note">Entry about ' + esc(s.entry) + " · Stop-loss " + esc(s.sl) + " · Take-profit " + esc(s.tp) + "<br>Found " + ago(s.created) + (s.state === "new" ? ". Take it within " + left + " min." : ".") + "</p>";
     if (z.lots) h += '<p class="note" style="font-weight:800;color:var(--fg)">Suggested size: ' + esc(z.lots.toFixed(2)) + " lots. Risks about " + usd(z.risk_usd) + ", could make about " + usd(z.win_usd) + ".</p>";
     else if (z.why) h += '<p class="note">' + esc(z.why) + "</p>";
@@ -2230,6 +2237,7 @@ build()})();
     } else if (s.state === "done" && s.mine) h += '<p class="note" style="font-weight:800;color:var(--fg)">' + ({ win: "Won", loss: "Lost", even: "Even" }[s.mine.outcome] || "Logged") + (s.mine.pnl != null ? " " + usd(s.mine.pnl, true) : "") + "</p>";
     return h + "</div>";
   }
+  /*A4-end*/
 
   function main() {
     var on = D.on, h = head('<span class="chip ' + (on ? "ok" : "") + '"><span class="dot"></span>' + (on ? "On" : "Off") + "</span>");

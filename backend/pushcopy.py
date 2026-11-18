@@ -13,6 +13,15 @@ def money(v, cur=''):
 class _F(dict):
     def __missing__(self, k): return ''
 def _side(f): return str(f.get('side') or '').upper()
+def _strat(f):
+    """' Strategy: <readable name>.' for a signal text, or '' with no strategy. A failed name lookup must never stop the trade text."""
+    s = f.get('strategy')
+    if not s: return ''
+    try:
+        from . import strategy_info
+        return ' Strategy: %s.' % strategy_info.label(s)
+    except Exception: return ''
+
 
 def _closed(f):
     p = _n(f.get('pnl')); sym = f.get('sym') or 'Trade'; m = money(p, f.get('cur'))
@@ -38,13 +47,13 @@ def _period(word):
     return f_
 
 T = {
- 1: lambda f: ('%s %s is live' % (_side(f), f['sym']), 'Entry %s, stop-loss %s, take-profit %s. Risking %s%% of the account.' % (f['entry'], f['sl'], f['tp'], f.get('risk', '--')), 'hi'),
+ 1: lambda f: ('%s %s is live' % (_side(f), f['sym']), 'Entry %s, stop-loss %s, take-profit %s.%s Risking %s%% of the account.' % (f['entry'], f['sl'], f['tp'], _strat(f), f.get('risk', '--')), 'hi'),
  2: lambda f: ('Hooray! %s hit take-profit' % (f.get('sym') or 'Trade'), 'Closed in profit: %s. The plan played out.' % money(f.get('pnl'), f.get('cur')), 'win'),
  3: lambda f: ('Oops, %s hit stop-loss' % (f.get('sym') or 'Trade'), 'Closed at a loss: %s. It is part of trading, and the stop-loss capped it.' % money(f.get('pnl'), f.get('cur')), 'loss'),
  4: _closed,
  5: lambda f: ('%s stop moved to breakeven' % f['sym'], 'The stop-loss now sits at your entry price.', 'even'),
  6: lambda f: ('%s partly closed' % f['sym'], 'Part of the position was closed (%s). The rest is still open.' % money(f.get('pnl'), f.get('cur')), 'hi'),
- 7: lambda f: ('Signal found on %s' % f['sym'], '%s at about %s, stop-loss %s, take-profit %s.%s Take or skip it in the app%s.' % (_side(f), f['entry'], f['sl'], f['tp'], (' About %.2f lots at your risk setting.' % f['lots']) if f.get('lots') else '', (' within %s min' % f['mins']) if f.get('mins') else ''), 'hi'),
+ 7: lambda f: ('Signal found on %s' % f['sym'], '%s at about %s, stop-loss %s, take-profit %s.%s%s Take or skip it in the app%s.' % (_side(f), f['entry'], f['sl'], f['tp'], _strat(f), (' About %.2f lots at your risk setting.' % f['lots']) if f.get('lots') else '', (' within %s min' % f['mins']) if f.get('mins') else ''), 'hi'),
  8: lambda f: ('Skipped %s' % f['sym'], 'Reason: %s.' % (f.get('reason') or 'it did not pass the rules'), 'even'),
  9: lambda f: ('%s pending order %s' % (f['sym'], f.get('state') or 'updated'), 'Open the app to see where it stands.', 'hi'),
  10: lambda f: ('%s is still open' % f['sym'], 'Open for %s. Floating P/L: %s.' % (f.get('dur') or 'a while', money(f.get('pnl'), f.get('cur'))), 'even'),

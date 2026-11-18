@@ -86,7 +86,7 @@ def _scan(sym, uid=''):
     if not ok: print('skip', sym, s['side'], why); return
     sid = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
          (sym, s['side'], s['entry'], s['sl'], s['tp'], links.risk(uid) if uid else st.fget('risk_pct'), s['strategy'], s['score'], 'pending', int(time.time()), uid or None))
-    sbauth.notify(f"{s['side'].upper()} {sym}", f"Entry {s['entry']}  SL {s['sl']}  TP {s['tp']}  ({s['strategy']})", key=f'sig{sid}-new', only=uid or None)
+    sbauth.notify(f"{s['side'].upper()} {sym}", si.alert_body(s['strategy'], s['entry'], s['sl'], s['tp']), key=f'sig{sid}-new', only=uid or None)
     learn.log(uid, 'signal', s['strategy'], sym, s['side'], data={'score': s['score'], 'adx': s['adx'], 'entry': s['entry']})
     if not uid: assist.announce(sid)          # phone-mode people get the signal with their own lot size
 
@@ -133,7 +133,7 @@ def ea_report():
             title = f"{s['symbol']} {'opened' if stt == 'open' else 'closed'}"
             body = f"{s['side'].upper()} lots {s['lots']}" if stt == 'open' else f"P/L {s['pnl']}"
             sbauth.notify(title, body, key=f'sig{sid}-{stt}', only=only)
-            if stt == 'open': push.notify(1, f'sig{sid}-open', sym=s['symbol'], side=s['side'], entry=s['fill'] or s['entry'], sl=s['sl'], tp=s['tp'], risk=s['risk_pct'], only=only)
+            if stt == 'open': push.notify(1, f'sig{sid}-open', sym=s['symbol'], side=s['side'], entry=s['fill'] or s['entry'], sl=s['sl'], tp=s['tp'], risk=s['risk_pct'], strategy=s['strategy'], only=only)
             else: push.notify({'tp': 2, 'sl': 3}.get(str(d.get('reason')), 4), f'sig{sid}-closed', sym=s['symbol'], pnl=s['pnl'], only=only)
     if stt == 'rejected': push.notify(8, f'sig{sid}-skipped', sym=(st.q('SELECT symbol FROM signals WHERE id=?', (sid,), True) or {}).get('symbol', ''), reason=str(d.get('reason') or '')[:80], only=only)
     return jsonify(ok=True)
@@ -201,7 +201,10 @@ def me_signout(u): return jsonify(ok=sbauth.revoke(u['uid']))
 
 @app.get('/api/signals')
 @need(active=True)
-def signals(u): return jsonify(st.q("SELECT id,symbol,side,entry,sl,tp,strategy,score,status,created,pnl FROM signals WHERE COALESCE(uid,'')=? ORDER BY id DESC LIMIT 50", (_mine(u),)))
+def signals(u):
+    rows = st.q("SELECT id,symbol,side,entry,sl,tp,strategy,score,status,created,pnl FROM signals WHERE COALESCE(uid,'')=? ORDER BY id DESC LIMIT 50", (_mine(u),))
+    for r in rows: r['strategy_name'] = si.label(r['strategy'])          # readable name for the app; 'strategy' keeps the raw id
+    return jsonify(rows)
 
 # ---------------- each subscriber's own MT5 link ----------------
 def _mine(u):

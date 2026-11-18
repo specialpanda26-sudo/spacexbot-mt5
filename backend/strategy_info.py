@@ -38,6 +38,11 @@ def label(strategy):
     parts = [p for p in str(strategy or '').split('+') if p]
     return ' + '.join(name(p) for p in parts)
 
+def alert_body(strategy, entry, sl, tp):
+    """Text of a new-signal alert (email + log): readable strategy name, entry, stop-loss and the target."""
+    nm = label(strategy)
+    return (nm + ': ' if nm else '') + 'Entry %s  SL %s  Target %s' % (entry, sl, tp)
+
 def group(sid, trend, reversion):
     return 'trend' if sid in trend else 'reversion' if sid in reversion else 'other'
 

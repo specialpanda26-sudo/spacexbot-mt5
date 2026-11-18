@@ -5,7 +5,7 @@ app, then log how it ended. Nothing here places a trade, and nothing here needs 
 Needs the owner's own signal feed to be running (the owner's EA or desktop app online). No feed = no signals to hand out.
 Data: assist (one row per person: on/off, balance, risk) and assist_log (one row per person per signal: taken or skipped, result)."""
 import math, os, time, threading
-from . import store as st, links
+from . import store as st, links, strategy_info as si
 
 WINDOW = 15 * 60                 # a signal can be taken for 15 minutes after it was found; later the price has probably moved
 FEED_AGE = 24 * 3600             # the app lists the owner's signals from the last 24 hours (so results can still be logged)
@@ -101,7 +101,7 @@ def feed(uid, now=None):
         lg = logs.get(r['id']); until = r['created'] + WINDOW
         state = ('done' if lg['outcome'] else lg['action']) if lg else ('new' if now < until else 'late')
         sz = size(r['symbol'], r['entry'], r['sl'], r['tp'], s['balance'], s['risk']) if s['balance'] else {'lots': None, 'why': 'Enter your balance to see a lot size.'}
-        out.append({'id': r['id'], 'symbol': r['symbol'], 'side': r['side'], 'entry': r['entry'], 'sl': r['sl'], 'tp': r['tp'], 'strategy': r['strategy'], 'score': r['score'],
+        out.append({'id': r['id'], 'symbol': r['symbol'], 'side': r['side'], 'entry': r['entry'], 'sl': r['sl'], 'tp': r['tp'], 'strategy': r['strategy'], 'strategy_name': si.label(r['strategy']), 'score': r['score'],
                     'created': r['created'], 'valid_until': until, 'state': state, 'size': sz, 'owner': _owner_outcome(r['pnl']),
                     'mine': {'lots': lg['lots'], 'outcome': lg['outcome'], 'pnl': lg['pnl']} if lg else None})
     return out
@@ -165,12 +165,12 @@ def audience(now=None):
 def announce_now(sid, now=None):
     """Send the 'signal found' push (kind 7) to every phone-mode person, each with their own lot size. Returns how many were sent."""
     from . import push; from .pushcopy import compose
-    sg = st.q("SELECT id,symbol,side,entry,sl,tp FROM signals WHERE id=? AND COALESCE(uid,'')=''", (sid,), True)
+    sg = st.q("SELECT id,symbol,side,entry,sl,tp,strategy FROM signals WHERE id=? AND COALESCE(uid,'')=''", (sid,), True)
     if not sg or not push.configured(): return 0
     n = 0
     for p in audience(now):
         z = size(sg['symbol'], sg['entry'], sg['sl'], sg['tp'], p['balance'], p['risk']) if p['balance'] else {'lots': None}
-        t, b, i = compose(7, sym=sg['symbol'], side=sg['side'], entry=sg['entry'], sl=sg['sl'], tp=sg['tp'], lots=z.get('lots'), mins=WINDOW // 60)
+        t, b, i = compose(7, sym=sg['symbol'], side=sg['side'], entry=sg['entry'], sl=sg['sl'], tp=sg['tp'], strategy=sg['strategy'], lots=z.get('lots'), mins=WINDOW // 60)
         try: sent, _ = push.send(p['uid'], 7, b, t, 'sig%s-assist' % sid, img=i); n += 1 if sent else 0
         except Exception as e: print('[assist] push failed', str(e)[:120])
     return n
