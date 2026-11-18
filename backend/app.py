@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si
+from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -352,6 +352,21 @@ def admin_plans(u):
     try: return jsonify(pay.set_plans(_j().get('plans') or []))
     except (ValueError, TypeError, KeyError, AttributeError): return jsonify(error='bad plans'), 400
 
+@app.get('/api/admin/feed')
+@need(admin=True)
+def admin_feed_get(u): return jsonify(feed.status())
+
+@app.post('/api/admin/feed')
+@need(admin=True)
+def admin_feed_set(u):
+    j = _j()
+    if j.get('check'): return jsonify(feed.check())
+    if 'on' in j:
+        if not isinstance(j['on'], bool): return jsonify(error='on must be true or false'), 400
+        st.put('feed_on', '1' if j['on'] else '0')
+        if j['on']: threading.Thread(target=lambda: feed.tick(_scan), daemon=True).start()       # first round now, not in a minute
+    return jsonify(feed.status())
+
 @app.post('/api/admin/testprice')
 @need(admin=True)
 def admin_testprice(u):
@@ -447,6 +462,8 @@ def _reconciler():
         except Exception as e: print('reconcile loop', e)
 threading.Thread(target=_reconciler, daemon=True).start()
 
+try: feed.start(_scan)
+except Exception as e: print('[feed] not started', e)
 try:
     from . import live; alerts.start()
     live.start()

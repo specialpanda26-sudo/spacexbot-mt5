@@ -30,6 +30,13 @@ For subscribers who only have a phone. Free, nothing to install. The owner's bot
 - Routes: `GET /api/assist`, `POST /api/assist/settings`, `/take`, `/skip`, `/result`. Data: tables `assist` and `assist_log`, created on boot (SQLite or Postgres). Deleting an account removes both, and its push devices.
 - The push (kind 7) obeys each person's alert settings and quiet hours (22:00 to 06:00 East Africa time); the signal is still in the app.
 
+## Phone only (no PC): the server price feed
+If you only have a phone, the server can get gold candles by itself, so phone mode has signals without an EA or the Windows app. Free, off by default.
+- **Switch on:** sign in as admin, open `#admin`, **Price feed** card: press **Check** (it only tests the download from your server), then **Turn on**, then start the bot on Home (with no EA this only means "look for signals"). Or set the Render variable `FEED_ON=1`.
+- **What you get:** about once a minute the server downloads closed 15-minute and 1-hour candles (Yahoo, `FEED_MAP`, default `XAUUSD:GC=F`), runs the same strategies and gates, and sends phone-mode people the signal with their lot size. **It never places a trade.** You place it by hand in the FBS / MT5 phone app.
+- **Honest limits:** Yahoo gold is the *futures* price, usually a few dollars from FBS spot, with small jumps when the contract rolls. Check entry, stop and target on your MT5 chart first. Yahoo is unofficial and may refuse a cloud server; the card shows the exact reason. It pauses by itself while your own EA is online (two price sources would mix). Render free sleeps: ping `/healthz` every 10 minutes (UptimeRobot) while you want signals. Not tested against live Yahoo from Render yet: use **Check** first.
+- **Prove it:** `python tests/test_feed.py` (Yahoo is faked there).
+
 ## 1) Deploy (Termux)
     unzip spacexbot-mt5-v2.zip && cd spacexbot-mt5
     git init && git add . && git commit -m "spacexbot mt5 v2" && git branch -M main
