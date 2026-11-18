@@ -390,7 +390,6 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opa
 .top{position:sticky;top:0;margin-inline:-16px;padding:12px 16px}
 .top::before{content:"";position:absolute;inset:0;z-index:-1;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:saturate(1.6) blur(16px);-webkit-backdrop-filter:saturate(1.6) blur(16px);border-bottom:1px solid transparent;transition:border-color .3s}
 body.scrolled .top::before{border-bottom-color:var(--line)}
-@media(min-width:900px){.nav button::after{content:attr(data-k);font:800 10px/1 var(--font);color:var(--muted);border:1.5px solid var(--line);border-radius:5px;padding:2px 5px;background:var(--surface)}}
 </style>
 
 
@@ -778,7 +777,6 @@ body.scrolled .top::before{border-bottom-color:var(--line)}
       </ul>
       <p class="note">This is the front end. The analysis server and MT5 bridge are the next build steps, so every figure is sample data. The same page becomes the Android app later.</p>
       <button class="btn block" data-go="welcome">Show welcome page</button>
-      <button class="btn block" id="obReplay">Replay setup</button>
     </div>
   </section>
 </div>
@@ -1130,7 +1128,6 @@ document.addEventListener("click",function(e){
   if(t.id==="obNext"){if(obI<OB.length-1){obI++;renderOb()}else obFinish(false);return}
   if(t.id==="obBack"){if(obI){obI--;renderOb()}return}
   if(t.id==="obSkip"){obFinish(true);return}
-  if(t.id==="obReplay"){S.onboarded=false;save();show("home");return}
   if(t.dataset.fav){e.stopPropagation();var s=t.dataset.fav,ix=S.fav.indexOf(s);if(ix>=0)S.fav.splice(ix,1);else S.fav.push(s);save();renderCards();toast(ix>=0?"Removed from saved":"Saved "+s);if(t.dataset.close)closeSheet();return}
   if(t.dataset.close){closeSheet();return}
   if(t.dataset.open){openSheet(t.dataset.open);return}
@@ -1193,7 +1190,7 @@ show=function(v,ns){if(v==="home"&&!S.onboarded)v="onboard";
 var cmdSel=0,cmdItems=[];
 function cmdAll(){var a=[
   {t:"Home",h:"G H",f:function(){show("home")}},{t:"Market",h:"G M",f:function(){show("market")}},{t:"Bot settings",h:"G B",f:function(){show("bot")}},{t:"Trades",h:"G T",f:function(){show("trades")}},{t:"Connect broker",h:"G C",f:function(){show("connect")}},
-  {t:S.running?"Pause bot":"Start bot",h:"",f:function(){$("#botToggle").click()}},{t:"Switch theme",h:"",f:function(){$("#themeBtn").click()}},{t:"Replay setup",h:"",f:function(){$("#obReplay").click()}},{t:"Welcome page",h:"",f:function(){show("welcome")}}];
+  {t:S.running?"Pause bot":"Start bot",h:"",f:function(){$("#botToggle").click()}},{t:"Switch theme",h:"",f:function(){$("#themeBtn").click()}},{t:"Welcome page",h:"",f:function(){show("welcome")}}];
   PAIRS.forEach(function(p){a.push({t:p.s+" analysis",h:analyse(p).setup,f:function(){show("market");setTimeout(function(){openSheet(p.s)},80)}})});return a}
 function renderCmd(){var q=$("#cmdIn").value.trim().toLowerCase();cmdItems=cmdAll().filter(function(i){return!q||i.t.toLowerCase().indexOf(q)>=0});if(cmdSel>=cmdItems.length)cmdSel=0;
   $("#cmdList").innerHTML=cmdItems.map(function(i,n){return'<li><button type="button" class="cmd-i'+(n===cmdSel?" sel":"")+'" data-cmd="'+n+'"><span>'+esc(i.t)+'</span><kbd>'+esc(i.h)+'</kbd></button></li>'}).join("")||'<li class="cmd-empty">No results</li>'}
@@ -1918,7 +1915,7 @@ function openSet(){var th=main().theme||"dark";
  ov.innerHTML='<div class="up-bd"></div><div class="up-panel" role="dialog" aria-modal="true" aria-label="Settings"><div class="hd"><h2>Settings</h2><button class="icon-btn" data-up="x" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>'+
  
  '<h3>Bot</h3><div class="mini-sw">'+sw("banner","Status banner","Show mode, bot state and limits under the header.")+sw("logBot","Log bot activity","Copy scans and rule changes into the Journal.")+sw("mon","Monitor mode","Practice only. Nothing is placed.")+'</div>'+
- '<h3>Data on this device</h3><button class="btn block" data-up="copy">Copy journal</button><button class="btn block" data-up="clr">Clear journal</button><button class="btn block" data-up="replay">Replay setup</button><button class="btn block" data-up="reset">Reset upgrade data</button><p class="note">Everything here is saved on this device only.</p></div>';
+ '<h3>Data on this device</h3><button class="btn block" data-up="copy">Copy journal</button><button class="btn block" data-up="clr">Clear journal</button><button class="btn block" data-up="reset">Reset upgrade data</button><p class="note">Everything here is saved on this device only.</p></div>';
  ov.hidden=false}
 function copyJ(){var t=X.j.map(function(e){return new Date(e.t).toISOString()+"\t"+KL[e.k]+"\t"+e.m}).join("\n");
  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(function(){toast("Journal copied")},function(){toast("Copy blocked by the browser")});else toast("Copy not available here")}
@@ -1928,7 +1925,6 @@ document.addEventListener("click",function(e){var b=e.target.closest("button");i
  if(b.dataset.up==="x"){closeSet();return}
  if(b.dataset.up==="copy"||b.id==="jCopy"){copyJ();return}
  if(b.dataset.up==="clr"||b.id==="jClr"){X.j=[];sv();jr();toast("Journal cleared");return}
- if(b.dataset.up==="replay"){closeSet();var r=$("#obReplay");if(r)r.click();return}
  if(b.dataset.up==="reset"){var j=X.j;localStorage.removeItem("sxb_up");location.reload();return}
  if(b.dataset.th){var m=main();m.theme=b.dataset.th;LS("sxb2",m);if(b.dataset.th==="auto")document.documentElement.removeAttribute("data-theme");else document.documentElement.setAttribute("data-theme",b.dataset.th);$$("#stTh button").forEach(function(x){x.setAttribute("aria-pressed",x===b)});return}
  if(b.dataset.u&&ov.contains(b)){var k=b.dataset.u;X[k]=!X[k];sv();b.setAttribute("aria-checked",!!X[k]);bn();if(vb)us();return}
