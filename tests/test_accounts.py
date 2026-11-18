@@ -15,7 +15,7 @@ T('under 18 refused', c.post('/api/me/profile', json={'dob': '2015-01-01', 'gend
 T('bad gender refused', c.post('/api/me/profile', json={'gender': 'x'}, headers=H('amy@x.com')).status_code == 400)
 r = c.post('/api/me/profile', json={'dob': '1995-05-05', 'gender': 'Female', 'name': 'Amy W', 'user': 'Amy_fx', 'phone': '+254 700 000 000', 'exp': 'Beginner', 'n': {'daily': 1}, 'av': 3}, headers=H('amy@x.com'))
 j = c.get('/api/me', headers=H('amy@x.com')).json
-T('profile saved', r.status_code == 200 and j['name'] == 'Amy W' and j['age'] >= 30 and j['prof']['user'] == 'amy_fx' and j['prof']['n'] == {'trade': 1, 'risk': 1, 'news': 1, 'daily': 1, 'tips': 1, 'system': 1, 'billing': 1} and j['prof']['av'] == 3)
+T('profile saved', r.status_code == 200 and j['name'] == 'Amy W' and j['age'] >= 30 and j['prof']['user'] == 'amy_fx' and j['prof']['n'] == {'quiet_start': 22, 'quiet_end': 6, 'trade': 1, 'risk': 1, 'news': 1, 'daily': 1, 'tips': 1, 'system': 1, 'billing': 1} and j['prof']['av'] == 3)
 c.get('/api/me', headers=H('bob@x.com'))
 r = c.post('/api/me/profile', json={'user': 'AMY_FX'}, headers=H('bob@x.com'))
 T('username must be unique', r.status_code == 400 and 'taken' in r.json['error'])

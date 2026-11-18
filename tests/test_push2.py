@@ -34,7 +34,7 @@ class SyncThread:                       # broadcast() normally runs in a backgro
     def __init__(self, target=None, daemon=None): self.t = target
     def start(self): self.t()
 push.threading = types.SimpleNamespace(Thread=SyncThread, Lock=threading.Lock)
-push.quiet_now = lambda now=None: False
+push.quiet_now = lambda *a, **k: False
 
 C = app.test_client()
 H = lambda e: {'Authorization': 'Bearer dev:' + e}
@@ -100,11 +100,11 @@ push._account = lambda: ACC
 st.x('DELETE FROM push_tokens WHERE uid=?', (uid['boss2@x.com'],))
 SENT.clear(); r = C.post('/api/admin/push/test', headers=H('boss2@x.com'))
 T('test route: admin with no phone -> 400 and tells them what to do', r.status_code == 400 and 'No phone is registered' in r.json['error'] and r.json['devices'] == 0 and not SENT)
-push.quiet_now = lambda now=None: True
+push.quiet_now = lambda *a, **k: True
 SENT.clear(); r = C.post('/api/admin/push/test', headers=H('boss@x.com'))
 T('test route: sends to the admin phone, even in quiet hours', r.status_code == 200 and r.json['sent'] == 1 and sent_to() == ['boss@x.com'])
 T('test route payload: title spaceXBot test, high channel', SENT and SENT[0]['notification']['title'] == 'spaceXBot test' and SENT[0]['android']['notification']['channel_id'] == 'sxb_high')
-push.quiet_now = lambda now=None: False
+push.quiet_now = lambda *a, **k: False
 
 # ---------- live.js (node) ----------
 NODE = shutil.which('node')

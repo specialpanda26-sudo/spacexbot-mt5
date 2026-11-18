@@ -1,4 +1,5 @@
-import unittest
+import os, sys, unittest
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from unittest.mock import patch
 from backend import push, accounts
 
