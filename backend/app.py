@@ -325,6 +325,13 @@ def admin_plans(u):
     try: return jsonify(pay.set_plans(_j().get('plans') or []))
     except (ValueError, TypeError, KeyError, AttributeError): return jsonify(error='bad plans'), 400
 
+@app.post('/api/admin/testprice')
+@need(admin=True)
+def admin_testprice(u):
+    j = _j()
+    try: return jsonify(pay.set_test_plan(j.get('kes'), j.get('usd'), 1 if j.get('days') is None else j.get('days'), bool(j.get('off'))))
+    except (ValueError, TypeError, KeyError, AttributeError): return jsonify(error='Enter KES 1 or more, USD 0.01 or more, and days 1 to 3650'), 400
+
 @app.post('/api/admin/grant')
 @need(admin=True)
 def admin_grant(u):

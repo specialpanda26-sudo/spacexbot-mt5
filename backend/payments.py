@@ -21,6 +21,14 @@ def set_plans(rows):
           for r in rows if r.get('id') and r.get('name') and int(r.get('days', 0)) > 0 and int(r.get('kes', 0)) > 0 and float(r.get('usd', 0)) > 0]
     st.put('plans', json.dumps(ok)); return ok
 
+def set_test_plan(kes=None, usd=None, days=1, off=False):
+    """Admin quick test price. Keeps one package with id 'ptest'; any KES 1+ and USD 0.01+. Raises ValueError on bad input (nothing is saved)."""
+    keep = [p for p in plans() if p['id'] != 'ptest']
+    if off: return set_plans(keep)
+    k = int(kes); u = round(float(usd), 2); d = int(days)
+    if not (1 <= k <= 1000000 and 0.01 <= u <= 100000 and 1 <= d <= 3650): raise ValueError('bad test price')
+    return set_plans(keep + [{'id': 'ptest', 'name': 'Test (admin)', 'days': d, 'kes': k, 'usd': u}])
+
 def activate(uid, pid, days=None):
     d = days or (plan(pid) or {}).get('days')
     if not d: raise ValueError('unknown plan')

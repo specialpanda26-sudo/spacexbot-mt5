@@ -14,6 +14,8 @@ Rules for every new section (same as sections already done):
 - Video 3 section 3A: backend/ma_cross.py + tests/test_ma1.py (20/50 EMA cross on the 1h candles, trending only via ADX, only markets that followed past crosses, fires on the 15m candle in which the hour closes, ATR-based stop).
 - Video 3 section 3B: backend/stoch.py + backend/ma_bounce.py + tests/test_ma2.py (the 50 MA as support/resistance, needs earlier bounces, stochastic oversold/overbought, bullish/bearish rejection at the MA).
 
+- Admin test price (Nov 18 plan, section 1): backend/payments.py set_test_plan + POST /api/admin/testprice + Test price card in the admin panel + tests/test_testprice.py.
+
 ## REMAINING (do in this order, one section per session)
 ### Video 3 (Data Trader - moving average strategy)  [3A, 3B done]
 - 3B  DONE (backend/ma_bounce.py). Original spec: the 20 or 50 MA as dynamic support/resistance + STOCHASTIC. Needs a new `stoch(b, k=14, d=3)` in a NEW helper file (do not edit indicators.py). Rule: price has touched the MA several times and bounced (the MA acts as support/resistance); when price is back at the MA AND stochastic is oversold (<20) in an uptrend -> buy; overbought (>80) at the MA in a downtrend -> sell. Add to REVERSION or TREND as fits (it trades pullbacks WITH the trend -> TREND).
