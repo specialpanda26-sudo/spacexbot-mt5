@@ -122,3 +122,6 @@ Check it: sign in as admin, open `#admin`, press **Send test alert**. It reports
 
 ### Render Free Tier Hosting Note
 Render free instances spin down after 15 minutes of inactivity. The background alert timer loop runs only while the server is awake. To maintain continuous operation, configure an external free uptime monitor to ping `/healthz` every 10 minutes, or upgrade to a paid Render plan.
+
+## Deriv bot: what must be set on Render
+`BROKER_KEY` (16+ characters) and `DERIV_APP_ID` (your Deriv app id). Without them nothing is saved or traded, and the Platforms tile and the admin health card say so in plain words. Start/Stop the bot from the Deriv tile (Connect tab): no MT5 key is needed. Real Deriv accounts also need `DERIV_REAL=1` on Render AND Real mode chosen by the customer.

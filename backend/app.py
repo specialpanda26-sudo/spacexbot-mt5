@@ -281,6 +281,24 @@ def brokers_verify(u, name):
     ok, msg = deriv.verify(u['uid'])
     return jsonify(ok=ok, message=msg, brokers=bk.view(u['uid']))
 
+@app.post('/api/brokers/<name>/bot')
+@need(verified=True)
+def brokers_bot(u, name):
+    """Start / stop the bot for ONE broker connection. Deriv only for now (the MT5 brokers trade through the MT5 app). Works for admins too:
+    it needs no MT5 key. Starting needs an active plan, a checked token, and Phone mode off (so a signal is never traded twice)."""
+    n = bk.canon(name)
+    if n != 'Deriv': return jsonify(error='This broker trades through the MT5 app. Use the Connect MT5 card.'), 400
+    on = _j().get('on') is True; r = st.q("SELECT status FROM broker_links WHERE uid=? AND broker='Deriv'", (u['uid'],), True)
+    if on:
+        if not r: return jsonify(error='Save your Deriv token first.'), 400
+        if not u['active']: return jsonify(error='subscription required'), 402
+        if r['status'] != 'verified': return jsonify(error='Your token is not checked yet. Save it again to check it.'), 400
+        if assist.is_on(u['uid']): return jsonify(error='Turn off Phone mode first, so the same signal is not traded twice.'), 400
+    bk.set_bot(u['uid'], n, on); learn.log(u['uid'], 'setting', data={'path': request.path, 'on': on})
+    if on: deriv.kick(u['uid'], _scan, _paid)
+    else: bk.set_why(u['uid'], n, 'bot off')
+    return jsonify(brokers=bk.view(u['uid']))
+
 @app.delete('/api/brokers/<name>')
 @need(verified=True)
 def brokers_del(u, name):
@@ -431,7 +449,13 @@ def admin_revoke(u):
 # ---------------- payments ----------------
 @app.get('/api/admin/health')
 @need(admin=True)
-def admin_health(u): return jsonify(pay.health())
+def admin_health(u):
+    h = pay.health(); bad = list(h.get('problems') or [])
+    if not bk.ready(): bad.append('BROKER_KEY is missing (16+ characters). Nobody can link a Deriv or Binance key.')
+    if not deriv.APP(): bad.append('DERIV_APP_ID is missing. The Deriv bot cannot trade for anyone.')
+    try: beat = int(st.get('deriv:beat') or 0)
+    except ValueError: beat = 0
+    return jsonify(dict(h, ok=not bad, problems=bad, deriv_loop_last=beat or None, deriv_loop_ago=int(time.time()) - beat if beat else None))
 
 @app.get('/api/plans')
 def plans(): return jsonify(pay.plans())

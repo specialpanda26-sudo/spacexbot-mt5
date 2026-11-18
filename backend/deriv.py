@@ -119,16 +119,28 @@ def balance(sess):
     try: return float(b.get('balance') if isinstance(b, dict) else b)
     except (TypeError, ValueError): return None
 
+def _bot(uid):
+    """Is the bot on for this person's Deriv trading? The Deriv switch (set from the Deriv tile) wins once used;
+    until then the old MT5-link switch still counts, so nothing that worked before stops working."""
+    f = bk.bot_flag(uid, 'Deriv')
+    return f if f is not None else links.bot_on(uid)
+
 def _pick(accts, want_real):
     return next((a for a in accts if a['demo'] != want_real), None)
 
 def run_once(uid, scan, paid, connect=None, http=None, now=None):
-    """One round for one customer: only if plan active, bot on, token verified. Reads candles, refreshes the account snapshot, runs the scan."""
+    """One round for one customer (see _run_once). The result is also saved as a plain-words note on the Deriv tile, so a bot that
+    does nothing always says why."""
     now = now or time.time()
+    try: r = _run_once(uid, scan, paid, connect, http, now)
+    except Exception: bk.set_why(uid, 'Deriv', 'error', now); raise
+    bk.set_why(uid, 'Deriv', r, now); return r
+
+def _run_once(uid, scan, paid, connect, http, now):
+    """One round for one customer: only if plan active, bot on, token verified. Reads candles, refreshes the account snapshot, runs the scan."""
     if not APP(): return 'off'
     if not paid(uid): return 'plan ended'
-    l = links.get(uid)
-    if not l or not l['bot']: return 'bot off'
+    if not _bot(uid): return 'bot off'
     r = st.q("SELECT status FROM broker_links WHERE uid=? AND broker='Deriv'", (uid,), True)
     if not r or r['status'] != 'verified': return 'not verified'
     sec = bk.secret(uid, 'Deriv')
@@ -146,7 +158,8 @@ def run_once(uid, scan, paid, connect=None, http=None, now=None):
         try: _track(sess, uid, acct)
         except ConnectionError: raise
         except Exception as e: print('[deriv] track failed', repr(e)[:100])
-        for sym in [x.strip() for x in (st.get('symbols') or '').split(',') if x.strip()][:8]:
+        syms = [x.strip() for x in (st.get('symbols') or '').split(',') if x.strip()][:8]
+        for sym in syms:
             try:
                 for tf in ('M15', 'H1'):
                     rows = candles(sess, sym, tf, 300 if tf == 'M15' else 200, now)
@@ -159,9 +172,26 @@ def run_once(uid, scan, paid, connect=None, http=None, now=None):
         except Exception as e: print('[deriv] trade failed', repr(e)[:100])
         st.x("UPDATE signals SET status='expired' WHERE status IN('pending','sent') AND created<? AND uid=?", (int(now) - 180, uid))
     finally: sess.close()
-    return 'ok'
+    return 'ok' if syms else 'no symbols'
 
 _started = False
+def round_all(scan, paid):
+    """One pass over every verified Deriv customer. Runs even when DERIV_APP_ID is missing, so each customer's tile can say so."""
+    try: ids = [x['uid'] for x in st.q("SELECT uid FROM broker_links WHERE broker='Deriv' AND status='verified' LIMIT 200")]
+    except Exception as e: print('[deriv] list failed', repr(e)[:100]); return 0
+    for uid in ids:
+        try: run_once(uid, scan, paid)
+        except Exception as e: print('[deriv] round failed', repr(e)[:100])
+    st.put('deriv:beat', int(time.time()))          # the loop's heartbeat (shown in the owner's health)
+    return len(ids)
+
+def kick(uid, scan, paid):
+    """Run one round for one person right now (after Start bot), instead of waiting up to a minute."""
+    def go():
+        try: run_once(uid, scan, paid)
+        except Exception as e: print('[deriv] kick failed', repr(e)[:100])
+    threading.Thread(target=go, daemon=True).start()
+
 def start(scan, paid):
     """Background round for every verified Deriv customer. Starts quietly; does nothing until DERIV_APP_ID is set."""
     global _started
@@ -170,12 +200,7 @@ def start(scan, paid):
     def loop():
         while True:
             time.sleep(max(30, int(os.getenv('DERIV_EVERY', '60'))))
-            if not APP(): continue
-            try: ids = [x['uid'] for x in st.q("SELECT uid FROM broker_links WHERE broker='Deriv' AND status='verified' LIMIT 200")]
-            except Exception as e: print('[deriv] list failed', repr(e)[:100]); continue
-            for uid in ids:
-                try: run_once(uid, scan, paid)
-                except Exception as e: print('[deriv] round failed', repr(e)[:100])
+            round_all(scan, paid)
     threading.Thread(target=loop, daemon=True).start()
 
 # ---------------- step 3: place and follow trades (multiplier contracts). Demo accounts always; a real account also needs DERIV_REAL=1 ----------------
@@ -239,8 +264,7 @@ def _resnap(sess, uid, acct):
 def _trade(sess, uid, acct, bal, now):
     if not acct['demo'] and os.getenv('DERIV_REAL') != '1': return          # real money needs the owner's switch as well as the customer's Real mode
     s = st.q("SELECT * FROM signals WHERE uid=? AND status='pending' AND created>=? ORDER BY id LIMIT 1", (uid, int(now) - 120), True)
-    l = links.get(uid)
-    if not s or not l or not l['bot']: return
+    if not s or not _bot(uid): return
     if not st.x("UPDATE signals SET status='sent' WHERE id=? AND status='pending'", (s['id'],), True): return      # claimed: nobody else can buy this signal
     try: kind, r = _place(sess, s, bal, acct['currency'])
     except Exception as e:

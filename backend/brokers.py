@@ -39,6 +39,7 @@ def save(uid, name, f):
             vals, label = {'key': s('key'), 'secret': s('secret')}, '...' + s('key')[-4:]
         enc = lock.encrypt(json.dumps({'u': uid, 'b': n, 'v': vals}).encode('utf-8')).decode('ascii')
     st.x('DELETE FROM kv WHERE k=?', ('bal:%s:%s' % (uid, n),))          # a new key may be a different account: forget the old balance
+    for pre in ('bot', 'why'): st.x('DELETE FROM kv WHERE k=?', ('%s:%s:%s' % (pre, uid, n),))          # a new key starts with the bot off again (switch forgotten)
     mine = {r['broker'] for r in st.q('SELECT broker FROM broker_links WHERE uid=?', (uid,))}
     if n not in mine and len(mine) >= MAX_PER_USER: raise ValueError('Too many connections. Remove one first.')
     now = int(time.time())
@@ -58,14 +59,39 @@ def _bals(uid):
             except ValueError: pass
     return out
 
+# ---- S1: the bot switch and the "why is it not trading" note live per broker connection (kv rows, so no schema change) ----
+REASONS = {
+    'ok': 'Running. Last check went fine.',
+    'off': 'Deriv trading is not switched on on the server yet. The owner must set DERIV_APP_ID on Render.',
+    'plan ended': 'Your plan has ended. Renew it to trade.',
+    'bot off': 'The bot is off. Tap Start bot.',
+    'not verified': 'Your token is not checked yet. Save it again to check it.',
+    'no token': 'No token saved. Save your Deriv token again.',
+    'no real account': 'Real mode is on but this token has no real account.',
+    'no demo account': 'This token has no virtual (demo) account.',
+    'no balance': 'Deriv did not give the balance. It will try again soon.',
+    'no symbols': 'No markets are set to trade. The owner must set the symbols list.',
+    'error': 'Something failed on the last round. It will try again soon.',
+}
+def bot_flag(uid, name):
+    """True / False once the person has used the switch, None if never used (then the old MT5 link switch decides)."""
+    v = st.get('bot:%s:%s' % (uid, name)); return None if v is None else v == '1'
+def set_bot(uid, name, on): st.put('bot:%s:%s' % (uid, name), '1' if on else '0')
+def set_why(uid, name, reason, now=None):
+    st.put('why:%s:%s' % (uid, name), json.dumps({'r': str(reason)[:30], 't': int(now or time.time())}))
+def _why(uid, name):
+    try: j = json.loads(st.get('why:%s:%s' % (uid, name)) or '')
+    except ValueError: return {}
+    return {'why': REASONS.get(j.get('r'), 'Not trading: %s' % j.get('r')), 'why_code': j.get('r'), 'why_t': j.get('t')} if isinstance(j, dict) else {}
+
 def view(uid):
     """What the app may see: name, kind, a short tail of the key, mode, status. Never the secret."""
     b = _bals(uid)
-    return [dict({'name': r['broker'], 'kind': r['kind'], 'label': r['label'], 'mode': r['mode'] or 'demo', 'status': r['status'] or 'saved'},
+    return [dict({'name': r['broker'], 'kind': r['kind'], 'label': r['label'], 'mode': r['mode'] or 'demo', 'status': r['status'] or 'saved', 'bot': bot_flag(uid, r['broker']) is True, **_why(uid, r['broker'])},
                  **({'balance': b[r['broker']].get('balance'), 'currency': b[r['broker']].get('currency'), 'acct_demo': b[r['broker']].get('demo'), 'bal_t': b[r['broker']].get('t')} if r['broker'] in b else {}))
             for r in st.q('SELECT broker,kind,label,mode,status FROM broker_links WHERE uid=? ORDER BY created', (uid,))]
 def drop(uid, name):
-    st.x('DELETE FROM kv WHERE k=?', ('bal:%s:%s' % (uid, name),))
+    for pre in ('bal', 'bot', 'why'): st.x('DELETE FROM kv WHERE k=?', ('%s:%s:%s' % (pre, uid, name),))
     return st.x('DELETE FROM broker_links WHERE uid=? AND broker=?', (uid, name), True)
 
 def secret(uid, name):
