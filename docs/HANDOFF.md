@@ -12,10 +12,11 @@ Rules for every new section (same as sections already done):
 ## DONE
 - Video 1 (jg_pullback etc.), Video 2 sections 1-5 (pa_level, pa_bos, pa_candle, pa_pattern, pa_trendline) - pushed to GitHub.
 - Video 3 section 3A: backend/ma_cross.py + tests/test_ma1.py (20/50 EMA cross on the 1h candles, trending only via ADX, only markets that followed past crosses, fires on the 15m candle in which the hour closes, ATR-based stop).
+- Video 3 section 3B: backend/stoch.py + backend/ma_bounce.py + tests/test_ma2.py (the 50 MA as support/resistance, needs earlier bounces, stochastic oversold/overbought, bullish/bearish rejection at the MA).
 
 ## REMAINING (do in this order, one section per session)
-### Video 3 (Data Trader - moving average strategy)  [3A done]
-- 3B  backend/ma_bounce.py: the 20 or 50 MA as dynamic support/resistance + STOCHASTIC. Needs a new `stoch(b, k=14, d=3)` in a NEW helper file (do not edit indicators.py). Rule: price has touched the MA several times and bounced (the MA acts as support/resistance); when price is back at the MA AND stochastic is oversold (<20) in an uptrend -> buy; overbought (>80) at the MA in a downtrend -> sell. Add to REVERSION or TREND as fits (it trades pullbacks WITH the trend -> TREND).
+### Video 3 (Data Trader - moving average strategy)  [3A, 3B done]
+- 3B  DONE (backend/ma_bounce.py). Original spec: the 20 or 50 MA as dynamic support/resistance + STOCHASTIC. Needs a new `stoch(b, k=14, d=3)` in a NEW helper file (do not edit indicators.py). Rule: price has touched the MA several times and bounced (the MA acts as support/resistance); when price is back at the MA AND stochastic is oversold (<20) in an uptrend -> buy; overbought (>80) at the MA in a downtrend -> sell. Add to REVERSION or TREND as fits (it trades pullbacks WITH the trend -> TREND).
 - 3C  backend/ema200_filter.py: the 200 EMA filter. Price above 200 EMA -> only buys, below -> only sells. Implement as a wrapper `with_ema200(fn)` and register filtered copies of psar_flip and a supertrend-style signal (video: parabolic SAR 38% -> 46%, supertrend 39% -> 48%). Test: a buy from the wrapped strategy is dropped when price is below the 200 EMA, sells likewise.
 - 3D  ATR trailing-stop exit. The backtest and brain use a fixed 2R target. Add an OPTIONAL trailing-exit simulation to tools/backtest.py (flag --trail) only after 3A-3C pass. Low priority.
 
