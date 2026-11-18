@@ -21,12 +21,51 @@
       });
     });
   }
+  /*N1-start*/
+  /* Phone alerts: inside the Android app the page asks for permission, gets the phone's Firebase token and tells the server, so alerts arrive even when the app is closed. */
+  var PT = { sent: null, reg: null, tok: "", started: false, plug: null }, GO = { home: 1, market: 1, bot: 1, trades: 1, connect: 1, profile: 1 }, GOMAP = { signals: "trades", stats: "trades", plans: "profile" };
+  function nat() { var c = window.Capacitor; return !!(c && c.isNativePlatform && c.isNativePlatform()); }
+  function ptGet() { try { return localStorage.getItem("sxb_pt") || ""; } catch (x) { return ""; } }
+  function pushPlug() {
+    var c = window.Capacitor; if (!c) return null;
+    if (c.registerPlugin) { try { return c.registerPlugin("PushNotifications"); } catch (x) {} }
+    return (c.Plugins && c.Plugins.PushNotifications) || null;
+  }
+  function pushToken(t) {
+    if (!t || !ME || ME.offline) return Promise.resolve();
+    var key = ME.uid + ":" + t; if (PT.sent === key) return Promise.resolve();
+    PT.sent = key;
+    return api("/api/push/token", { method: "POST", body: { token: t, platform: "android" } }).then(function () { try { localStorage.setItem("sxb_pt", t); } catch (x) {} }, function () { if (PT.sent === key) PT.sent = null; });
+  }
+  function pushRoute(d) {
+    var r = String((d && d.route) || "").replace(/^#/, ""); r = GOMAP[r] || r;
+    if (GO[r] === 1) location.hash = "#" + r;
+  }
+  function pushStart() {
+    if (PT.started || !nat()) return; var P = pushPlug(); if (!P) return; PT.started = true; PT.plug = P;
+    try {
+      P.addListener("registration", function (t) { PT.tok = (t && t.value) || ""; pushToken(PT.tok); });
+      P.addListener("registrationError", function () {});
+      P.addListener("pushNotificationActionPerformed", function (a) { pushRoute(a && a.notification && a.notification.data); });
+    } catch (x) {}
+  }
+  function pushSync() {
+    if (!ME || ME.offline || !nat()) return;
+    pushStart(); var P = PT.plug; if (!P) return;
+    var saved = ptGet() || PT.tok; if (saved) pushToken(saved);   /* a token whose send failed is tried again on the next refresh */
+    if (PT.reg === ME.uid) return; PT.reg = ME.uid;
+    Promise.resolve(P.checkPermissions()).then(function (r) { return r && r.receive === "granted" ? r : P.requestPermissions(); }).then(function (r) {
+      if (r && r.receive === "granted") return P.register();
+      if (window.sxToast) window.sxToast("Allow notifications in your phone settings to get trade alerts.");
+    }).catch(function () {});
+  }
+  /*N1-end*/
   function clr() { try { Object.keys(localStorage).filter(function (k) { return k === "sxb_me" || k.indexOf("sxb_c:") === 0; }).forEach(function (k) { localStorage.removeItem(k); }); } catch (x) {} }
   function jget(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (x) { return null; } }
   function jput(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (x) {} }
   /* online: remember the answer. No network (not a server refusal): use the last saved account, but only for the person still signed in. */
   function load() {
-    return api("/api/me").then(function (j) { jput("sxb_me", j); ME = norm(j); lastUid = ME.uid; return ME; }).catch(function (e) {
+    return api("/api/me").then(function (j) { jput("sxb_me", j); ME = norm(j); lastUid = ME.uid; setTimeout(pushSync, 0); return ME; }).catch(function (e) {
       var c = jget("sxb_me"); if ((e && e.status) || !c || !S) throw e;
       return S.auth.getSession().then(function (r) {
         var u = r.data && r.data.session && r.data.session.user;
@@ -126,7 +165,12 @@
       if (wv || isNat) return Promise.reject(new Error("The app could not open your Google accounts. (Capacitor " + (cap ? "found" : "missing") + ", native " + isNat + ", plugin " + (plug ? "ok" : "missing") + ", cap keys " + (cap ? Object.keys(cap).slice(0, 14).join("/") : "-") + ", id " + (gid ? "set" : "empty") + ")"));
       return S.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + "/" } }).then(chk).then(function () { return new Promise(function () {}); });
     },
-    signOut: function () { ME = null; lastUid = null; return S ? S.auth.signOut() : Promise.resolve(); },
+    push: { sync: pushSync, route: pushRoute },
+    signOut: function () {   /* N1: tell the server this phone is leaving, so the next person on it does not get this account's alerts */
+      var t = ptGet(), p = Promise.resolve(); if (t && ME && nat()) p = api("/api/push/unregister", { method: "POST", body: { token: t } }).catch(function () {});
+      try { localStorage.removeItem("sxb_pt"); } catch (x) {} PT.sent = null; PT.reg = null; PT.tok = ""; ME = null; lastUid = null;
+      return p.then(function () { return S ? S.auth.signOut() : undefined; });
+    },
     resetPassword: function (email) { var n = need(); return n || S.auth.resetPasswordForEmail(email).then(chk); },
     /* Reset runs in two steps so the code squares and the new-password screen can be separate pages.
        Between the steps the page is "held": the recovery sign-in must not push the app behind the overlay to #home. */

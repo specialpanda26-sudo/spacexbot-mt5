@@ -38,6 +38,15 @@ Rules for every new section (same as sections already done):
 ### Last
 - Run tools/backtest.py --solo on real data (6-12 months). Remove or ignore anything with an unproven edge. Then demo account before real money.
 
+## PHONE ALERTS (user request Nov 18; one section per session)
+- N1  DONE (static/live.js, code between /*N1-start*/ and /*N1-end*/: the Android app asks for notification permission, gets its Firebase token, POSTs /api/push/token, unregisters on sign-out, tap opens the right screen; tests/test_push1.py). Before N1 nothing ever sent the token, so no push could reach a phone. Needs google-services.json in the APK build and FCM_SERVICE_ACCOUNT on Render.
+- N2  backend/alerts.py: one background loop for timed alerts, daily cap raised (PUSH_DAILY_CAP default 12 -> 30), quiet hours adjustable, admin "send test alert" button.
+- N3  billing alerts: kinds 38-41 from payments, 42/43/44 plan ends in 3 days / tomorrow / ended.
+- N4  trade + risk alerts: new signal to every subscriber (kind 7/1), 9, 10, and 11-18 from the risk gates.
+- N5  market alerts: 19-25 (news soon, news lock, session opening, large gold move, market closed, spread).
+- N6  system, daily, tips: 26-31, 32-37 reports, 45-49 nudges, 50 security.
+- Server route names #signals/#stats/#plans do not exist in the app; N1 maps them on the phone (signals,stats -> trades, plans -> profile).
+
 ## UI / BACKEND FEATURES for the strategies (one section per session, same rules as above)
 - A1  DONE: backend/strategy_info.py (INFO = readable name + one line per strategy; label(); listing()) + GET /api/admin/strategies + tests/test_sinfo.py. The test FAILS when a strategy is registered without an INFO line, so add one whenever you add a strategy.
 - A2  DONE (static/index.html admin panel: Strategies card with on/off switches + Results table, code between /*A2-start*/ and /*A2-end*/; tests/test_strui.py runs it in node). Original spec: admin panel "Strategies" card in static/index.html (function panel(), next to Test price / Packages): one row per strategy from GET /api/admin/strategies: name, description, trend/reversion tag, on/off switch (POST /api/admin/settings {strategies_off: "a,b"}), and a results table (n, win rate, average) with "no trades yet" when n = 0. Build from the site's own cards and inputs.
