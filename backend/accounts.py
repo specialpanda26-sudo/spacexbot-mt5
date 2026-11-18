@@ -5,7 +5,9 @@ from . import store as st
 EXP = {'Beginner', 'Intermediate', 'Advanced'}; GOAL = {'Learn', 'Steady', 'Active'}; RISK = {'Low', 'Medium', 'High'}
 GENDER = {'Female', 'Male', 'Non-binary', 'Prefer not to say'}
 NOTIF = ('trade', 'risk', 'news', 'daily', 'tips', 'system', 'billing')
-DEF_NOTIF = {'trade': 1, 'risk': 1, 'news': 1, 'daily': 1, 'tips': 1, 'system': 1, 'billing': 1}
+DEF_NOTIF = {
+    "quiet_start": 22,
+    "quiet_end": 6,'trade': 1, 'risk': 1, 'news': 1, 'daily': 1, 'tips': 1, 'system': 1, 'billing': 1}
 
 def age_of(dob):
     y, m, d = map(int, dob.split('-')); t = dt.date.today()

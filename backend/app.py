@@ -448,5 +448,6 @@ def _reconciler():
 threading.Thread(target=_reconciler, daemon=True).start()
 
 try:
-    from . import live; live.start()
+    from . import live; alerts.start()
+    live.start()
 except Exception as e: print('[live] not started', e)

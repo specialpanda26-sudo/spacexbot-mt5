@@ -28,7 +28,7 @@ _T = [
 KINDS = {k: {'cat': c, 'ch': h, 'title': t} for k, c, h, t in _T}
 CHANNEL = {'hi': 'sxb_high', 'lo': 'sxb_low'}
 ROUTE = {'trade': '#signals', 'risk': '#home', 'news': '#home', 'daily': '#stats', 'tips': '#profile', 'system': '#home', 'billing': '#plans'}   # screen opened on tap
-MAX_PER_DAY = int(os.getenv('PUSH_DAILY_CAP', '12'))
+MAX_PER_DAY = int(os.getenv('PUSH_DAILY_CAP', '30'))
 QUIET = (22, 6)                              # East Africa time (UTC+3)
 EAT = dt.timezone(dt.timedelta(hours=3))
 
@@ -40,9 +40,16 @@ def prefs(uid):
     except ValueError: n = {}
     return {k: n.get(k, accounts.DEF_NOTIF.get(k, 1)) not in (0, False, '0') for k in CAT}
 
-def quiet_now(now=None):
+def quiet_now(user_notif=None, kind=None, now=None):
+    if kind in [2, 3, 4]:
+        return False
+    notif = user_notif or {}
+    start_hour = notif.get("quiet_start", QUIET[0])
+    end_hour = notif.get("quiet_end", QUIET[1])
     h = dt.datetime.fromtimestamp(now or time.time(), EAT).hour
-    return h >= QUIET[0] or h < QUIET[1]
+    if start_hour > end_hour:
+        return (h >= start_hour) or (h < end_hour)
+    return start_hour <= h < end_hour
 
 def _day0(now=None):
     d = dt.datetime.fromtimestamp(now or time.time(), EAT).replace(hour=0, minute=0, second=0, microsecond=0); return int(d.timestamp())
@@ -53,7 +60,7 @@ def allowed(uid, kind, now=None):
     if not k: return False, 'unknown kind'
     if not prefs(uid).get(k['cat'], True): return False, 'category off'
     free = k['cat'] in BYPASS_CATS or kind in BYPASS_KINDS
-    if not free and quiet_now(now): return False, 'quiet hours'
+    if not free and quiet_now(prefs(uid), kind, now): return False, 'quiet hours'
     d0 = _day0(now)
     if kind in NUDGE_KINDS and (st.q('SELECT COUNT(*) AS n FROM push_log WHERE uid=? AND kind>=45 AND kind<=49 AND ts>=?', (uid, d0), True) or {}).get('n', 0) >= 1:
         return False, 'nudge limit'

@@ -111,3 +111,7 @@ Check it: sign in as admin, open `#admin`, press **Send test alert**. It reports
 - **SQLite on Render free is wiped on every redeploy.** Users, plans and payments reset. Move to Supabase Postgres before taking real money.
 - If the ForexFactory feed is unreachable and was never loaded, the news lock fails open (shown in the app).
 - Nothing here is proven profitable. Test on a demo account for weeks first.
+
+
+### Render Free Tier Hosting Note
+Render free instances spin down after 15 minutes of inactivity. The background alert timer loop runs only while the server is awake. To maintain continuous operation, configure an external free uptime monitor to ping `/healthz` every 10 minutes, or upgrade to a paid Render plan.
