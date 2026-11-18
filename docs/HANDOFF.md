@@ -13,6 +13,7 @@ Rules for every new section (same as sections already done):
 - Video 1 (jg_pullback etc.), Video 2 sections 1-5 (pa_level, pa_bos, pa_candle, pa_pattern, pa_trendline) - pushed to GitHub.
 - Video 3 section 3A: backend/ma_cross.py + tests/test_ma1.py (20/50 EMA cross on the 1h candles, trending only via ADX, only markets that followed past crosses, fires on the 15m candle in which the hour closes, ATR-based stop).
 - Video 3 section 3B: backend/stoch.py + backend/ma_bounce.py + tests/test_ma2.py (the 50 MA as support/resistance, needs earlier bounces, stochastic oversold/overbought, bullish/bearish rejection at the MA).
+- Video 5 section 5B: backend/gold_scalp.py + tests/test_gs2.py (liquidity-sweep entry in a 15m zone, aggressive version). Next: 5C.
 
 - Admin test price (Nov 18 plan, section 1): backend/payments.py set_test_plan + POST /api/admin/testprice + Test price card in the admin panel + tests/test_testprice.py.
 
@@ -26,7 +27,7 @@ Rules for every new section (same as sections already done):
 
 ### Video 5 (Brad Goh - gold scalping, 5 steps)
 - 5A  DONE (backend/gs_zones.py + tests/test_gs1.py: bias(m,h) = 1h and 15m structure must agree; find_zones / scan return demand or supply zones as order blocks or fair value gaps, with a touched flag; touching(bar, zone). Not registered, it fires no trade - 5B uses scan()). Original spec: step 1+2 - 1h AND 15m trend must agree (reuse structure() from backend/pa_structure.py), then mark demand zones (buys) / supply zones (sells): the last opposite candle before an impulsive move that broke structure (order block) or a fair value gap.
-- 5B  backend/gold_scalp.py: steps 3+4+5 - wait for price to come back into a 15m zone, then require a LIQUIDITY SWEEP (price takes out a recent swing low for buys / swing high for sells, wick through and close back). Aggressive entry: right after the sweep candle. Stop beyond the sweep candle (the protected low/high). Target: nearest 15m swing high (buys) / low (sells).
+- 5B  DONE (backend/gold_scalp.py + tests/test_gs2.py: uses gs_zones.scan, trades only in 15m zones of the 5A bias; fires on the first candle that wicks through a recent swing low/high and closes back; stop beyond the sweep candle; target = nearest unbroken 15m swing high/low, at least 1R; registered as gold_scalp in TREND, SOLO=False). Original spec: steps 3+4+5 - aggressive entry right after the sweep candle.
 - 5C  conservative entry for 5B: after the sweep, wait for a market shift (close beyond the last internal high/low), then pullback into the zone that caused the shift; same stop and target. Skip when 1h and 15m disagree.
 
 ### Video 4 (Trade with Pat - 9:30 opening range breakout)
