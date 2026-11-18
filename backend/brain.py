@@ -3,7 +3,7 @@ reversion setups are skipped when ADX says strong trend, trend setups when ADX s
 from .strategies import ALL, REVERSION, TREND
 from .indicators import atr, adx
 
-def evaluate(m15, h1, min_conf=2, rr=2.0, off=(), adx_trend_min=18.0, adx_rev_max=28.0):
+def evaluate(m15, h1, min_conf=2, rr=2.0, off=(), adx_trend_min=18.0, adx_rev_max=28.0, solo=()):
     if len(m15) < 120: return None
     ax = adx(m15)[-1]; hits = []
     for fn in ALL:
@@ -11,6 +11,7 @@ def evaluate(m15, h1, min_conf=2, rr=2.0, off=(), adx_trend_min=18.0, adx_rev_ma
         try: r = fn(m15, h1)
         except Exception as e: print('strategy error', fn.__name__, e); r = None
         if not r: continue
+        if r['name'] in solo and not r.get('solo'): r = {**r, 'solo': True}          # admin switch 'may trade alone' (A3)
         if ax and r['name'] in REVERSION and ax > adx_rev_max: continue
         if ax and r['name'] in TREND and ax < adx_trend_min: continue
         hits.append(r)

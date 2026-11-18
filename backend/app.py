@@ -79,7 +79,8 @@ def _scan(sym, uid=''):
     if not ok: return
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
     if st.get('auto_disable') == '1': off |= stats.losers(int(st.fget('auto_disable_min_trades')), uid)
-    s = brain.evaluate(m15, h1, int(st.fget('min_confluence')), st.fget('rr'), off)
+    solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
+    s = brain.evaluate(m15, h1, int(st.fget('min_confluence')), st.fget('rr'), off, solo=solo)
     if not s: return
     ok, why = risk.symbol_gate(sym, s['side'], uid=uid)
     if not ok: print('skip', sym, s['side'], why); return
@@ -337,7 +338,8 @@ def admin_strategies(u):
     """Every strategy with a readable name, description, group, on/off, and the results of all users' closed trades."""
     from . import strategies as S
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
-    return jsonify(si.listing([f.__name__ for f in S.ALL], S.TREND, S.REVERSION, off, learn.by_strategy()))
+    solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
+    return jsonify(si.listing([f.__name__ for f in S.ALL], S.TREND, S.REVERSION, off, learn.by_strategy(), solo))
 
 @app.post('/api/admin/plans')
 @need(admin=True)

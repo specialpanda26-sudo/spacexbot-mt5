@@ -128,7 +128,7 @@ T('bias up never gives a sell on the mirrored chart', gold_scalp_c(F, []) is Non
 # ---- registered in the bot, and never two votes for one idea on the same candle
 from backend import strategies as S, brain, strategy_info as si
 T('registered in strategies.ALL and in the TREND group', any(f.__name__ == 'gold_scalp_c' for f in S.ALL) and 'gold_scalp_c' in S.TREND)
-T('has a readable name in strategy_info', si.name('gold_scalp_c') == 'Liquidity sweep scalp (safe entry)')
+T('has a readable name in strategy_info', si.name('gold_scalp_c') == 'Sweep scalp (safe entry)')
 only = tuple(f.__name__ for f in S.ALL if f.__name__ != 'gold_scalp_c')
 setscan('up', [ZN])
 T('with SOLO off the brain wants a second strategy to agree', brain.evaluate(SETUP, [], off=only) is None)

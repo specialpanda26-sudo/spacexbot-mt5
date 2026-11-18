@@ -21,13 +21,13 @@ const code = process.argv[1]; const OUT = [];
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const tick = () => new Promise(r => setTimeout(r, 5));
 function page(rows, api) {
-  const els = {'#aStr': {innerHTML: ''}, '#aStrT': {innerHTML: ''}}, calls = [], toasts = []; let btns = [];
+  const els = {'#aStr': {innerHTML: ''}, '#aStrT': {innerHTML: ''}}, calls = [], toasts = []; let btns = [], sob = [];
   const $ = s => els[s] || null;
-  const $$ = () => { btns = [...els['#aStr'].innerHTML.matchAll(/data-st="(\d+)"/g)].map(x => ({dataset: {st: x[1]}, disabled: false, onclick: null})); return btns; };
+  const $$ = sel => { const k = sel.includes('data-so') ? 'so' : 'st'; const l = [...els['#aStr'].innerHTML.matchAll(new RegExp('data-' + k + '="(\\d+)"', 'g'))].map(x => ({dataset: {[k]: x[1]}, disabled: false, onclick: null})); if (k === 'so') sob = l; else btns = l; return l; };
   const SXA = {api: (u, o) => { calls.push({u, o}); return api(u, o, rows); }};
   const f = new Function('$', '$$', 'esc', 'tst', 'SXA', 'ovEl', code + '; return {STR: () => STR};');
   const h = f($, $$, esc, t => toasts.push(t), SXA, {});
-  return {els, calls, toasts, btns: () => btns, h};
+  return {els, calls, toasts, btns: () => btns, sob: () => sob, h};
 }
 const ok = (u, o, rows) => u === '/api/admin/strategies' ? Promise.resolve(rows) : Promise.resolve({});
 const mk = (id, name, extra) => Object.assign({id, name, desc: name + ' desc', group: 'trend', on: true, n: 0, wins: 0, win_rate: null, avg: null, pnl: null}, extra || {});
@@ -61,6 +61,25 @@ const mk = (id, name, extra) => Object.assign({id, name, desc: name + ' desc', g
   p = page(rows.map(r => Object.assign({}, r)), (u, o, r) => u === '/api/admin/strategies' ? Promise.resolve(r) : Promise.reject(new Error('server said no'))); await tick();
   p.btns()[2].onclick(); await tick();
   OUT.push(['a failed save: switch stays as it was, the error is shown, the button works again', /aria-checked="true" data-st="2"/.test(p.els['#aStr'].innerHTML) && p.toasts.includes('server said no') && p.btns()[2].disabled === false && p.h.STR()[2].on === true]);
+  // A3: 'may trade alone' switches
+  const rs = [mk('a', 'Alpha', {solo: true}), mk('b', 'Beta'), mk('c', 'Gamma', {solo: true})];
+  p = page(rs, ok); await tick();
+  const S3 = p.els['#aStr'].innerHTML;
+  OUT.push(['A3: one May trade alone switch per strategy, its state follows solo', (S3.match(/data-so=/g) || []).length === 3 && /aria-checked="true" data-so="0"/.test(S3) && /aria-checked="false" data-so="1"/.test(S3) && /aria-checked="true" data-so="2"/.test(S3)]);
+  OUT.push(['A3: the on/off switches are still there, separate', (S3.match(/data-st=/g) || []).length === 3]);
+  OUT.push(['A3: the switch says what it does and that it is unproven', S3.includes('May trade alone') && S3.includes('Unproven')]);
+  p.sob()[1].onclick(); await tick();
+  const q1 = p.calls.filter(x => x.u === '/api/admin/settings')[0];
+  OUT.push(['A3: switching one on posts the full solo list (a and c kept, b added), nothing else', q1 && q1.o.method === 'POST' && q1.o.body.strategies_solo.split(',').sort().join() === 'a,b,c' && q1.o.body.strategies_off === undefined]);
+  OUT.push(['A3: after saving it shows on and a toast says so', /aria-checked="true" data-so="1"/.test(p.els['#aStr'].innerHTML) && p.toasts.includes('Beta may now trade alone')]);
+  p.sob()[0].onclick(); await tick();
+  const q2 = p.calls.filter(x => x.u === '/api/admin/settings')[1];
+  OUT.push(['A3: switching one off removes only it', q2 && q2.o.body.strategies_solo.split(',').sort().join() === 'b,c' && p.toasts.includes('Alpha needs a second strategy again')]);
+  p = page([mk('a', 'Alpha', {solo: true}), mk('b', 'Beta'), mk('c', 'Gamma', {solo: true})], (u, o, r) => u === '/api/admin/strategies' ? Promise.resolve(r) : Promise.reject(new Error('nope'))); await tick();
+  p.sob()[1].onclick(); await tick();
+  OUT.push(['A3: a failed save changes nothing, shows the error, the button works again', /aria-checked="false" data-so="1"/.test(p.els['#aStr'].innerHTML) && p.toasts.includes('nope') && p.sob()[1].disabled === false && p.h.STR()[1].solo !== true]);
+  p = page([mk('a', 'Alpha'), mk('b', 'Beta', {solo: true})], ok); await tick(); p.btns()[1].onclick(); await tick();
+  OUT.push(['A3: switching a strategy off leaves the solo list alone', p.calls.filter(x => x.u === '/api/admin/settings')[0].o.body.strategies_solo === undefined]);
   // empty / failing loads
   p = page([], ok); await tick();
   OUT.push(['no strategies: friendly message', p.els['#aStr'].innerHTML.includes('No strategies found')]);
@@ -74,7 +93,7 @@ r = subprocess.run(['node', '-e', HARNESS, CODE], capture_output=True, text=True
 try: out = json.loads(r.stdout.strip().splitlines()[-1])
 except Exception: out = []; print(r.stdout[-400:], r.stderr[-600:])
 for n, ok in out: T(n, ok)
-T('the card test ran all its checks', len(out) == 17)
+T('the card test ran all its checks', len(out) == 25)
 
 for n, ok in R: print(('PASS ' if ok else 'FAIL ') + n)
 bad = [n for n, ok in R if not ok]; print('\n%d/%d passed' % (len(R) - len(bad), len(R)))

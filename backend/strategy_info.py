@@ -13,7 +13,7 @@ INFO = {
     'psar_e200': ('Parabolic SAR + 200 EMA', 'Parabolic SAR flip, buys only above the 200 EMA and sells only below it (video 3).'),
     'supertrend_e200': ('Supertrend + 200 EMA', 'Supertrend changes direction, buys only above the 200 EMA and sells only below it (video 3).'),
     'gold_scalp': ('Liquidity sweep scalp', 'In a 15m demand/supply zone, price sweeps a swing low/high and closes back; 1h and 15m trends agree (video 5).'),
-    'gold_scalp_c': ('Liquidity sweep scalp (safe entry)', 'Same as the sweep scalp, but waits for a market shift and a pullback into the zone that caused it before entering (video 5).'),
+    'gold_scalp_c': ('Sweep scalp (safe entry)', 'Same as the sweep scalp, but waits for a market shift and a pullback into the zone that caused it before entering (video 5).'),
     'jg_pullback': ('Trend pullback', 'First lower-low (or higher-high) candle after a pullback in a clear trend (video 1).'),
     'ema_pullback': ('EMA pullback', 'Pullback to the 21 EMA in an EMA 50/200 trend, with RSI not stretched.'),
     'sr_retest': ('Level retest', 'A level touched 2+ times is broken, then retested and rejected.'),
@@ -41,12 +41,12 @@ def label(strategy):
 def group(sid, trend, reversion):
     return 'trend' if sid in trend else 'reversion' if sid in reversion else 'other'
 
-def listing(ids, trend, reversion, off=(), results=None):
+def listing(ids, trend, reversion, off=(), results=None, solo=()):
     """One row per strategy for the admin panel: id, name, desc, group, on (not switched off), and its closed-trade results (n, wins, win_rate, avg, pnl) or None."""
     res = results or {}; out = []
     for sid in ids:
         r = res.get(sid)
-        out.append({'id': sid, 'name': name(sid), 'desc': desc(sid), 'group': group(sid, trend, reversion), 'on': sid not in off,
+        out.append({'id': sid, 'name': name(sid), 'desc': desc(sid), 'group': group(sid, trend, reversion), 'on': sid not in off, 'solo': sid in solo,
                     'n': r['n'] if r else 0, 'wins': r['wins'] if r else 0, 'win_rate': r['win_rate'] if r else None,
                     'avg': (r.get('avg') if r.get('avg') is not None else round(r['pnl'] / r['n'], 2)) if r else None, 'pnl': r['pnl'] if r else None})
     return out

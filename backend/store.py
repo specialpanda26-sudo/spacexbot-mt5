@@ -127,7 +127,7 @@ DEFAULTS = {'bot_enabled': '0', 'risk_pct': os.getenv('RISK_PCT', '1.0'), 'max_o
     'max_weekly_loss_pct': os.getenv('MAX_WEEKLY_LOSS_PCT', '6.0'), 'max_losing_streak': os.getenv('MAX_LOSING_STREAK', '3'),
     'streak_cooldown_h': os.getenv('STREAK_COOLDOWN_H', '4'), 'max_ccy_exposure': os.getenv('MAX_CCY_EXPOSURE', '2'),
     'news_lock': os.getenv('NEWS_LOCK', '1'), 'news_before_min': os.getenv('NEWS_BEFORE_MIN', '30'), 'news_after_min': os.getenv('NEWS_AFTER_MIN', '30'),
-    'strategies_off': '', 'auto_disable': '0', 'auto_disable_min_trades': '20', 'plans': ''}
+    'strategies_off': '', 'strategies_solo': '', 'auto_disable': '0', 'auto_disable_min_trades': '20', 'plans': ''}
 def get(k):
     r = q('SELECT v FROM kv WHERE k=?', (k,), True); return r['v'] if r else DEFAULTS.get(k)
 def put(k, v): x('INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', (k, str(v)))
