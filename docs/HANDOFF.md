@@ -17,9 +17,9 @@ Rules for every new section (same as sections already done):
 - Admin test price (Nov 18 plan, section 1): backend/payments.py set_test_plan + POST /api/admin/testprice + Test price card in the admin panel + tests/test_testprice.py.
 
 ## REMAINING (do in this order, one section per session)
-### Video 3 (Data Trader - moving average strategy)  [3A, 3B done]
+### Video 3 (Data Trader - moving average strategy)  [3A, 3B, 3C done]
 - 3B  DONE (backend/ma_bounce.py). Original spec: the 20 or 50 MA as dynamic support/resistance + STOCHASTIC. Needs a new `stoch(b, k=14, d=3)` in a NEW helper file (do not edit indicators.py). Rule: price has touched the MA several times and bounced (the MA acts as support/resistance); when price is back at the MA AND stochastic is oversold (<20) in an uptrend -> buy; overbought (>80) at the MA in a downtrend -> sell. Add to REVERSION or TREND as fits (it trades pullbacks WITH the trend -> TREND).
-- 3C  backend/ema200_filter.py: the 200 EMA filter. Price above 200 EMA -> only buys, below -> only sells. Implement as a wrapper `with_ema200(fn)` and register filtered copies of psar_flip and a supertrend-style signal (video: parabolic SAR 38% -> 46%, supertrend 39% -> 48%). Test: a buy from the wrapped strategy is dropped when price is below the 200 EMA, sells likewise.
+- 3C  DONE (backend/ema200_filter.py + tests/test_e200.py: with_ema200 wrapper, psar_raw, supertrend_flip; registered as psar_e200 and supertrend_e200 in TREND; psar_e200 stays silent when psar_flip fires so one SAR flip is never two votes). Original spec: the 200 EMA filter. Price above 200 EMA -> only buys, below -> only sells. Implement as a wrapper `with_ema200(fn)` and register filtered copies of psar_flip and a supertrend-style signal (video: parabolic SAR 38% -> 46%, supertrend 39% -> 48%). Test: a buy from the wrapped strategy is dropped when price is below the 200 EMA, sells likewise.
 - 3D  ATR trailing-stop exit. The backtest and brain use a fixed 2R target. Add an OPTIONAL trailing-exit simulation to tools/backtest.py (flag --trail) only after 3A-3C pass. Low priority.
 
 ### Video 5 (Brad Goh - gold scalping, 5 steps)
