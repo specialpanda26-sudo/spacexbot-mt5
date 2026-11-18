@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS payments(ref TEXT PRIMARY KEY,uid TEXT,provider TEXT,
 CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY,v TEXT);
 CREATE TABLE IF NOT EXISTS links(uid TEXT PRIMARY KEY,key_hash TEXT,mode TEXT DEFAULT 'demo',bot INTEGER DEFAULT 0,risk REAL,acct TEXT,seen INTEGER DEFAULT 0,created INTEGER);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_links_key ON links(key_hash);
+CREATE TABLE IF NOT EXISTS broker_links(uid TEXT,broker TEXT,kind TEXT,secret_enc TEXT,label TEXT,mode TEXT DEFAULT 'demo',status TEXT DEFAULT 'saved',created INTEGER,updated INTEGER,PRIMARY KEY(uid,broker));
 CREATE TABLE IF NOT EXISTS push_tokens(token TEXT PRIMARY KEY,uid TEXT,platform TEXT,created INTEGER,seen INTEGER);
 CREATE INDEX IF NOT EXISTS ix_push_tokens_uid ON push_tokens(uid);
 CREATE TABLE IF NOT EXISTS push_log(uid TEXT,kind INTEGER,k TEXT,ts INTEGER);
@@ -44,6 +45,8 @@ CREATE INDEX IF NOT EXISTS ix_signals_uid ON signals(uid);
 CREATE TABLE IF NOT EXISTS links(uid TEXT PRIMARY KEY,key_hash TEXT,mode TEXT DEFAULT 'demo',bot INTEGER DEFAULT 0,risk DOUBLE PRECISION,acct TEXT,seen BIGINT DEFAULT 0,created BIGINT);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_links_key ON links(key_hash);
 ALTER TABLE links ENABLE ROW LEVEL SECURITY;
+CREATE TABLE IF NOT EXISTS broker_links(uid TEXT,broker TEXT,kind TEXT,secret_enc TEXT,label TEXT,mode TEXT DEFAULT 'demo',status TEXT DEFAULT 'saved',created BIGINT,updated BIGINT,PRIMARY KEY(uid,broker));
+ALTER TABLE broker_links ENABLE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS push_tokens(token TEXT PRIMARY KEY,uid TEXT,platform TEXT,created BIGINT,seen BIGINT);
 CREATE INDEX IF NOT EXISTS ix_push_tokens_uid ON push_tokens(uid);
 CREATE TABLE IF NOT EXISTS push_log(uid TEXT,kind BIGINT,k TEXT,ts BIGINT);

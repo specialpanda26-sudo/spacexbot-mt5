@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts
+from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -259,6 +259,26 @@ def link_risk(u): return _link_edit(u, lambda: links.set_risk(u['uid'], _j().get
 def link_del(u):
     if not u['admin']: links.drop(u['uid'])
     return jsonify(ok=True)
+
+# ---------------- broker connections (Deriv, Binance, MT5 brokers). Keys are encrypted; nothing secret is ever returned ----------------
+@app.get('/api/brokers')
+@need(verified=True)
+def brokers_get(u): return jsonify(brokers=bk.view(u['uid']), catalog=bk.catalog(), ready=bk.ready())
+
+@app.post('/api/brokers/<name>')
+@need(verified=True, active=True)
+def brokers_put(u, name):
+    try: bk.save(u['uid'], name, _j())
+    except ValueError as e: return jsonify(error=str(e)), 400
+    except RuntimeError as e: return jsonify(error=str(e)), 503
+    return jsonify(brokers=bk.view(u['uid']))
+
+@app.delete('/api/brokers/<name>')
+@need(verified=True)
+def brokers_del(u, name):
+    n = bk.canon(name)
+    if not n: return jsonify(error='Unknown broker'), 400
+    bk.drop(u['uid'], n); return jsonify(brokers=bk.view(u['uid']))
 
 # ---------------- phone mode (assist): signals for people with only a phone ----------------
 @app.get('/api/assist')

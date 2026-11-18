@@ -74,6 +74,6 @@ def update(uid, j):
 def erase(uid):
     """Delete the person. Payment rows stay (accounting) but lose the link to a profile."""
     st.x('DELETE FROM users WHERE uid=?', (uid,))
-    st.x('DELETE FROM links WHERE uid=?', (uid,)); st.x('DELETE FROM signals WHERE uid=?', (uid,))     # their MT5 link and their trade history
+    st.x('DELETE FROM broker_links WHERE uid=?', (uid,)); st.x('DELETE FROM links WHERE uid=?', (uid,)); st.x('DELETE FROM signals WHERE uid=?', (uid,))     # their MT5 link and their trade history
     from . import assist; assist.drop(uid)                                                           # their phone-mode settings and log
     st.x('DELETE FROM push_tokens WHERE uid=?', (uid,)); st.x('DELETE FROM push_log WHERE uid=?', (uid,))     # their phones
