@@ -16,6 +16,8 @@ Rules for every new section (same as sections already done):
 
 - Admin test price (Nov 18 plan, section 1): backend/payments.py set_test_plan + POST /api/admin/testprice + Test price card in the admin panel + tests/test_testprice.py.
 
+- Admin section 1: access pass. backend/adminpass.py + POST /api/admin/pass + X-Admin-Pass header (static/live.js) + pass box on #admin + tests/test_adminpass.py. Set ADMIN_PASS on Render.
+
 ## REMAINING (do in this order, one section per session)
 ### Video 3 (Data Trader - moving average strategy)  [3A, 3B, 3C, 3D done]
 - 3B  DONE (backend/ma_bounce.py). Original spec: the 20 or 50 MA as dynamic support/resistance + STOCHASTIC. Needs a new `stoch(b, k=14, d=3)` in a NEW helper file (do not edit indicators.py). Rule: price has touched the MA several times and bounced (the MA acts as support/resistance); when price is back at the MA AND stochastic is oversold (<20) in an uptrend -> buy; overbought (>80) at the MA in a downtrend -> sell. Add to REVERSION or TREND as fits (it trades pullbacks WITH the trend -> TREND).

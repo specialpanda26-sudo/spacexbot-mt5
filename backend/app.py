@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay
+from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -38,10 +38,12 @@ def user():
     u['active'] = u['admin'] or u['plan_until'] > time.time()
     return u
 
+_OWNER = {'uid': '', 'email': '', 'name': 'Owner', 'verified': True, 'admin': True, 'active': True, 'plan_until': 0}     # who the admin access pass stands for
 def need(admin=False, active=False, verified=False):
     def deco(f):
         @functools.wraps(f)
         def w(*a, **k):
+            if admin and ap.valid(request.headers.get('X-Admin-Pass', '')): return f(_OWNER, *a, **k)     # admin access pass: admin routes only
             u = user()
             if not u: return jsonify(error='sign in required'), 401
             if (verified or admin) and not u.get('verified'): return jsonify(error='verify your email first'), 403
@@ -289,6 +291,16 @@ def assist_skip(u): return _assist_do(u, lambda: assist.skip(u['uid'], _j().get(
 @need(verified=True)
 def assist_result(u):
     j = _j(); return _assist_do(u, lambda: assist.result(u['uid'], j.get('id'), j.get('outcome'), j.get('pnl')))
+
+@app.post('/api/admin/pass')
+def admin_pass():
+    """Trade the admin access pass for a 12-hour signed pass (backend/adminpass.py). Wrong tries are limited."""
+    ip = (request.headers.get('X-Forwarded-For', '').split(',')[0].strip() or request.remote_addr or '?')
+    tok, why, wait = ap.attempt(str(_j().get('code', ''))[:200], ip)
+    if why == 'ok': return jsonify(token=tok, ttl=ap.TTL)
+    if why == 'off': return jsonify(error='The access pass is not set up on this server.'), 400
+    if why == 'locked': return jsonify(error='Too many wrong tries. Try again in %d minutes.' % (wait // 60 + 1)), 429
+    return jsonify(error='Wrong access pass.'), 401
 
 @app.post('/api/admin/settings')
 @need(admin=True)

@@ -12,6 +12,7 @@
     o = o || {};
     return tok().then(function (t) {
       var h = { "Content-Type": "application/json" }; if (t) h.Authorization = "Bearer " + t;
+      try { var ap = sessionStorage.getItem("sxap"); if (ap && path.indexOf("/api/admin/") === 0) h["X-Admin-Pass"] = ap; } catch (x) {}   /* admin access pass, admin routes only */
       return fetch(path, { method: o.method || "GET", headers: h, body: o.body ? JSON.stringify(o.body) : undefined }).then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (j) {
           if (!r.ok) { var e = new Error(j.error || "Request failed (" + r.status + ")"); e.status = r.status; throw e; }
