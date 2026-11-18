@@ -29,23 +29,34 @@
   function pushPlug() {
     var c = window.Capacitor; if (!c) return null;
     if (c.registerPlugin) { try { return c.registerPlugin("PushNotifications"); } catch (x) {} }
-    return (c.Plugins && c.Plugins.PushNotifications) || null;
+    if (c.Plugins && c.Plugins.PushNotifications) return c.Plugins.PushNotifications;
+    /* sxb-push-fallback: a remote page may get only the native bridge (no registerPlugin), like the Google sign-in above */
+    if (c.nativePromise && c.addListener) {
+      var call = function (m) { return function (o) { return c.nativePromise("PushNotifications", m, o || {}); }; };
+      return { checkPermissions: call("checkPermissions"), requestPermissions: call("requestPermissions"), register: call("register"),
+               addListener: function (ev, fn) { return c.addListener("PushNotifications", ev, fn); } };
+    }
+    return null;
   }
+  /* A short reason the phone alerts did not start, kept on the phone so the admin test button can show it. */
+  function pushWhy(m) { try { localStorage.setItem("sxb_pt_why", String(m).slice(0, 200) + " @ " + new Date().toISOString()); } catch (x) {} }
   function pushToken(t) {
     if (!t || !ME || ME.offline) return Promise.resolve();
     var key = ME.uid + ":" + t; if (PT.sent === key) return Promise.resolve();
     PT.sent = key;
-    return api("/api/push/token", { method: "POST", body: { token: t, platform: "android" } }).then(function () { try { localStorage.setItem("sxb_pt", t); } catch (x) {} }, function () { if (PT.sent === key) PT.sent = null; });
+    return api("/api/push/token", { method: "POST", body: { token: t, platform: "android" } }).then(function () { try { localStorage.setItem("sxb_pt", t); localStorage.removeItem("sxb_pt_why"); } catch (x) {} }, function () { if (PT.sent === key) PT.sent = null; });
   }
   function pushRoute(d) {
     var r = String((d && d.route) || "").replace(/^#/, ""); r = GOMAP[r] || r;
     if (GO[r] === 1) location.hash = "#" + r;
   }
   function pushStart() {
-    if (PT.started || !nat()) return; var P = pushPlug(); if (!P) return; PT.started = true; PT.plug = P;
+    if (PT.started || !nat()) return; var P = pushPlug();
+    if (!P) { var c = window.Capacitor; pushWhy("no push plugin (Capacitor " + (c ? "found, keys " + Object.keys(c).slice(0, 12).join("/") : "missing") + ")"); return; }
+    PT.started = true; PT.plug = P;
     try {
       P.addListener("registration", function (t) { PT.tok = (t && t.value) || ""; pushToken(PT.tok); });
-      P.addListener("registrationError", function () {});
+      P.addListener("registrationError", function (e) { pushWhy("registration error: " + ((e && (e.error || e.message)) || "unknown")); });
       P.addListener("pushNotificationActionPerformed", function (a) { pushRoute(a && a.notification && a.notification.data); });
     } catch (x) {}
   }
@@ -56,8 +67,9 @@
     if (PT.reg === ME.uid) return; PT.reg = ME.uid;
     Promise.resolve(P.checkPermissions()).then(function (r) { return r && r.receive === "granted" ? r : P.requestPermissions(); }).then(function (r) {
       if (r && r.receive === "granted") return P.register();
+      pushWhy("notification permission " + ((r && r.receive) || "unknown"));
       if (window.sxToast) window.sxToast("Allow notifications in your phone settings to get trade alerts.");
-    }).catch(function () {});
+    }).catch(function (e) { pushWhy("push start failed: " + ((e && (e.code || e.message)) || "unknown")); });
   }
   /*N1-end*/
   function clr() { try { Object.keys(localStorage).filter(function (k) { return k === "sxb_me" || k.indexOf("sxb_c:") === 0; }).forEach(function (k) { localStorage.removeItem(k); }); } catch (x) {} }
@@ -165,7 +177,7 @@
       if (wv || isNat) return Promise.reject(new Error("The app could not open your Google accounts. (Capacitor " + (cap ? "found" : "missing") + ", native " + isNat + ", plugin " + (plug ? "ok" : "missing") + ", cap keys " + (cap ? Object.keys(cap).slice(0, 14).join("/") : "-") + ", id " + (gid ? "set" : "empty") + ")"));
       return S.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + "/" } }).then(chk).then(function () { return new Promise(function () {}); });
     },
-    push: { sync: pushSync, route: pushRoute },
+    push: { sync: pushSync, route: pushRoute, why: function () { try { return localStorage.getItem("sxb_pt_why") || ""; } catch (x) { return ""; } } },
     signOut: function () {   /* N1: tell the server this phone is leaving, so the next person on it does not get this account's alerts */
       var t = ptGet(), p = Promise.resolve(); if (t && ME && nat()) p = api("/api/push/unregister", { method: "POST", body: { token: t } }).catch(function () {});
       try { localStorage.removeItem("sxb_pt"); } catch (x) {} PT.sent = null; PT.reg = null; PT.tok = ""; ME = null; lastUid = null;

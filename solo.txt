@@ -1,0 +1,19 @@
+nohup: ignoring input
+pa_level               trades   30  win%  26.7  avgR -0.20
+pa_bos                 trades   43  win%  23.3  avgR -0.30
+pa_candle              trades   43  win%  30.2  avgR -0.09
+pa_pattern             trades   23  win%  21.7  avgR -0.35
+pa_trendline           trades   41  win%  31.7  avgR -0.05
+jg_pullback            trades   24  win%  50.0  avgR +0.82
+ema_pullback           trades   81  win%  29.6  avgR -0.11
+sr_retest              trades  161  win%  31.1  avgR -0.07
+fvg_retrace            trades   53  win%  32.1  avgR -0.04
+london_breakout        trades    6  win%  16.7  avgR -0.50
+bb_reversion           trades   63  win%  31.7  avgR -0.05
+macd_cross             trades   40  win%  32.5  avgR -0.02
+heikin_flip            trades   38  win%  36.8  avgR +0.11
+psar_flip              trades   53  win%  43.4  avgR +0.30
+awesome_osc            trades   70  win%  25.7  avgR -0.23
+dual_thrust            trades    9  win%  44.4  avgR +0.33
+star_reversal          trades    8  win%  37.5  avgR +0.12
+Note: this ignores the news lock, currency-exposure cap and loss limits, so live results will differ.

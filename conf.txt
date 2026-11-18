@@ -1,0 +1,5 @@
+nohup: ignoring input
+min_confluence 1       trades  186  win%  30.6  avgR -0.06
+min_confluence 2       trades   94  win%  33.0  avgR -0.01
+min_confluence 3       trades   53  win%  30.2  avgR -0.09
+Note: this ignores the news lock, currency-exposure cap and loss limits, so live results will differ.

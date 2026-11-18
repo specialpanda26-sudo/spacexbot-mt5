@@ -120,6 +120,7 @@ def ea_report():
     who = _ea_who()
     if who is None: return jsonify(error='bad key'), 401
     d = _j(True); stt = d.get('status'); only = who or None
+    aud = {'only': who} if who else {'admins': True}      # a subscriber's own EA: only that person. The OWNER's EA: only the admins' phones (subscribers get the signal alert, kind 7, and their own EA's results)
     try: sid = int(d.get('id'))
     except (TypeError, ValueError): return jsonify(ok=True)
     if not st.q("SELECT 1 FROM signals WHERE id=? AND COALESCE(uid,'')=?", (sid, who), True): return jsonify(ok=True)      # not this caller's trade: change nothing, reveal nothing
@@ -133,9 +134,9 @@ def ea_report():
             title = f"{s['symbol']} {'opened' if stt == 'open' else 'closed'}"
             body = f"{s['side'].upper()} lots {s['lots']}" if stt == 'open' else f"P/L {s['pnl']}"
             sbauth.notify(title, body, key=f'sig{sid}-{stt}', only=only)
-            if stt == 'open': push.notify(1, f'sig{sid}-open', sym=s['symbol'], side=s['side'], entry=s['fill'] or s['entry'], sl=s['sl'], tp=s['tp'], risk=s['risk_pct'], strategy=s['strategy'], only=only)
-            else: push.notify({'tp': 2, 'sl': 3}.get(str(d.get('reason')), 4), f'sig{sid}-closed', sym=s['symbol'], pnl=s['pnl'], only=only)
-    if stt == 'rejected': push.notify(8, f'sig{sid}-skipped', sym=(st.q('SELECT symbol FROM signals WHERE id=?', (sid,), True) or {}).get('symbol', ''), reason=str(d.get('reason') or '')[:80], only=only)
+            if stt == 'open': push.notify(1, f'sig{sid}-open', sym=s['symbol'], side=s['side'], entry=s['fill'] or s['entry'], sl=s['sl'], tp=s['tp'], risk=s['risk_pct'], strategy=s['strategy'], **aud)
+            else: push.notify({'tp': 2, 'sl': 3}.get(str(d.get('reason')), 4), f'sig{sid}-closed', sym=s['symbol'], pnl=s['pnl'], **aud)
+    if stt == 'rejected': push.notify(8, f'sig{sid}-skipped', sym=(st.q('SELECT symbol FROM signals WHERE id=?', (sid,), True) or {}).get('symbol', ''), reason=str(d.get('reason') or '')[:80], **aud)
     return jsonify(ok=True)
 
 # ---------------- phone notifications ----------------
@@ -163,9 +164,10 @@ def push_unreg(u):
 @app.post('/api/admin/push/test')
 @need(admin=True)
 def push_test(u):
-    if not push.configured(): return jsonify(error='FCM_SERVICE_ACCOUNT is not set on the server'), 400
+    if not push.configured(): return jsonify(error=push.explain('FCM not configured'), devices=0), 400
     n, why = push.send(u['uid'], 1, 'Test notification. If you can read this, phone alerts work.', title='spaceXBot test', force=True)
-    return jsonify(sent=n, reason=why, devices=len(push.tokens(u['uid']))) if n else (jsonify(error=why or 'not sent', devices=len(push.tokens(u['uid']))), 400)
+    dev = len(push.tokens(u['uid']))
+    return jsonify(sent=n, reason=why, devices=dev) if n else (jsonify(error=push.explain(why), devices=dev), 400)
 
 # ---------------- app API ----------------
 @app.get('/api/me')

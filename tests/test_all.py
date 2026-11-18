@@ -372,13 +372,14 @@ def _():
 def _():
     link_reset(); grant(); k = C.post('/api/link/key', headers=U).json['key']; H = {'X-EA-Key': k}; got = []
     keep = (MAIL.trade_alert, PUSH.broadcast)
-    MAIL.trade_alert = lambda t, b, key=None, only=None: got.append(('mail', only)); PUSH.broadcast = lambda kind, body, title=None, key=None, img=None, only=None: got.append(('push', only))
+    MAIL.trade_alert = lambda t, b, key=None, only=None: got.append(('mail', only)); PUSH.broadcast = lambda kind, body, title=None, key=None, img=None, only=None, admins=False: got.append(('push', only, admins))
     try:
         mine = sig(JU); theirs = sig(None)
         C.post('/api/ea/report', json={'id': mine, 'status': 'open', 'ticket': 1, 'lots': .1, 'price': 2300}, headers=H)
         C.post('/api/ea/report', json={'id': theirs, 'status': 'open', 'ticket': 2, 'lots': .1, 'price': 2300}, headers={'X-EA-Key': 'k'})
     finally: MAIL.trade_alert, PUSH.broadcast = keep
-    assert ('mail', JU) in got and ('push', JU) in got and ('mail', None) in got and ('push', None) in got, got
+    assert ('mail', JU) in got and ('push', JU, False) in got and ('mail', None) in got, got
+    assert ('push', None, True) in got and ('push', None, False) not in got, got      # N1b: the OWNER's trade goes to the admins' phones only, never to every subscriber
     assert [x['id'] for x in C.get('/api/signals', headers=U).json] == [mine] and [x['id'] for x in C.get('/api/signals', headers=A).json] == [theirs]
     assert C.get('/api/me', headers=U).json['link']['linked'] is True
 @T('link: after the plan ends the EA is told to stop and nothing new is stored')

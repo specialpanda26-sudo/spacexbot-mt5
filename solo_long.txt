@@ -1,0 +1,10 @@
+nohup: ignoring input
+pa_level               trades  104  win%  28.8  avgR -0.13
+pa_bos                 trades  127  win%  30.7  avgR -0.08
+pa_candle              trades  134  win%  32.1  avgR -0.04
+pa_pattern             trades   66  win%  42.4  avgR +0.27
+pa_trendline           trades  135  win%  28.1  avgR -0.16
+jg_pullback            trades   82  win%  31.7  avgR +0.04
+ema_pullback           trades  359  win%  34.8  avgR +0.04
+sr_retest              trades  530  win%  37.0  avgR +0.11
+fvg_retrace            trades  261  win%  33.0  avgR -0.01

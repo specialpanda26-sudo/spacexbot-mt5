@@ -97,6 +97,16 @@ The landing page footer has a green **Download Android app** button. It points t
 
 If PayPal fails, the app now shows a short code, e.g. `PayPal is unavailable right now (http401-invalid_client)`. `http401` = keys do not match `PAYPAL_ENV`; `http403` or `PAYEE_ACCOUNT_RESTRICTED` = the PayPal account is not approved for live payments; `net-...` = PayPal could not be reached. The Render log line `paypal create failed:` has the same code. A code ending in `@field` names the field PayPal refused, e.g. `http400-INVALID_PARAMETER_VALUE@landing_page` (fixed: Orders v2 has no `GUEST_CHECKOUT`; the order now sends `BILLING`, which opens PayPal's pay-by-card form).
 
+## Phone alerts (Firebase)
+Alerts reach the Android app even when it is closed. Three things must all be in place, or nothing arrives:
+1. **Render:** variable `FCM_SERVICE_ACCOUNT` = the Firebase service-account JSON (Firebase console > Project settings > Service accounts > Generate new private key; paste the file's text, or its base64). Also set `PUBLIC_URL` to your server address (alert pictures load from it). Optional `PUSH_DAILY_CAP` (alerts per person per day, default 12).
+2. **GitHub:** repository secret `GOOGLE_SERVICES_JSON_BASE64` = `base64 -w0 google-services.json` (Firebase > Project settings > Your apps > Android, package `com.spacexbot.app`). It is a GitHub secret, not a Render variable. Then run the Android build again: an APK built without it has no phone alerts.
+3. **Phone:** install that APK, sign in, tap Allow on the notification question.
+Check it: sign in as admin, open `#admin`, press **Send test alert**. It reports how many phones it reached, or why not. It works with the app open or closed.
+- Who gets what: the owner's own trades (opened, take-profit, stop-loss, closed, skipped) go to the admins' phones only. A subscriber gets alerts for the trades of their own EA key, and phone-mode signals (kind 7).
+- Free Render sleeps after 15 minutes without a request. Alerts that fire on a timer need the server awake: ping `/healthz` every 10 minutes from a free uptime monitor, or use a paid plan.
+- Tests: `python tests/test_push1.py` (phone side), `python tests/test_push2.py` (delivery path).
+
 ## Known limits
 - **SQLite on Render free is wiped on every redeploy.** Users, plans and payments reset. Move to Supabase Postgres before taking real money.
 - If the ForexFactory feed is unreachable and was never loaded, the news lock fails open (shown in the app).

@@ -8,6 +8,7 @@ CAT = ('trade', 'risk', 'news', 'daily', 'tips', 'system', 'billing')
 BYPASS_CATS = {'risk', 'billing'}            # always get through quiet hours and the daily cap
 BYPASS_KINDS = {27}                          # EA offline too
 NUDGE_KINDS = set(range(45, 50))
+TRADE_TAG_KINDS = {1, 2, 3, 4, 7, 8}         # the banner's tag carries the trade id, so two trades never replace each other
 _T = [
  (1,'trade','hi','Trade opened'),(2,'trade','hi','Take-profit hit'),(3,'trade','hi','Stop-loss hit'),(4,'trade','hi','Trade closed'),
  (5,'trade','hi','Stop moved to breakeven'),(6,'trade','hi','Partial close'),(7,'trade','hi','Signal found'),(8,'trade','lo','Signal skipped'),
@@ -112,6 +113,11 @@ def _fcm(token, title, body, channel, data):
     if r.status_code in (404, 400) and ('UNREGISTERED' in r.text or 'INVALID_ARGUMENT' in r.text and 'token' in r.text.lower()): drop_token(token); return False, 'dead token removed'
     return False, 'FCM %s %s' % (r.status_code, r.text[:160])
 
+def tag_for(kind, key=None):
+    """Android replaces a banner that has the same tag. Trade kinds carry the trade id (key 'sig12-open', without the '/<uid>' that broadcast adds), others share one tag per kind."""
+    if kind in TRADE_TAG_KINDS and key: return ('k%s-%s' % (kind, str(key).split('/')[0]))[:60]
+    return 'k%s' % kind
+
 # ---------- the one entry point ----------
 def send(uid, kind, body, title=None, key=None, force=False, img=None):
     """Send one notification kind to one person. key makes it idempotent per person. Returns (sent_count, reason)."""
@@ -125,7 +131,7 @@ def send(uid, kind, body, title=None, key=None, force=False, img=None):
     tk = tokens(uid)
     if not tk: return 0, 'no device'
     title = title or k['title']; ch = CHANNEL[k['ch']]
-    data = {'kind': kind, 'cat': k['cat'], 'route': '#connect' if kind == 7 else ROUTE[k['cat']], 'tag': ('k%s-%s' % (kind, key[:40])) if kind == 7 and key else 'k%s' % kind}; n = 0; last = ''
+    data = {'kind': kind, 'cat': k['cat'], 'route': '#connect' if kind == 7 else ROUTE[k['cat']], 'tag': tag_for(kind, key)}; n = 0; last = ''
     if img: data['img'] = img
     for t in tk:
         try: ok, why = _fcm(t, title, body, ch, data)
@@ -135,18 +141,26 @@ def send(uid, kind, body, title=None, key=None, force=False, img=None):
     if n: st.x('INSERT INTO push_log(uid,kind,k,ts) VALUES(?,?,?,?)', (uid, kind, key, int(time.time())))
     return n, last
 
-def recipients():
-    """Subscribers and admins that have a phone registered."""
+WHY = {'no device': 'No phone is registered for your account. Open the app on your phone, sign in as admin, allow notifications, then try again.',
+       'FCM not configured': 'The server has no FCM_SERVICE_ACCOUNT yet, so it cannot send phone alerts.',
+       'category off': 'Trade alerts are switched off in your alert settings.'}
+def explain(why):
+    """A reason code from send() in plain words for the admin screen."""
+    return WHY.get(why) or ('Not sent: %s' % why if why else 'Not sent.')
+
+def recipients(admins_only=False):
+    """Subscribers and admins that have a phone registered. admins_only: just the admins (ADMIN_EMAILS)."""
     admins = {x.strip().lower() for x in os.getenv('ADMIN_EMAILS', '').split(',') if x.strip()}; now = time.time(); out = []
     for r in st.q('SELECT DISTINCT u.uid AS uid,u.email AS email,u.plan_until AS pu FROM users u JOIN push_tokens t ON t.uid=u.uid'):
-        if (r['pu'] or 0) > now or (r['email'] or '').lower() in admins: out.append(r['uid'])
+        is_admin = (r['email'] or '').lower() in admins
+        if is_admin or (not admins_only and (r['pu'] or 0) > now): out.append(r['uid'])
     return out
 
-def broadcast(kind, body, title=None, key=None, img=None, only=None):
-    """Send in the background so a trade route is never slowed down. Returns immediately."""
+def broadcast(kind, body, title=None, key=None, img=None, only=None, admins=False):
+    """Send in the background so a trade route is never slowed down. Returns immediately. only = one person; admins = admins only; neither = every subscriber."""
     if not configured(): return
     def run():
-        for uid in recipients():
+        for uid in recipients(admins):
             if only and uid != only: continue
             try: send(uid, kind, body, title, (key + '/' + uid) if key else None, img=img)
             except Exception as e: print('[push] failed', e)
@@ -156,7 +170,7 @@ def notify(kind, key=None, **facts):
     """Write the message for this kind from the facts and send it to everyone who should get it. Never raises."""
     try:
         from .pushcopy import compose
-        only = facts.pop('only', None); t, b, i = compose(kind, **facts); broadcast(kind, b, t, key, i, only)
+        only = facts.pop('only', None); admins = bool(facts.pop('admins', False)); t, b, i = compose(kind, **facts); broadcast(kind, b, t, key, i, only, admins)
     except Exception as e: print('[push] notify failed', kind, e)
 
 def send_data(uid, data):
