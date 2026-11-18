@@ -28,7 +28,9 @@ def accounts(token, http=None):
     """[{'id','demo','currency'}] from whatever shape Deriv returns. Raises PermissionError (token refused) or ConnectionError."""
     try: code, j = (http or _http)('GET', '/trading/v1/options/accounts', token)
     except Exception: raise ConnectionError('Could not reach Deriv. Try again in a minute.')
-    if code in (401, 403): raise PermissionError('Deriv did not accept this token. Check it has Read and Trade scopes and is not expired.')
+    if code in (400, 401, 403):
+        print('[deriv] token refused, HTTP', code)          # for the owner's log: 400 can also mean a wrong DERIV_APP_ID
+        raise PermissionError('Deriv did not accept this token. Check it has Read and Trade scopes and is not expired.')
     if code != 200: raise ConnectionError('Deriv is not answering right now. Try again in a minute.')
     out, seen = [], set()
     for d in _walk(j):
