@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk
+from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -272,6 +272,14 @@ def brokers_put(u, name):
     except ValueError as e: return jsonify(error=str(e)), 400
     except RuntimeError as e: return jsonify(error=str(e)), 503
     return jsonify(brokers=bk.view(u['uid']))
+
+@app.post('/api/brokers/<name>/verify')
+@need(verified=True, active=True)
+def brokers_verify(u, name):
+    n = bk.canon(name)
+    if n != 'Deriv': return jsonify(error='Checking this broker is not available yet.'), 400
+    ok, msg = deriv.verify(u['uid'])
+    return jsonify(ok=ok, message=msg, brokers=bk.view(u['uid']))
 
 @app.delete('/api/brokers/<name>')
 @need(verified=True)
