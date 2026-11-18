@@ -64,7 +64,7 @@ now = int(__import__('time').time())
 st.x("INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid) VALUES('XAUUSD','buy',1,0.9,1.2,1,'t',1,'pending',?,?)", (now - 400, U))
 st.x("INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid) VALUES('EURUSD','buy',1,0.9,1.2,1,'t',1,'pending',?,?)", (now, U))
 deriv.run_once(U, scan, yes, conn, http, now)
-T('old pending signal expires, fresh one stays', [r['status'] for r in st.q("SELECT status FROM signals WHERE uid=? ORDER BY created", (U,))] == ['expired', 'pending'])
+T('old pending signal expires, fresh one is now traded (fake Deriv refuses it)', [r['status'] for r in st.q("SELECT status FROM signals WHERE uid=? ORDER BY created", (U,))] == ['expired', 'rejected'])
 os.environ['DERIV_APP_ID'] = ''
 T('no DERIV_APP_ID -> off', deriv.run_once(U, scan, yes, conn, http, NOW) == 'off')
 os.environ['DERIV_APP_ID'] = '123'

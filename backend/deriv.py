@@ -3,7 +3,7 @@ Uses Deriv's new API: REST with the token + the Deriv-App-ID header (DERIV_APP_I
 Reply shapes are read loosely on purpose (not yet confirmed with deriv_probe.py), and nothing here ever puts a token in a message."""
 import os, re, json, time
 import threading
-from . import store as st, brokers as bk, bars, links
+from . import store as st, brokers as bk, bars, links, push, sbauth, learn
 
 BASE = lambda: os.getenv('DERIV_BASE', 'https://api.derivws.com').rstrip('/')
 APP = lambda: os.getenv('DERIV_APP_ID', '').strip()
@@ -143,6 +143,9 @@ def run_once(uid, scan, paid, connect=None, http=None, now=None):
         n_open = st.q("SELECT COUNT(*) n FROM signals WHERE status='open' AND COALESCE(uid,'')=?", (uid,), True)['n']
         st.set_acct({'balance': bal, 'equity': bal, 'open': n_open, 'demo': acct['demo'], 'allow_live': real}, uid)
         bk.set_bal(uid, 'Deriv', bal, acct['currency'], acct['demo'])
+        try: _track(sess, uid, acct)
+        except ConnectionError: raise
+        except Exception as e: print('[deriv] track failed', repr(e)[:100])
         for sym in [x.strip() for x in (st.get('symbols') or '').split(',') if x.strip()][:8]:
             try:
                 for tf in ('M15', 'H1'):
@@ -151,6 +154,9 @@ def run_once(uid, scan, paid, connect=None, http=None, now=None):
                 scan(sym, uid)
             except ConnectionError: raise
             except Exception as e: print('[deriv] symbol failed', sym, repr(e)[:100])
+        try: _trade(sess, uid, acct, bal, now)
+        except ConnectionError: raise
+        except Exception as e: print('[deriv] trade failed', repr(e)[:100])
         st.x("UPDATE signals SET status='expired' WHERE status IN('pending','sent') AND created<? AND uid=?", (int(now) - 180, uid))
     finally: sess.close()
     return 'ok'
@@ -171,3 +177,91 @@ def start(scan, paid):
                 try: run_once(uid, scan, paid)
                 except Exception as e: print('[deriv] round failed', repr(e)[:100])
     threading.Thread(target=loop, daemon=True).start()
+
+# ---------------- step 3: place and follow trades (multiplier contracts). Demo accounts always; a real account also needs DERIV_REAL=1 ----------------
+MULTS = lambda: [int(x) for x in os.getenv('DERIV_MULTS', '100,200,50,30,20,10,5').split(',') if x.strip().isdigit()]
+_mult_ok = {}          # symbol -> the multiplier Deriv accepted last time
+
+def _why(d):
+    e = d.get('error') if isinstance(d, dict) else None
+    return (str((e.get('message') or e.get('code')) if isinstance(e, dict) else 'no answer from Deriv'))[:100]
+
+def _size(entry, sl, tp, bal, risk_pct, mult):
+    """Stake and the two money limits so that hitting the stop loses about risk_pct of the balance and the target wins RR times that.
+    Multiplier maths: profit = stake x multiplier x price change. Returns (stake, stop_loss_money, take_profit_money) or None."""
+    try: entry, sl, tp, bal = float(entry), float(sl), float(tp), float(bal)
+    except (TypeError, ValueError): return None
+    if not entry or entry == sl or entry == tp: return None
+    frac = abs(entry - sl) / entry
+    risk = bal * float(risk_pct or 1) / 100.0
+    stake = round(risk / (mult * frac), 2)
+    if stake < 1 or stake > bal * 0.5 or risk >= stake: return None        # too small for Deriv, too big for the account, or the stop would be wider than the stake
+    return stake, round(risk, 2), round(risk * abs(tp - entry) / abs(entry - sl), 2)
+
+def _place(sess, sig, bal, cur):
+    """Quote, then buy by the quote's own id (so one signal can never buy twice). Returns ('open', info) or ('rejected', reason)."""
+    ct = 'MULTUP' if sig['side'] == 'buy' else 'MULTDOWN'; sym = sig['symbol']
+    order = ([_mult_ok[sym]] if sym in _mult_ok else []) + [m for m in MULTS() if m != _mult_ok.get(sym)]
+    last = 'no multiplier fits this balance and stop distance'
+    for m in order:
+        z = _size(sig['entry'], sig['sl'], sig['tp'], bal, sig['risk_pct'], m)
+        if not z: continue
+        stake, slm, tpm = z
+        p = sess.ask({'proposal': 1, 'contract_type': ct, 'underlying_symbol': _frx(sym), 'currency': cur, 'amount': stake, 'basis': 'stake',
+                      'multiplier': m, 'limit_order': {'stop_loss': slm, 'take_profit': tpm}})
+        q = p.get('proposal')
+        if not isinstance(q, dict) or not q.get('id'): last = _why(p); continue
+        b = sess.ask({'buy': q['id'], 'price': q.get('ask_price', stake)})
+        by = b.get('buy')
+        if not isinstance(by, dict) or not by.get('contract_id'): return 'rejected', _why(b)
+        _mult_ok[sym] = m
+        return 'open', {'contract_id': by['contract_id'], 'stake': stake, 'mult': m}
+    return 'rejected', last
+
+def _report(uid, sid, stt, reason=''):
+    """Same alerts the EA path sends: opened, closed (win/loss), skipped. Only to this customer."""
+    s = st.q('SELECT * FROM signals WHERE id=?', (sid,), True)
+    if not s: return
+    if stt == 'closed': learn.log(uid, 'closed', s['strategy'], s['symbol'], s['side'], s['pnl'], {'reason': reason})
+    if stt in ('open', 'closed'):
+        sbauth.notify('%s %s' % (s['symbol'], 'opened' if stt == 'open' else 'closed'), ('%s stake %s' % (s['side'].upper(), s['lots'])) if stt == 'open' else 'P/L %s' % s['pnl'], key='sig%s-%s' % (sid, stt), only=uid)
+        if stt == 'open': push.notify(1, 'sig%s-open' % sid, sym=s['symbol'], side=s['side'], entry=s['fill'] or s['entry'], sl=s['sl'], tp=s['tp'], risk=s['risk_pct'], strategy=s['strategy'], only=uid)
+        else: push.notify({'tp': 2, 'sl': 3}.get(reason, 4), 'sig%s-closed' % sid, sym=s['symbol'], pnl=s['pnl'], only=uid)
+    elif stt == 'rejected': push.notify(8, 'sig%s-skipped' % sid, sym=s['symbol'], reason=str(reason)[:80], only=uid)
+
+def _resnap(sess, uid, acct):
+    b = balance(sess)
+    if b is None: return
+    n = st.q("SELECT COUNT(*) n FROM signals WHERE status='open' AND COALESCE(uid,'')=?", (uid,), True)['n']
+    st.set_acct({'balance': b, 'equity': b, 'open': n, 'demo': acct['demo'], 'allow_live': links.mode(uid) == 'real'}, uid)
+    bk.set_bal(uid, 'Deriv', b, acct['currency'], acct['demo'])
+
+def _trade(sess, uid, acct, bal, now):
+    if not acct['demo'] and os.getenv('DERIV_REAL') != '1': return          # real money needs the owner's switch as well as the customer's Real mode
+    s = st.q("SELECT * FROM signals WHERE uid=? AND status='pending' AND created>=? ORDER BY id LIMIT 1", (uid, int(now) - 120), True)
+    l = links.get(uid)
+    if not s or not l or not l['bot']: return
+    if not st.x("UPDATE signals SET status='sent' WHERE id=? AND status='pending'", (s['id'],), True): return      # claimed: nobody else can buy this signal
+    try: kind, r = _place(sess, s, bal, acct['currency'])
+    except Exception as e:
+        st.x("UPDATE signals SET note=? WHERE id=?", ('buy not confirmed, check Deriv', s['id'])); print('[deriv] buy unconfirmed', repr(e)[:100]); return
+    if kind == 'open':
+        st.x("UPDATE signals SET status='open',ticket=?,lots=?,fill=?,note=? WHERE id=?", (str(r['contract_id']), r['stake'], s['entry'], 'x%s' % r['mult'], s['id']))
+        _report(uid, s['id'], 'open')
+    else:
+        st.x("UPDATE signals SET status='rejected',note=? WHERE id=?", (r[:120], s['id'])); _report(uid, s['id'], 'rejected', r)
+    _resnap(sess, uid, acct)
+
+def _track(sess, uid, acct):
+    """Ask Deriv about every open trade of this customer; when one has been sold (stop, target or by hand) record the result."""
+    done = False
+    for r in st.q("SELECT id,ticket FROM signals WHERE uid=? AND status='open' AND ticket IS NOT NULL ORDER BY id LIMIT 20", (uid,)):
+        try: cid = int(r['ticket'])
+        except (TypeError, ValueError): continue
+        p = sess.ask({'proposal_open_contract': 1, 'contract_id': cid}).get('proposal_open_contract')
+        if not isinstance(p, dict) or str(p.get('is_sold')).lower() not in ('1', 'true'): continue
+        try: pnl = round(float(p.get('profit')), 2)
+        except (TypeError, ValueError): continue
+        if st.x("UPDATE signals SET status='closed',pnl=?,closed=? WHERE id=? AND status='open'", (pnl, int(time.time()), r['id']), True):
+            _report(uid, r['id'], 'closed', 'tp' if pnl > 0 else 'sl' if pnl < 0 else 'other'); done = True
+    if done: _resnap(sess, uid, acct)
