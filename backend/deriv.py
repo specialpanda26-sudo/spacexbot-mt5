@@ -2,7 +2,8 @@
 Uses Deriv's new API: REST with the token + the Deriv-App-ID header (DERIV_APP_ID is OUR app, same for everyone; the token is the customer's own).
 Reply shapes are read loosely on purpose (not yet confirmed with deriv_probe.py), and nothing here ever puts a token in a message."""
 import os, re, json, time
-from . import store as st, brokers as bk
+import threading
+from . import store as st, brokers as bk, bars, links
 
 BASE = lambda: os.getenv('DERIV_BASE', 'https://api.derivws.com').rstrip('/')
 APP = lambda: os.getenv('DERIV_APP_ID', '').strip()
@@ -65,3 +66,95 @@ def verify(uid, http=None, now=None):
     return True, 'Deriv connected. Demo account found.' if demo else 'Deriv connected, but no demo account was found. Trading stays off until you add one.'
 
 def _mark(uid, status): st.x("UPDATE broker_links SET status=?,updated=? WHERE uid=? AND broker='Deriv'", (status, int(time.time()), uid))
+
+# ---------------- step 2: candles + account snapshot + scan (still NO trading) ----------------
+GRAN = {'M15': 900, 'H1': 3600}
+def _frx(sym): return 'frx' + str(sym).upper()          # XAUUSD -> frxXAUUSD (what Deriv calls it)
+
+def _connect(url):
+    import websocket
+    return websocket.create_connection(url, timeout=15)
+
+class Session:
+    """One websocket conversation. Every question carries a req_id and we wait for the matching answer."""
+    def __init__(s, ws): s.ws, s.n = ws, 0
+    def ask(s, msg):
+        s.n += 1; s.ws.send(json.dumps(dict(msg, req_id=s.n)))
+        for _ in range(12):
+            d = json.loads(s.ws.recv())
+            if isinstance(d, dict) and (d.get('req_id') == s.n or (d.get('echo_req') or {}).get('req_id') == s.n): return d
+        raise ConnectionError('Deriv did not answer.')
+    def close(s):
+        try: s.ws.close()
+        except Exception: pass
+
+def candles(sess, sym, tf, count=300, now=None):
+    """Closed candles as [epoch,o,h,l,c,0] rows. The candle still forming is dropped, so signals use finished candles only."""
+    now = now or time.time(); g = GRAN[tf]
+    for extra in ({}, {'underlying_symbol': _frx(sym)}):            # the probe will tell us which spelling Deriv wants; try both
+        d = sess.ask(dict({'ticks_history': _frx(sym), 'style': 'candles', 'granularity': g, 'count': count, 'end': 'latest'}, **extra))
+        c = d.get('candles')
+        if isinstance(c, list) and c: break
+    else: return []
+    rows = []
+    for x in c:
+        try: t = int(x['epoch']); rows.append([t, float(x['open']), float(x['high']), float(x['low']), float(x['close']), 0])
+        except (KeyError, TypeError, ValueError): continue
+    return sorted(r for r in rows if r[0] + g <= now)
+
+def balance(sess):
+    d = sess.ask({'balance': 1}); b = d.get('balance')
+    try: return float(b.get('balance') if isinstance(b, dict) else b)
+    except (TypeError, ValueError): return None
+
+def _pick(accts, want_real):
+    return next((a for a in accts if a['demo'] != want_real), None)
+
+def run_once(uid, scan, paid, connect=None, http=None, now=None):
+    """One round for one customer: only if plan active, bot on, token verified. Reads candles, refreshes the account snapshot, runs the scan."""
+    now = now or time.time()
+    if not APP(): return 'off'
+    if not paid(uid): return 'plan ended'
+    l = links.get(uid)
+    if not l or not l['bot']: return 'bot off'
+    r = st.q("SELECT status FROM broker_links WHERE uid=? AND broker='Deriv'", (uid,), True)
+    if not r or r['status'] != 'verified': return 'not verified'
+    sec = bk.secret(uid, 'Deriv')
+    if not sec or not sec.get('token'): return 'no token'
+    real = links.mode(uid) == 'real'
+    acct = _pick(accounts(sec['token'], http), real)
+    if not acct: return 'no real account' if real else 'no demo account'
+    sess = Session((connect or _connect)(ws_url(sec['token'], acct['id'], http)))
+    try:
+        bal = balance(sess)
+        if bal is None: return 'no balance'
+        n_open = st.q("SELECT COUNT(*) n FROM signals WHERE status='open' AND COALESCE(uid,'')=?", (uid,), True)['n']
+        st.set_acct({'balance': bal, 'equity': bal, 'open': n_open, 'demo': acct['demo'], 'allow_live': real}, uid)
+        for sym in [x.strip() for x in (st.get('symbols') or '').split(',') if x.strip()][:8]:
+            try:
+                for tf in ('M15', 'H1'):
+                    rows = candles(sess, sym, tf, 300 if tf == 'M15' else 200, now)
+                    if rows: bars.merge(sym, tf, rows, uid=uid)
+                scan(sym, uid)
+            except ConnectionError: raise
+            except Exception as e: print('[deriv] symbol failed', sym, repr(e)[:100])
+        st.x("UPDATE signals SET status='expired' WHERE status IN('pending','sent') AND created<? AND uid=?", (int(now) - 180, uid))
+    finally: sess.close()
+    return 'ok'
+
+_started = False
+def start(scan, paid):
+    """Background round for every verified Deriv customer. Starts quietly; does nothing until DERIV_APP_ID is set."""
+    global _started
+    if _started: return
+    _started = True
+    def loop():
+        while True:
+            time.sleep(max(30, int(os.getenv('DERIV_EVERY', '60'))))
+            if not APP(): continue
+            try: ids = [x['uid'] for x in st.q("SELECT uid FROM broker_links WHERE broker='Deriv' AND status='verified' LIMIT 200")]
+            except Exception as e: print('[deriv] list failed', repr(e)[:100]); continue
+            for uid in ids:
+                try: run_once(uid, scan, paid)
+                except Exception as e: print('[deriv] round failed', repr(e)[:100])
+    threading.Thread(target=loop, daemon=True).start()

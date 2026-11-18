@@ -492,6 +492,8 @@ threading.Thread(target=_reconciler, daemon=True).start()
 
 try: feed.start(_scan)
 except Exception as e: print('[feed] not started', e)
+try: deriv.start(_scan, _paid)
+except Exception as e: print('deriv loop not started', e)
 try:
     from . import live; alerts.start()
     live.start()
