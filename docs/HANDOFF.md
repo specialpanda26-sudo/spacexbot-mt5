@@ -79,12 +79,12 @@ Facts found in the code (do not guess, re-check if in doubt):
 - The big Start/Stop on the Bot tab (#botToggle) only flips a local flag and says "Bot started in demo mode". The scan log under it is invented (random pairs). The REAL switch is the Start bot button on the Platforms tile (Connect tab, S1).
 - The Connect screen "Test connection" (#testBtn) is a hardcoded message ("No signal from X yet... next build step"). It never calls the server. The real bridge exists (ea/SpaceXBridge.mq5 -> POST /api/ea/sync) and GET /api/status already returns ea_online.
 - The owner's MT5/EA path stays off until setting bot_enabled = 1 (default 0, risk.global_gate says "bot off"). Deriv needs DERIV_APP_ID + BROKER_KEY on Render, a verified token and the Start bot button. Render free sleeps after 15 min idle.
-- A signal needs 2 strategies to agree (min_confluence 2) unless the strategy has "may trade alone"; also max 6 trades a day, 60 min cooldown, news lock, no trades Sat/Sun or Fri after 20:00 UTC. First backtest: roughly break-even. Not proven.
+- A signal needs 2 strategies to agree (min_confluence 2) unless the strategy has "may trade alone"; NO daily trade limit any more (max_trades_day default 0 = unlimited, tests/test_nolimit.py; if the Render variable MAX_TRADES_DAY or an old saved setting is above 0 it still applies), 60 min cooldown, news lock, no trades Sat/Sun or Fri after 20:00 UTC. First backtest: roughly break-even. Not proven.
 - Download buttons in static/index.html point to github.com/specialpanda26-sudo/spacexbot-mt5./releases/... If the real repo is another owner or name, that is the 404.
 Sections:
 - 1 DONE  Clean-up: tab letters (H, M, B, T, C) and every "Replay setup" button removed (apply_p1_cleanup.py, already in static/index.html). If the site still shows them, Render has not redeployed.
 - 2 DONE  Account card on the Bot tab (/*S2-start*/ in static/index.html; tests/test_acct.py): broker balance, Demo/Real badge, switch, typing REAL, any switch stops the bot.
-- 3 TODO  Live stats: Home + header show the real balance, equity, today's profit in dollars, open trades, refreshed every few seconds; "Demo data" chip only when no broker is connected.
+- 3 DONE (Nov 19)  Live stats: Home + header show the real balance, equity, today's profit in dollars, open trades, refreshed every few seconds; "Demo data" chip only when no broker is connected.
 - 4 TODO  Real Start/Stop on the Bot tab (calls the real bot switch), the fake scan log replaced by the real status, the card says in plain words why it is not trading (uses brokers.REASONS, /api/status gates, last scan result per market).
 - 5 TODO  Test and deploy checklist (Render env DERIV_APP_ID, BROKER_KEY, EA_KEY, bot_enabled; run after 3-4 and again at the end).
 - 6 TODO  Real Journal and Stats: delete HIST/OPEN/EQ sample data, signals.broker column, GET /api/journal, Journal + Stats tabs read it, empty state "No trades yet", All/Wins/Losses filter, broker picker.
@@ -128,3 +128,8 @@ I work only from my phone in Termux and push to GitHub from there; I do not down
 
 Start now: tell me in one short line what you found in docs/HANDOFF.md, then give me the blocks for the next section.
 ```
+
+## Nov 19 owner changes
+- Daily trade limit removed (risk.global_gate skips the check when max_trades_day is 0, default 0). Loss limits, max open trades, cooldown and the stop loss stay.
+- Section 3 finished: a signed-in person with no broker connected no longer sees sample equity, stats, open trades, Daily goals or Safety checks on Home; the chip says Not connected and a card says No account connected yet. Signed-out visitors still see the sample preview. Daily goals / Safety checks come back with real data in Sections 4 and 6.
+- Still fake (Section 6): Trades, Journal, Stats, Charts, Market. The Bot-tab Start/Pause button and 'Max trades a day' box only change a flag in the page (Section 4).

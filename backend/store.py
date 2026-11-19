@@ -124,7 +124,7 @@ def x(sql, a=(), count=False):
         cur = c.execute(sql, a); c.commit(); return cur.rowcount if count else cur.lastrowid
 
 DEFAULTS = {'bot_enabled': '0', 'risk_pct': os.getenv('RISK_PCT', '1.0'), 'max_open': os.getenv('MAX_OPEN', '3'),
-    'max_trades_day': os.getenv('MAX_TRADES_DAY', '6'), 'max_daily_loss_pct': os.getenv('MAX_DAILY_LOSS_PCT', '3.0'),
+    'max_trades_day': os.getenv('MAX_TRADES_DAY', '0'), 'max_daily_loss_pct': os.getenv('MAX_DAILY_LOSS_PCT', '3.0'),
     'min_confluence': os.getenv('MIN_CONFLUENCE', '2'), 'rr': os.getenv('RR', '2.0'), 'cooldown_min': os.getenv('COOLDOWN_MIN', '60'),
     'symbols': os.getenv('SYMBOLS', 'XAUUSD,EURUSD,GBPUSD,USDJPY'),
     'max_weekly_loss_pct': os.getenv('MAX_WEEKLY_LOSS_PCT', '6.0'), 'max_losing_streak': os.getenv('MAX_LOSING_STREAK', '3'),

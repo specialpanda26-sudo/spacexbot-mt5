@@ -91,9 +91,9 @@ function page(user, st) {
   const SXA = {user: () => st.user, api: (u, o) => { calls.push({u, o}); return st.next(); }};
   const MO = function (f) { this.observe = () => {}; MO.f = f; };
   new Function('document', 'window', 'SXA', 'setInterval', 'MutationObserver', 'Date', code)(document, {SXA}, SXA, f => timers.push(f), MO, {now: () => now});
-  const H = vh.inserted[0], S = vb.inserted[0];
+  const H = vh.inserted[0], E = vh.inserted[1], S = vb.inserted[0];
   const run = async n => { for (let i = 0; i < n; i++) { timers[0](); await tick(); } };
-  return {H, S, chip, eq, stats, openList, vh, vb, calls, run, document, mo: () => MO.f(), setNow: v => { now = v; }, live: () => calls.filter(c => c.u === '/api/live')};
+  return {H, E, S, chip, eq, stats, openList, vh, vb, calls, run, document, mo: () => MO.f(), setNow: v => { now = v; }, live: () => calls.filter(c => c.u === '/api/live')};
 }
 const J = o => Object.assign({state: 'live', mode: 'demo', balance: 1000.5, equity: 1004.7, floating: 4.2, today: 4.2, today_pct: 0.42, today_n: 2, open: 1,
   trades: [{symbol: 'XAUUSD', side: 'buy', price: 2345.1, strategy_name: 'Gold scalp'}], sources: [{id: 'MT5', name: 'MT5', mode: 'demo', balance: 1000.5, equity: 1004.7, online: true}]}, o || {});
@@ -104,7 +104,7 @@ const U = {uid: 'u1', verified: true, active: true, admin: false}, ok = j => () 
   p = page({uid: 'x', verified: false}, {user: {uid: 'x', verified: false}, next: ok(J())}); await p.run(6);
   OUT.push(['email not verified: nothing is asked and nothing is shown', p.live().length === 0 && p.H.hidden === true]);
   p = page(U, {user: U, next: ok(J({state: 'none', sources: [], balance: 0, equity: 0, today: 0, open: 0, trades: []}))}); await p.run(1);
-  OUT.push(['no broker connected: still sample data, honest chip, no Live card', p.live().length === 1 && p.H.hidden === true && p.chip.innerHTML.includes('Demo data') && p.chip.className === 'chip demo app-only' && p.eq.style.display !== 'none']);
+  OUT.push(['no broker connected (signed in): NO sample numbers, chip says Not connected, a plain "No account connected yet" card with a Connect button', p.live().length === 1 && p.H.hidden === true && p.E.hidden === false && p.E.innerHTML.includes('No account connected yet') && p.E.innerHTML.includes('data-go="connect"') && p.chip.innerHTML.includes('Not connected') && !p.chip.innerHTML.includes('Demo data') && p.eq.style.display === 'none' && p.stats.style.display === 'none' && p.openList.style.display === 'none']);
   const st = {user: U, next: ok(J())}; p = page(U, st); p.vh.on = true; await p.run(1);
   let h = p.H.innerHTML;
   OUT.push(['connected demo: the Live card shows equity, balance, today in dollars and the open count', p.H.hidden === false && h.includes('$1,004.70') && h.includes('$1,000.50') && h.includes('+$4.20') && h.includes('Open trades')]);
@@ -134,7 +134,7 @@ const U = {uid: 'u1', verified: true, active: true, admin: false}, ok = j => () 
   st.next = ok(J()); await p.run(5);
   OUT.push(['and one good answer clears it', p.chip.innerHTML.includes('Live Demo') && !p.H.innerHTML.includes('Cannot reach')]);
   st.next = ok(J({state: 'none', sources: [], balance: 0, equity: 0, today: 0, open: 0, trades: []})); await p.run(5);
-  OUT.push(['broker disconnected: the Live card goes, samples and the Demo data chip come back', p.H.hidden === true && p.chip.innerHTML.includes('Demo data') && p.chip.className === 'chip demo app-only' && p.eq.style.display === '' && p.stats.style.display === '' && p.openList.style.display === '']);
+  OUT.push(['broker disconnected: the Live card goes, the "No account connected yet" card shows, still no sample numbers', p.H.hidden === true && p.E.hidden === false && p.E.innerHTML.includes('No account connected yet') && p.chip.innerHTML.includes('Not connected') && p.eq.style.display === 'none' && p.stats.style.display === 'none' && p.openList.style.display === 'none']);
   p = page(U, {user: U, next: ok(J())}); await p.run(1); p.setNow(1700000000000 + 30000); await p.run(1);
   OUT.push(['"updated 30 s ago" keeps counting between refreshes without asking the server again', p.H.innerHTML.includes('updated 30 s ago') && p.live().length === 1]);
   p = page(U, {user: U, next: ok(J())}); p.vh.on = true; await p.run(31);
@@ -153,7 +153,7 @@ const U = {uid: 'u1', verified: true, active: true, admin: false}, ok = j => () 
   OUT.push(['a half-empty answer does not crash or print undefined/NaN', p.H.hidden === false && !/undefined|NaN/.test(p.H.innerHTML + p.S.innerHTML)]);
   const st3 = {user: U, next: ok(J())}; p = page(U, st3); p.vh.on = true; await p.run(1); const was = p.H.innerHTML;
   st3.user = {uid: 'u2', verified: true, active: true, admin: false}; st3.next = () => new Promise(() => {}); await p.run(1);
-  OUT.push(['another person signs in on this phone: the first person numbers disappear at once, before the new answer', was.includes('$1,004.70') && p.H.hidden === true && p.S.hidden === true && p.chip.innerHTML.includes('Demo data')]);
+  OUT.push(['another person signs in on this phone: the first person numbers disappear at once, before the new answer', was.includes('$1,004.70') && p.H.hidden === true && p.S.hidden === true && !p.H.innerHTML.includes('$1,004.70') && p.E.hidden === false && p.E.innerHTML.includes('Loading') && p.eq.style.display === 'none']);
   p = page(U, {user: U, next: () => new Promise(() => {})}); p.vh.on = true; await p.run(40);
   OUT.push(['a slow answer is waited for: no pile of requests', p.live().length === 1]);
   p = page({uid: 'x', verified: false}, {user: {uid: 'x', verified: false}, next: ok(J())}); p.mo(); await tick();

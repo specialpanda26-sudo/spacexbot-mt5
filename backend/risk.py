@@ -19,8 +19,10 @@ def global_gate(now=None, uid=''):
     if d.weekday() >= 5 or (d.weekday() == 4 and d.hour >= 20): return False, 'weekend/Friday-night risk'
     if int(a.get('open', 0)) >= int(st.fget('max_open')): return False, 'max open positions'
     since = int(now - now % 86400)
-    n = st.q("SELECT COUNT(*) n FROM signals WHERE created>=? AND status IN('pending','sent','open','closed') AND COALESCE(uid,'')=?", (since, uid), True)['n']
-    if n >= int(st.fget('max_trades_day')): return False, 'max trades today'
+    mt = int(st.fget('max_trades_day') or 0)      # 0 = no daily trade limit (the stop loss and the loss limits protect the account)
+    if mt > 0:
+        n = st.q("SELECT COUNT(*) n FROM signals WHERE created>=? AND status IN('pending','sent','open','closed') AND COALESCE(uid,'')=?", (since, uid), True)['n']
+        if n >= mt: return False, 'max trades today'
     bal = float(a.get('balance') or 0)
     if bal and _pnl_since(since, uid) <= -bal * st.fget('max_daily_loss_pct') / 100: return False, 'daily loss limit hit'
     if bal and _pnl_since(_week_start(now), uid) <= -bal * st.fget('max_weekly_loss_pct') / 100: return False, 'weekly loss limit hit'

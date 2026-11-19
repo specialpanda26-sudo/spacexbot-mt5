@@ -2317,6 +2317,7 @@ build()})();
   var D = null, GOT = 0, FAIL = 0, BUSY = false, SIG = "", TK = 0, LH = "", LB = "";
   var H = document.createElement("div"); H.className = "card"; H.id = "livec"; H.hidden = true;
   var bu = vh.querySelector(".buddy-card"); vh.insertBefore(H, bu ? bu.nextSibling : vh.firstChild);
+  var E = document.createElement("div"); E.className = "card"; E.id = "liveempty"; E.hidden = true; vh.insertBefore(E, H.nextSibling);
   var S = document.createElement("div"); S.className = "card"; S.id = "livebar"; S.hidden = true;
   var ac = document.getElementById("acctc"); vb.insertBefore(S, ac ? ac.nextSibling : vb.firstChild);
 
@@ -2356,11 +2357,17 @@ build()})();
   function samples() {
     var a = [], e = document.getElementById("eq"), o = document.getElementById("openList"), s = document.getElementById("stats");
     if (e && e.closest) a.push(e.closest(".card")); if (s) a.push(s); if (o && o.closest) a.push(o.closest(".card"));
+    var g = document.getElementById("goals"); if (g && g.closest) a.push(g.closest(".grid2"));
     return a.filter(Boolean);
   }
   function showSamples(on) { samples().forEach(function (el) { el.style.display = on ? "" : "none"; }); }
   function setChip(k) {
     if (!chip) return;
+    var u0 = me();
+    if (k === "none" && u0 && u0.verified) {
+      var c0 = "chip watch app-only", h0 = '<span class="dot"></span>Not connected';
+      if (chip.className !== c0) chip.className = c0; if (chip.innerHTML !== h0) chip.innerHTML = h0; chip.title = "No broker connected yet. Connect one on the Connect tab."; return;
+    }
     if (k === "none") { if (chip.className !== CH.c) chip.className = CH.c; if (chip.innerHTML !== CH.h) chip.innerHTML = CH.h; chip.title = CH.t; return; }
     var real = D.mode === "real", txt = k === "stale" ? "Offline" : real ? "Live Real" : "Live Demo", c = "chip app-only " + (k === "stale" ? "watch" : real ? "stop" : "ok"), h = '<span class="dot"></span>' + txt;
     if (chip.className !== c) chip.className = c; if (chip.innerHTML !== h) chip.innerHTML = h;
@@ -2369,7 +2376,17 @@ build()})();
   function paint() {
     var u = me(), k = u && u.verified && D ? kind() : "none";
     setChip(k);
-    if (k === "none") { H.hidden = S.hidden = true; H.style.display = S.style.display = "none"; if (LH || LB) { H.innerHTML = S.innerHTML = ""; LH = LB = ""; } showSamples(true); return; }
+    if (k === "none") {
+      H.hidden = S.hidden = true; H.style.display = S.style.display = "none"; if (LH || LB) { H.innerHTML = S.innerHTML = ""; LH = LB = ""; }
+      if (u && u.verified) {      /* signed in: never show made-up numbers. Say what is missing instead. */
+        var eh = !D && FAIL < 3 ? '<div class="card-head"><h2>Live account</h2></div><p class="note">Loading your account...</p>'
+          : !D ? '<div class="card-head"><h2>Live account</h2></div><p class="note">Cannot reach the server. Check your internet and try again.</p>'
+          : '<div class="card-head"><h2>No account connected yet</h2></div><p class="note">Your balance, profit today and open trades will show here as soon as a broker is connected. Nothing on this screen is invented.</p><button class="btn primary" type="button" data-go="connect">Connect a broker</button>';
+        E.hidden = false; E.style.display = ""; if (E.innerHTML !== eh) E.innerHTML = eh; showSamples(false);
+      } else { E.hidden = true; E.style.display = "none"; showSamples(true); }
+      return;
+    }
+    E.hidden = true; E.style.display = "none";
     var h = homeHtml(k), b = barHtml(k);
     H.hidden = S.hidden = false; H.style.display = S.style.display = "";
     if (h !== LH) H.innerHTML = LH = h; if (b !== LB) S.innerHTML = LB = b;
