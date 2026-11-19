@@ -4,7 +4,7 @@
 //| and add your Render URL to the list. Attach to ANY chart.        |
 //+------------------------------------------------------------------+
 #property strict
-#property version "1.00"
+#property version "1.10"
 #include <Trade\Trade.mqh>
 
 input string ServerUrl      = "https://your-service.onrender.com"; // no trailing slash
@@ -18,6 +18,8 @@ input int    MaxSpreadPoints= 60;      // skip if spread wider than this (points
 input double MaxLots        = 1.0;
 input int    Deviation      = 20;
 input long   Magic          = 5150150;
+input int    BasketArmPct   = 30;      // BURST: the give-back guard only starts once the group profit reached this % of its target
+input int    BasketCheckMs  = 500;     // BURST: how often open baskets are checked (milliseconds)
 
 CTrade trade;
 datetime lastBars = 0; bool firstPush = true;
@@ -105,15 +107,142 @@ void Execute(long id, string canon, string side, double sl, double tp, double ri
    else Reject(id, "order failed " + (string)trade.ResultRetcode());
 }
 
+//--- BURST BASKET (Section 3): a burst group arrives all at once, is opened together and is closed together.
+// A basket position carries the comment  SXB<signal id>G<group id>. The target, the give-back share and the best profit seen live in terminal
+// global variables (SXB_T/B/P<gid>), so a restart of MT5 does not forget a basket that is still open. SXB_X<gid> = "closing now" (and when).
+long CmNum(const string cm, int from)
+{
+   long v = 0; int n = StringLen(cm);
+   for(int i = from; i < n; i++){ ushort ch = StringGetCharacter(cm, i); if(ch < '0' || ch > '9') break; v = v * 10 + (ch - '0'); }
+   return v;
+}
+long CmId(const string cm){ return (StringFind(cm, "SXB") == 0) ? CmNum(cm, 3) : 0; }
+long CmGid(const string cm){ int p = StringFind(cm, "G", 3); return (StringFind(cm, "SXB") == 0 && p > 0) ? CmNum(cm, p + 1) : 0; }
+string GV(const string k, long gid){ return "SXB_" + k + (string)gid; }
+void RejectAll(const long &ids[], string why){ for(int i = 0; i < ArraySize(ids); i++) Reject(ids[i], why); }
+
+void ExecuteBasket(long gid, string canon, string side, double sl, double tp, double riskPct, double each, int gb, string idsCsv)
+{
+   string idl[]; int n = StringSplit(idsCsv, ',', idl); if(n <= 0) return;
+   long ids[]; ArrayResize(ids, n); for(int i = 0; i < n; i++) ids[i] = (long)StringToInteger(idl[i]);
+   if(!IsDemo() && !AllowLive){ RejectAll(ids, "live account blocked (AllowLive=false)"); return; }
+   string sym = canon + SymbolSuffix;
+   if(!SymbolSelect(sym, true)){ RejectAll(ids, "symbol not found"); return; }
+   double pt = SymbolInfoDouble(sym, SYMBOL_POINT);
+   double ask = SymbolInfoDouble(sym, SYMBOL_ASK), bid = SymbolInfoDouble(sym, SYMBOL_BID);
+   if((ask - bid) / pt > MaxSpreadPoints){ RejectAll(ids, "spread too wide"); return; }
+   bool buy = (side == "buy"); double price = buy ? ask : bid; int dg = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+   sl = NormalizeDouble(sl, dg); tp = NormalizeDouble(tp, dg);
+   if(buy && !(sl < price && tp > price)){ RejectAll(ids, "SL/TP wrong side of price (stale signal)"); return; }
+   if(!buy && !(sl > price && tp < price)){ RejectAll(ids, "SL/TP wrong side of price (stale signal)"); return; }
+   double stopLvl = SymbolInfoInteger(sym, SYMBOL_TRADE_STOPS_LEVEL) * pt;
+   if(MathAbs(price - sl) < stopLvl || MathAbs(price - tp) < stopLvl){ RejectAll(ids, "inside broker stop level"); return; }
+   double tv = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_VALUE), ts = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_SIZE);
+   if(tv <= 0 || ts <= 0){ RejectAll(ids, "no tick value"); return; }
+   // riskPct is ONE entry's share (the server already split the normal risk of one trade across the group)
+   double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * riskPct / 100.0;
+   double lotsRaw = riskMoney / ((MathAbs(price - sl) / ts) * tv);
+   double step = SymbolInfoDouble(sym, SYMBOL_VOLUME_STEP), mn = SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN), mx = SymbolInfoDouble(sym, SYMBOL_VOLUME_MAX);
+   double lots = MathFloor(lotsRaw / step + 1e-9) * step; int want = n;
+   if(lots < mn)
+   {  // one entry's share is below the smallest lot: open only as many minimum-lot entries as the TOTAL risk of the group allows
+      want = (int)MathFloor(lotsRaw * n / mn + 1e-9); lots = mn;
+      if(want < 2){ RejectAll(ids, "min lot too big for a group"); return; }
+      if(want > n) want = n;
+   }
+   lots = MathMin(lots, MathMin(mx, MaxLots));
+   trade.SetExpertMagicNumber(Magic); trade.SetDeviationInPoints(Deviation); trade.SetTypeFillingBySymbol(sym);
+   long okId[]; ulong okTk[]; double okPx[]; ArrayResize(okId, n); ArrayResize(okTk, n); ArrayResize(okPx, n); int k = 0;
+   for(int i = 0; i < n; i++)
+   {
+      if(i >= want){ Reject(ids[i], "min lot: group trimmed to keep the risk"); continue; }
+      string cm = "SXB" + (string)ids[i] + "G" + (string)gid;
+      bool ok = buy ? trade.Buy(lots, sym, 0, sl, tp, cm) : trade.Sell(lots, sym, 0, sl, tp, cm);
+      if(ok && (trade.ResultRetcode() == TRADE_RETCODE_DONE || trade.ResultRetcode() == TRADE_RETCODE_PLACED))
+      { okId[k] = ids[i]; okTk[k] = trade.ResultOrder(); okPx[k] = trade.ResultPrice(); k++; }
+      else Reject(ids[i], "order failed " + (string)trade.ResultRetcode());
+   }
+   if(k > 0)
+   {  // remember the basket BEFORE the slow reports, so the profit watch can start at once
+      GlobalVariableSet(GV("T", gid), each * k); GlobalVariableSet(GV("B", gid), (double)gb); GlobalVariableSet(GV("P", gid), 0.0);
+      Print("Basket ", gid, ": ", k, " of ", n, " opened, ", DoubleToString(lots, 2), " lots each, target ", DoubleToString(each * k, 2), ", give-back ", gb, "%");
+   }
+   for(int i = 0; i < k; i++)
+      Report(okId[i], "open", ",\"ticket\":" + (string)okTk[i] + ",\"lots\":" + DoubleToString(lots, 2) + ",\"price\":" + DoubleToString(okPx[i], dg));
+}
+
+void CloseBasket(long gid)
+{
+   trade.SetExpertMagicNumber(Magic); trade.SetDeviationInPoints(Deviation);
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong tk = PositionGetTicket(i); if(!PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC) != Magic) continue;
+      if(CmGid(PositionGetString(POSITION_COMMENT)) != gid) continue;
+      if(!trade.PositionClose(tk, Deviation)) Print("Basket ", gid, ": close failed for ", tk, " retcode ", trade.ResultRetcode(), " (will retry)");
+   }
+}
+
+void ManageBaskets()
+{
+   long g[]; double sum[]; int ng = 0;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong tk = PositionGetTicket(i); if(!PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC) != Magic) continue;
+      long gid = CmGid(PositionGetString(POSITION_COMMENT)); if(gid <= 0) continue;
+      double pr = PositionGetDouble(POSITION_PROFIT) + PositionGetDouble(POSITION_SWAP);
+      int j = -1; for(int q = 0; q < ng; q++) if(g[q] == gid){ j = q; break; }
+      if(j < 0){ j = ng; ng++; ArrayResize(g, ng); ArrayResize(sum, ng); g[j] = gid; sum[j] = 0; }
+      sum[j] += pr;
+   }
+   for(int j = 0; j < ng; j++)
+   {
+      long gid = g[j];
+      if(!GlobalVariableCheck(GV("T", gid))) continue;                                   // no target stored: not a basket this EA opened
+      if(GlobalVariableCheck(GV("X", gid))){ CloseBasket(gid); continue; }               // already closing: finish it (retry what failed)
+      double target = GlobalVariableGet(GV("T", gid)), gbp = GlobalVariableGet(GV("B", gid)), peak = GlobalVariableGet(GV("P", gid));
+      if(sum[j] > peak){ peak = sum[j]; GlobalVariableSet(GV("P", gid), peak); }
+      bool hit = (sum[j] >= target);
+      bool back = (!hit && gbp > 0 && peak >= target * BasketArmPct / 100.0 && sum[j] <= peak * (1.0 - gbp / 100.0));
+      if(hit || back)
+      {
+         Print("Basket ", gid, hit ? " reached its target: " : " is giving the profit back: ", DoubleToString(sum[j], 2), " (best ", DoubleToString(peak, 2), ", target ", DoubleToString(target, 2), ") - closing the group");
+         GlobalVariableSet(GV("S", gid), sum[j]); GlobalVariableSet(GV("X", gid), (double)TimeCurrent());
+         CloseBasket(gid);
+      }
+   }
+   // forget finished baskets (no position left, and long enough ago that every close was reported)
+   for(int i = GlobalVariablesTotal() - 1; i >= 0; i--)
+   {
+      string nm = GlobalVariableName(i); if(StringFind(nm, "SXB_T") != 0) continue;
+      long gid = (long)StringToInteger(StringSubstr(nm, 5)); bool live = false;
+      for(int j = 0; j < ng; j++) if(g[j] == gid){ live = true; break; }
+      if(live) continue;
+      datetime now = TimeCurrent();
+      if(now - GlobalVariableTime(nm) < 120) continue;
+      if(GlobalVariableCheck(GV("X", gid)) && now - (datetime)GlobalVariableGet(GV("X", gid)) < 60) continue;
+      GlobalVariableDel(GV("T", gid)); GlobalVariableDel(GV("B", gid)); GlobalVariableDel(GV("P", gid)); GlobalVariableDel(GV("X", gid)); GlobalVariableDel(GV("S", gid));
+   }
+}
+
 int OnInit()
 {
-   EventSetTimer(PollSeconds);
+   EventSetMillisecondTimer(BasketCheckMs);
    Print("SpaceXBridge started. Demo account: ", IsDemo(), "  AllowLive: ", AllowLive);
    return INIT_SUCCEEDED;
 }
 void OnDeinit(const int reason){ EventKillTimer(); }
 
+void PollServer();
 void OnTimer()
+{
+   ManageBaskets();                                                                    // burst baskets are watched every BasketCheckMs
+   static uint lastPoll = 0;
+   if(GetTickCount() - lastPoll < (uint)(PollSeconds * 1000)) return;                  // the server is still polled every PollSeconds
+   lastPoll = GetTickCount(); PollServer();
+}
+void PollServer()
 {
    string acct = "{\"balance\":" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + ",\"equity\":" + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2)
                + ",\"open\":" + (string)OurPositions() + ",\"demo\":" + (IsDemo() ? "true" : "false") + ",\"allow_live\":" + (AllowLive ? "true" : "false")
@@ -134,6 +263,13 @@ void OnTimer()
    string res = Post("/api/ea/sync", "{\"account\":" + acct + bars + "}");
    if(res == "") return;
    if(bars != "") firstPush = false;
+   long bgid = (long)StringToInteger(JStr(res, "gid"));
+   if(bgid > 0)   // a burst group arrived: all its entries at once
+   {
+      ExecuteBasket(bgid, JStr(res, "symbol"), JStr(res, "side"), StringToDouble(JStr(res, "sl")), StringToDouble(JStr(res, "tp")),
+                    StringToDouble(JStr(res, "risk_pct")), StringToDouble(JStr(res, "each")), (int)StringToInteger(JStr(res, "gb")), JStr(res, "ids"));
+      return;
+   }
    long id = (long)StringToInteger(JStr(res, "id"));
    if(id > 0 && StringFind(res, "\"signal\":null") < 0)
       Execute(id, JStr(res, "symbol"), JStr(res, "side"), StringToDouble(JStr(res, "sl")), StringToDouble(JStr(res, "tp")), StringToDouble(JStr(res, "risk_pct")));
@@ -146,16 +282,28 @@ void OnTradeTransaction(const MqlTradeTransaction &t, const MqlTradeRequest &rq,
    if(!HistoryDealSelect(t.deal)) return;
    if(HistoryDealGetInteger(t.deal, DEAL_MAGIC) != Magic) return;
    long en = HistoryDealGetInteger(t.deal, DEAL_ENTRY);
+   long dr = HistoryDealGetInteger(t.deal, DEAL_REASON);
    if(en != DEAL_ENTRY_OUT && en != DEAL_ENTRY_OUT_BY) return;
    ulong pid = (ulong)HistoryDealGetInteger(t.deal, DEAL_POSITION_ID);
-   double pnl = 0; long sid = 0;
+   double pnl = 0; long sid = 0, gid = 0;
    if(HistorySelectByPosition(pid))
       for(int i = 0; i < HistoryDealsTotal(); i++)
       {
          ulong d = HistoryDealGetTicket(i);
          pnl += HistoryDealGetDouble(d, DEAL_PROFIT) + HistoryDealGetDouble(d, DEAL_SWAP) + HistoryDealGetDouble(d, DEAL_COMMISSION);
          string cm = HistoryDealGetString(d, DEAL_COMMENT);
-         if(StringFind(cm, "SXB") == 0) sid = (long)StringToInteger(StringSubstr(cm, 3));
+         if(StringFind(cm, "SXB") == 0){ sid = CmId(cm); gid = CmGid(cm); }
       }
-   if(sid > 0) Report(sid, "closed", ",\"pnl\":" + DoubleToString(pnl, 2));
+   if(sid > 0)
+   {
+      string why = "other";                                    // what really closed it
+      if(gid > 0 && GlobalVariableCheck(GV("X", gid))) why = "basket";
+      else if(dr == DEAL_REASON_TP) why = "tp";
+      else if(dr == DEAL_REASON_SL) why = "sl";
+      else if(dr == DEAL_REASON_CLIENT || dr == DEAL_REASON_MOBILE || dr == DEAL_REASON_WEB) why = "manual";
+      else if(dr == DEAL_REASON_EXPERT) why = "bot";
+      string extra = ",\"pnl\":" + DoubleToString(pnl, 2) + ",\"reason\":\"" + why + "\"";
+      if(why == "basket" && GlobalVariableCheck(GV("S", gid))) extra += ",\"gpnl\":" + DoubleToString(GlobalVariableGet(GV("S", gid)), 2);
+      Report(sid, "closed", extra);
+   }
 }

@@ -182,6 +182,19 @@ def create(uid, sym, s, pl, reason='', now=None):
     return ids
 
 
+def basket(s, uid=''):
+    """If the pending signal `s` belongs to a burst group, return the WHOLE group for the EA: {gid, symbol, side, sl, tp, risk_pct, each, gb, ids:'1,2,3'}.
+    Only entries still pending, of this person only. Anything that is not a burst group (a normal single trade, a normal multi-entry group) -> None."""
+    if not s: return None
+    g = (st.q('SELECT grp FROM signals WHERE id=?', (s['id'],), True) or {}).get('grp')
+    m = meta(g) if g else None
+    if not m: return None
+    ids = [r['id'] for r in st.q("SELECT id FROM signals WHERE grp=? AND status='pending' AND COALESCE(uid,'')=? ORDER BY id", (g, uid or ''))]
+    if not ids: return None
+    return {'gid': int(g), 'symbol': s['symbol'], 'side': s['side'], 'sl': s['sl'], 'tp': s['tp'], 'risk_pct': s['risk_pct'],
+            'each': m.get('each'), 'gb': m.get('gb', 0), 'ids': ','.join(str(i) for i in ids)}
+
+
 # ---------------- what the app shows ----------------
 def explain(uid='', now=None, admin=False):
     """-> {state, why}. state: off | running | waiting | ready."""

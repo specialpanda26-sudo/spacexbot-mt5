@@ -172,6 +172,10 @@ def ea_sync():
     st.x("UPDATE signals SET status='expired' WHERE status IN('pending','sent') AND created<? AND COALESCE(uid,'')=?", (now - 180, who))
     s = st.q("SELECT id,symbol,side,sl,tp,risk_pct FROM signals WHERE status='pending' AND COALESCE(uid,'')=? ORDER BY id LIMIT 1", (who,), one=True)
     if s and who and risk.bot_on(who) and not links.bot_on(who): s = None          # R7: the bot is on only for Deriv, so this signal is for Deriv; the MT5 bridge never sees it (the MT5 bridge itself ignores the bot flag)
+    bk = burst.basket(s, who) if s else None          # a burst group goes out ALL AT ONCE as one basket (the old way would send one entry per poll)
+    if bk:
+        for i in bk['ids'].split(','): st.x("UPDATE signals SET status='sent' WHERE id=?", (int(i),)); lag.stamp(int(i), 'sent')
+        return jsonify(signal=None, basket=bk, bot=links.bot_on(who), symbols=st.get('symbols'))
     if s: st.x("UPDATE signals SET status='sent' WHERE id=?", (s['id'],)); lag.stamp(s['id'], 'sent')
     return jsonify(signal=s, bot=links.bot_on(who), symbols=st.get('symbols'))
 
@@ -189,16 +193,20 @@ def ea_report():
     elif stt == 'rejected': st.x("UPDATE signals SET status='rejected',note=? WHERE id=?", (str(d.get('reason'))[:120], sid))
     elif stt == 'closed':
         st.x("UPDATE signals SET status='closed',pnl=?,closed=? WHERE id=?", (d.get('pnl'), int(time.time()), sid))
-        if str(d.get('reason')) in ('tp', 'sl', 'manual', 'bot', 'other'): st.put('closedby:%d' % sid, str(d.get('reason')))      # only what the bridge really reported
+        if str(d.get('reason')) in ('tp', 'sl', 'manual', 'bot', 'basket', 'other'): st.put('closedby:%d' % sid, str(d.get('reason')))      # only what the bridge really reported
     if stt in ('open', 'closed'):
         s = st.q('SELECT * FROM signals WHERE id=?', (sid,), True)
         if s:
             if stt == 'closed': learn.log(who, 'closed', s['strategy'], s['symbol'], s['side'], s['pnl'], {'reason': str(d.get('reason') or '')})
-            title = f"{s['symbol']} {'opened' if stt == 'open' else 'closed'}"
-            body = f"{s['side'].upper()} lots {s['lots']}" if stt == 'open' else f"P/L {s['pnl']}"
-            sbauth.notify(title, body, key=f'sig{sid}-{stt}', only=only)
-            if stt == 'open': push.notify(1, f'sig{sid}-open', sym=s['symbol'], side=s['side'], entry=s['fill'] or s['entry'], sl=s['sl'], tp=s['tp'], risk=s['risk_pct'], strategy=s['strategy'], **aud)
-            else: push.notify({'tp': 2, 'sl': 3}.get(str(d.get('reason')), 4), f'sig{sid}-closed', sym=s['symbol'], pnl=s['pnl'], **aud)
+            bg = s.get('grp') if s.get('grp') and burst.meta(s['grp']) else None          # a burst group: ONE alert for the whole group, not one per entry
+            kk = f'bg{bg}-{stt}' if bg else f'sig{sid}-{stt}'
+            try: gp = float(d['gpnl']) if bg and d.get('gpnl') is not None else s['pnl']
+            except (TypeError, ValueError): gp = s['pnl']
+            title = f"{s['symbol']} {'burst ' if bg else ''}{'opened' if stt == 'open' else 'closed'}"
+            body = f"{s['side'].upper()} lots {s['lots']}" if stt == 'open' else f"{'Burst ' if bg else ''}P/L {gp}"
+            sbauth.notify(title, body, key=kk, only=only)
+            if stt == 'open': push.notify(1, kk, sym=s['symbol'], side=s['side'], entry=s['fill'] or s['entry'], sl=s['sl'], tp=s['tp'], risk=s['risk_pct'], strategy=s['strategy'], **aud)
+            else: push.notify({'tp': 2, 'sl': 3}.get(str(d.get('reason')), 4), kk, sym=s['symbol'], pnl=gp, **aud)
     if stt == 'rejected': push.notify(8, f'sig{sid}-skipped', sym=(st.q('SELECT symbol FROM signals WHERE id=?', (sid,), True) or {}).get('symbol', ''), reason=str(d.get('reason') or '')[:80], **aud)
     return jsonify(ok=True)
 

@@ -67,5 +67,5 @@ T('the journal numbers are unchanged', j['stats']['trades'] == 2 and j['stats'][
 # ---- 5. the page and the code are wired ----
 here = os.path.join(HERE, '..'); page = open(os.path.join(here, 'static', 'index.html'), encoding='utf-8').read(); app_src = open(os.path.join(here, 'backend', 'app.py'), encoding='utf-8').read()
 T('the page has the Why the bot took this trade block and the old-trade message', 'Why the bot took this trade' in page and 'before the bot started writing its reasons down' in page and 'whyBlock(d)' in page)
-T('app.py saves the reason on both inserts', app_src.count('rsn.pack(s)') == 1 and app_src.count('uid,reason)') == 1 and app_src.count('uid,grp,reason)') == 1)
+T('app.py saves the reason on both inserts', app_src.count('rsn.pack(s)') == 2 and app_src.count('uid,reason)') == 1 and app_src.count('uid,grp,reason)') == 1)
 bad = [n for n, ok in R if not ok]; print('\n%d checks, %d failed' % (len(R), len(bad))); sys.exit(1 if bad else 0)
