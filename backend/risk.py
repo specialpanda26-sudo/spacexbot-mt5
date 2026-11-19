@@ -9,6 +9,15 @@ def _week_start(now):
 
 def _pnl_since(ts, uid=''): return st.q("SELECT COALESCE(SUM(pnl),0) p FROM signals WHERE closed>=? AND COALESCE(uid,'')=?", (ts, uid), True)['p']
 
+def open_count(uid='', a=None):
+    """R4: positions this person holds right now, MT5 and Deriv together, plus signals about to open (pending / sent), so a burst of signals cannot all slip past the limit.
+    Assumption: the account snapshot's open count is the larger of what the EA reports and what we recorded (an MT5 position opened by hand counts when the EA reports it)."""
+    a = a if a is not None else st.acct(uid)
+    r = {x['status']: x['n'] for x in st.q("SELECT status, COUNT(*) n FROM signals WHERE COALESCE(uid,'')=? AND status IN('open','pending','sent') GROUP BY status", (uid,))}
+    try: ea = int(float(a.get('open') or 0))
+    except (TypeError, ValueError): ea = 0
+    return max(ea, r.get('open', 0)) + r.get('pending', 0) + r.get('sent', 0)
+
 def global_gate(now=None, uid=''):
     now = now or time.time(); a = st.acct(uid); d = dt.datetime.utcfromtimestamp(now)
     if not links.bot_on(uid): return False, 'bot off'
@@ -17,7 +26,7 @@ def global_gate(now=None, uid=''):
         if a.get('demo') is not True and not (links.mode(uid) == 'real' and a.get('allow_live')): return False, 'real account needs Real mode and live trading allowed'
     elif a.get('demo') is False and not a.get('allow_live'): return False, 'live account not allowed in EA'
     if d.weekday() >= 5 or (d.weekday() == 4 and d.hour >= 20): return False, 'weekend/Friday-night risk'
-    if int(a.get('open', 0)) >= int(st.fget('max_open')): return False, 'max open positions'
+    if open_count(uid, a) >= limits.max_open(uid): return False, 'max open positions'
     since = int(now - now % 86400)
     mt = limits.trades(uid)      # 0 = no daily trade limit (the stop loss and the loss limits protect the account)
     if mt > 0:

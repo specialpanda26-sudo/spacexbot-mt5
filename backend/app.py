@@ -391,7 +391,7 @@ def status(u):
     nh = news.next_high(now)
     return jsonify(bot=links.bot_on(sc), ea_online=now - a.get('seen', 0) < 120, can_trade=ok, why=why,
                    day_loss_pct=round(max(0, -dpnl) / bal * 100, 2) if bal else 0, day_loss_limit=st.fget('max_daily_loss_pct'),
-                   open=int(a.get('open', 0)), max_open=int(st.fget('max_open')), news_next=nh, news_loaded=news.loaded(),
+                   open=risk.open_count(sc, a), max_open=limits.max_open(sc), news_next=nh, news_loaded=news.loaded(),
                    news_lock=st.get('news_lock') == '1', exposure=risk.exposure(sc), demo=a.get('demo'),
                    strategies=[f.__name__ for f in __import__('backend.strategies', fromlist=['ALL']).ALL], off=[x for x in (st.get('strategies_off') or '').split(',') if x])
 
@@ -531,9 +531,9 @@ def limits_get(u): return jsonify(limits.view(_mine(u)))
 @need(verified=True)
 def limits_set(u):
     j = _j()
-    try: out = limits.save(_mine(u), j.get('max_trades'), j.get('streak'))
+    try: out = limits.save(_mine(u), j.get('max_trades'), j.get('streak'), j.get('max_open'), j.get('ceiling') if u['admin'] else None)
     except ValueError as e: return jsonify(error=str(e)), 400
-    learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in ('max_trades', 'streak')}})
+    learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in ('max_trades', 'streak', 'max_open', 'ceiling')}})
     return jsonify(out)
 
 @app.post('/api/admin/testprice')

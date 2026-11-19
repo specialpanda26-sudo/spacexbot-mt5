@@ -2757,6 +2757,57 @@ build()})();
 })();
 /*S4-end*/
 </script>
+
+<script>
+/* ---- R4: "Positions at once" on the Bot tab. Each person picks how many trades the bot may hold at the same time (MT5 and Deriv together), from 1 up to the owner's
+   ceiling. Saved on the server (POST /api/limits {max_open}); the risk gate enforces it. "Default" = the owner's number. ---- */
+/*R4-start*/
+(function () {
+  var vb = document.getElementById("view-bot"); if (!vb || !window.SXA) return;
+  var C = document.createElement("div"); C.className = "card"; C.id = "posc"; C.hidden = true;
+  var sb = document.getElementById("botstatec"); vb.insertBefore(C, sb ? sb.nextSibling : vb.firstChild);
+  var L = null, OPEN = null, BUSY = false, ERR = "", FAIL = 0, SIG = "", TK = 0, LH = "";
+  function me() { try { return SXA.user(); } catch (e) { return null; } }
+  function ready() { var u = me(); return !!(u && u.verified); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function html() {
+    var h = '<div class="card-head"><h2>Positions at once</h2>' + (L ? '<span class="chip info" id="posChip">' + (OPEN != null ? "Open now " + OPEN + " of " + L.max_open_now : "Limit " + L.max_open_now) + "</span>" : "") + "</div>";
+    if (!L) return h + '<p class="note">' + esc(ERR || "Loading...") + "</p>";
+    var b = '<button type="button" data-mo="0" aria-pressed="' + (!L.max_open) + '">Default (' + L.max_open_default + ")</button>";
+    for (var i = 1; i <= L.max_open_ceiling; i++) b += '<button type="button" data-mo="' + i + '" aria-pressed="' + (L.max_open === i) + '">' + i + "</button>";
+    h += '<div class="seg" id="posSeg" role="group" aria-label="Positions at once" style="justify-self:start;max-width:100%;overflow-x:auto">' + b + "</div>";
+    h += '<p class="note">How many trades the bot may hold at the same time, MT5 and Deriv together. At the limit it waits for one to close. Higher means more risk at once. The owner allows up to ' + L.max_open_ceiling + ".</p>";
+    if (ERR) h += '<p class="note">' + esc(ERR) + "</p>";
+    return h;
+  }
+  function paint() {
+    var on = ready(); C.hidden = !on; C.style.display = on ? "" : "none";
+    if (!on) { if (LH) { C.innerHTML = ""; LH = ""; } return; }
+    var h = html(); if (h !== LH) C.innerHTML = LH = h;
+  }
+  function load() {
+    if (!ready() || BUSY) return Promise.resolve(); BUSY = true;
+    var a = SXA.api("/api/limits").then(function (j) { L = j; FAIL = 0; ERR = ""; }, function () { FAIL++; if (!L) ERR = "Cannot reach the server."; });
+    var b = SXA.api("/api/live").then(function (j) { OPEN = j && typeof j.open === "number" ? j.open : null; }, function () {});
+    return Promise.all([a, b]).then(function () { BUSY = false; paint(); });
+  }
+  C.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-mo]"); if (!b || BUSY || !L) return;
+    var n = parseInt(b.dataset.mo, 10); if (n === (L.max_open || 0)) return;
+    BUSY = true; ERR = "";
+    SXA.api("/api/limits", { method: "POST", body: { max_open: n } }).then(function (j) { L = j; if (window.sxToast) window.sxToast(n ? "Up to " + n + " positions at once" : "Back to the default"); },
+      function (x) { ERR = (x && x.message) || "Not saved."; }).then(function () { BUSY = false; paint(); });
+  });
+  setInterval(function () {
+    var u = me(), sg = u ? [u.uid, !!u.verified].join("|") : ""; TK++;
+    if (sg !== SIG) { SIG = sg; L = null; OPEN = null; ERR = ""; paint(); if (u) load(); return; }
+    if (ready() && vb.classList.contains("on") && !document.hidden && TK % 15 === 0) load();
+  }, 1000);
+  new MutationObserver(function () { if (ready() && vb.classList.contains("on") && !BUSY) load(); }).observe(vb, { attributes: true, attributeFilter: ["class"] });
+  paint();
+})();
+/*R4-end*/
+</script>
 <script>
 /*S6-start*/
 /* ---- Real Journal + Stats. Asks GET /api/journal for the signed-in person's closed trades and hands them to the Closed trades, Journal and Stats tabs (SXJ, renderTrades, jr, sr). No sample data anywhere. ---- */
