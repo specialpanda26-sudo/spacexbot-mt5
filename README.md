@@ -62,6 +62,14 @@ Sign-up and "forgot password" both email a **6-digit code**. Supabase sends it, 
 Limits to know (check your dashboards, they change): Supabase allows one auth email per address every 60 seconds (the app's resend button waits 60 s to match) and caps emails per hour under *Auth > Rate Limits*; Resend's free plan has daily and monthly send caps.
 What the app shows when something is wrong: "Too many emails sent" or "Please wait N seconds" = a rate limit; "We could not send the email" = the SMTP or sender-domain setup (step 1 or 2); "That code is wrong or has expired" = wrong, expired or already-used code (use Resend code).
 
+## Sign-in emails sent by this app through Resend (instead of Supabase SMTP)
+Supabase still makes and checks the 6-digit code. Its **Send Email hook** hands the code to this app, which emails it with Resend using `emails/verify-email.html` and `emails/reset-password.html`.
+1. **Resend:** domain verified, `RESEND_API_KEY` and `MAIL_FROM` set in Render (same as the receipts above).
+2. **Supabase > Auth > Hooks > Send Email:** turn on, type *HTTPS*, URL = `BASE_URL/api/auth/send-email`, then *Generate secret* and copy it (it looks like `v1,whsec_...`).
+3. **Render:** add `SEND_EMAIL_HOOK_SECRET` = that secret. Redeploy.
+4. **Test:** sign up with a new address and ask for a reset code. Both emails now come from `MAIL_FROM`. A wrong secret gives 401 in the Supabase hook log; a Resend problem shows as "We could not send the email" (check the Render log line "auth email failed").
+The Supabase SMTP settings and email templates are not used while the hook is on. Sign-in codes are not counted in `MAIL_ALERT_CAP` / `MAIL_HARD_CAP`.
+
 ## Email alerts and receipts (Resend API)
 Separate from sign-in codes. In Render add `RESEND_API_KEY` and `MAIL_FROM` (an address on your verified Resend domain, for example `spaceXBot <alerts@yourdomain.com>`).
 - **Receipt:** one email to the buyer when a plan is credited (M-Pesa or PayPal). A repeat callback never sends a second one.

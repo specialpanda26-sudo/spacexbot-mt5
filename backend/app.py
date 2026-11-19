@@ -11,7 +11,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped. Please try again.'), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import lag, multi, automarkets, prefs, scale, burst, groupcap
+from . import lag, multi, automarkets, prefs, scale, burst, groupcap, authmail
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -730,6 +730,18 @@ def p_mpesa(u):
     except ValueError as e: return jsonify(error=str(e)), 400
     except PermissionError as e: return jsonify(error=str(e)), 429
     except RuntimeError as e: return jsonify(error=str(e)), 502
+
+@app.post('/api/auth/send-email')
+def auth_send_email():
+    """Supabase 'Send Email' auth hook: delivers the sign-up / password-reset code through Resend. Refuses anything not signed with SEND_EMAIL_HOOK_SECRET."""
+    raw = request.get_data()
+    if not authmail.verify(request.headers, raw): return jsonify(error={'http_code': 401, 'message': 'bad signature'}), 401
+    try: p = json.loads(raw or b'{}')
+    except ValueError: p = {}
+    ok, why = authmail.send(p, request.headers.get('webhook-id', ''))
+    if ok: return jsonify({}), 200
+    print('auth email failed:', why)
+    return jsonify(error={'http_code': 500, 'message': 'We could not send the email'}), 500
 
 @app.post('/api/webhooks/payhero')
 @app.post('/api/pay/payhero/callback')
