@@ -105,6 +105,12 @@ def stk_push(uid, pid, phone_raw):
     if prov_ref: st.x("UPDATE payments SET checkout_id=? WHERE ref=? AND status='pending'", (prov_ref, ref))
     return ref
 
+def _cbphone(v):
+    """Digits of the payer phone, or '' when the gateway masked it (2547***123) or sent too few digits: a masked number cannot be compared."""
+    s = str(v or '')
+    d = ''.join(c for c in s if c.isdigit())
+    return '' if any(c in s for c in '*xX\u2022') or len(d) < 9 else d
+
 def parse_webhook(body):
     """Reads nested {response:{...}} and flat snake_case callbacks."""
     b = body if isinstance(body, dict) else {}
@@ -122,7 +128,7 @@ def parse_webhook(body):
         except (TypeError, ValueError): return 0.0
     code = get('resultcode', 'failedcode')
     return {'status': status, 'ref': str(get('externalreference', 'externalref') or '').strip(), 'amount': num(get('amount', 'value')),
-            'phone': ''.join(c for c in str(get('phonenumber', 'phone', 'msisdn', 'recipient') or '') if c.isdigit()),
+            'phone': _cbphone(get('phonenumber', 'phone', 'msisdn', 'recipient')),
             'receipt': str(get('providerreference', 'mpesareceiptnumber', 'mpesareceipt', 'transactionid', 'reference', 'receipt', 'checkoutrequestid') or '').strip().upper(),
             'code': int(num(code)) or None,
             'success': status in ('SUCCESS', 'COMPLETE', 'COMPLETED', 'PAID', 'CONFIRMED'),

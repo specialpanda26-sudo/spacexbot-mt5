@@ -280,7 +280,7 @@ void OnTradeTransaction(const MqlTradeTransaction &t, const MqlTradeRequest &rq,
 {
    if(t.type != TRADE_TRANSACTION_DEAL_ADD) return;
    if(!HistoryDealSelect(t.deal)) return;
-   if(HistoryDealGetInteger(t.deal, DEAL_MAGIC) != Magic) return;
+   // no magic check here: a trade closed by hand (phone or terminal) has magic 0. Our trades are found below by their SXB comment.
    long en = HistoryDealGetInteger(t.deal, DEAL_ENTRY);
    long dr = HistoryDealGetInteger(t.deal, DEAL_REASON);
    if(en != DEAL_ENTRY_OUT && en != DEAL_ENTRY_OUT_BY) return;
