@@ -47,7 +47,7 @@ S(max_open='4')
 st.x("INSERT INTO signals(symbol,side,status,created) VALUES('EURUSD','buy','open',?)", (int(time.time()),))
 A._last_scan.clear(); st.x("DELETE FROM kv WHERE k LIKE 'lastbar:%'"); SCORE[0] = 3; A._scan('XAUUSD', '')
 T('positions already open use up the room (1 open, max 4 -> 3 entries)', st.q("SELECT COUNT(*) n FROM signals WHERE grp IS NOT NULL", (), True)['n'] == 3)
-S(max_open='10', max_trades_day='2'); rows = run(3); T('the max trades a day also limits the entries', len(rows) == 2)
+S(max_open='10', max_trades_day='2'); rows = run(3); T('the max trades a day counts setups, so it does not trim the entries', len(rows) == 6)
 S(max_trades_day='0')
 
 S(max_open='10', cooldown_min='0', max_ccy_exposure='2', news_lock='0')

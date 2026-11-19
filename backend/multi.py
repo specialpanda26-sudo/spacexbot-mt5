@@ -27,11 +27,7 @@ def entries(uid, score, strategy=''):
         if not scale.hot(uid, strategy)[0]: return 1
     elif sc < min_score() and not p['entries']: return 1
     room = limits.max_open(uid) - risk.open_count(uid)
-    mt = limits.trades(uid)
-    if mt > 0:
-        used = st.q("SELECT COUNT(*) n FROM signals WHERE created>=? AND status IN('pending','sent','open','closed') AND COALESCE(uid,'')=?", (st.day_start(), uid), True)['n']
-        room = min(room, mt - used)
-    return max(1, min(c, room))
+    return max(1, min(c, room))          # the daily limit counts setups, not entries (risk.global_gate): one setup of n entries is one trade
 
 def share(base, n):
     """Risk percent for each entry. One entry keeps the exact normal number."""
