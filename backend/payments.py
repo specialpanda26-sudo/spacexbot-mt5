@@ -76,6 +76,11 @@ def bump(key, limit):
         if n >= limit: return False
         st.put(k, n + 1); return True
 
+def note(ref, text):
+    """Owner-only detail for one attempt (never shown to the customer)."""
+    try: st.put('paylog:' + ref, str(text)[:400])
+    except Exception as e: print('paylog failed', e)
+
 def _new(uid, provider, pid, amount, cur, phone=''):
     ref = 'SXB-' + secrets.token_hex(5).upper()
     st.x('INSERT INTO payments(ref,uid,provider,plan,amount,currency,status,created,phone) VALUES(?,?,?,?,?,?,?,?,?)',
@@ -100,12 +105,16 @@ def stk_push(uid, pid, phone_raw):
         r = requests.post(base() + '/api/v2/payments', json=body, headers=_head(), timeout=25)
         j = r.json() if r.content else {}
     except Exception as e:
+        note(ref, 'no answer from gateway: %s | provider=%s network=%s' % (str(e)[:150], prov, body.get('network_code', '-')))
         _mark(ref, 'failed', 'not_sent'); raise RuntimeError('Could not reach the payment gateway') from e
     if r.status_code >= 300:
-        print('finoq refused', r.status_code, str(j)[:300]); _mark(ref, 'failed', 'not_sent'); raise RuntimeError('Could not send the M-Pesa prompt. Try again.')
+        print('finoq refused', r.status_code, str(j)[:300])
+        note(ref, 'gateway refused %s: %s | provider=%s network=%s' % (r.status_code, str(j)[:220], prov, body.get('network_code', '-')))
+        _mark(ref, 'failed', 'not_sent'); raise RuntimeError('Could not send the M-Pesa prompt. Try again.')
     d = j.get('data') if isinstance(j.get('data'), dict) else j
     prov_ref = str(d.get('reference') or d.get('Reference') or d.get('CheckoutRequestID') or d.get('checkout_request_id') or '').strip()
     if prov_ref: st.x("UPDATE payments SET checkout_id=? WHERE ref=? AND status='pending'", (prov_ref, ref))
+    note(ref, 'prompt accepted by gateway | provider=%s network=%s' % (prov, body.get('network_code', '-')))
     return ref
 
 def _cbphone(v):
@@ -156,6 +165,7 @@ def settle_deposit(cb):
         if cb['phone'] and p['phone'] and cb['phone'][-9:] != ''.join(c for c in p['phone'] if c.isdigit())[-9:]:
             print('finoq: callback phone differs from the typed one, crediting anyway', p['ref'])    # gateway field can be the merchant's
         if cb['amount'] < p['amount']:
+            note(p['ref'], 'underpaid: gateway says %s, price is %s' % (cb['amount'], p['amount']))
             st.x("UPDATE payments SET status='underpaid',receipt=? WHERE ref=? AND status IN('pending','expired')", (cb['receipt'] or None, p['ref'])); return 'underpaid'
         n = st.x("UPDATE payments SET status='paid',receipt=?,paid_at=? WHERE ref=? AND status IN('pending','expired')", (cb['receipt'] or None, int(time.time()), p['ref']), count=True)
         if not n: return 'duplicate'
@@ -166,7 +176,7 @@ def settle_deposit(cb):
         return 'paid'
     if cb['failed']:
         if p['status'] != 'pending': return 'duplicate'
-        _mark(p['ref'], 'failed', FAIL_REASON.get(cb['code'], 'other')); return 'failed'
+        note(p['ref'], 'callback: status=%s code=%s' % (cb['status'], cb['code'])); _mark(p['ref'], 'failed', FAIL_REASON.get(cb['code'], 'other')); return 'failed'
     return 'waiting'
 
 def check_status(p):

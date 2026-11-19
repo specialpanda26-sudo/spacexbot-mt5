@@ -695,6 +695,15 @@ def admin_lag(u): return jsonify(lag.report())
 @need(admin=True)
 def admin_markets(u): return jsonify(automarkets.status())
 
+@app.get('/api/admin/payments')
+@need(admin=True)
+def admin_payments(u):
+    """Owner: the last 50 payment attempts with status and the gateway's own words, so a failing number can be explained."""
+    mask = lambda s: (s[:4] + '***' + s[-2:]) if s and len(s) > 6 else (s or '')
+    rows = st.q('SELECT ref,uid,provider,plan,amount,status,created,extra,phone FROM payments ORDER BY created DESC LIMIT 50')
+    return jsonify(payments=[{'ref': r['ref'], 'uid': r['uid'], 'provider': r['provider'], 'plan': r['plan'], 'amount': r['amount'], 'status': r['status'],
+                              'created': r['created'], 'reason': r['extra'], 'phone': mask(r.get('phone') or ''), 'detail': st.get('paylog:' + r['ref']) or ''} for r in rows])
+
 @app.get('/api/plans')
 def plans(): return jsonify(pay.plans())
 
