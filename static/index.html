@@ -2354,7 +2354,7 @@ build()})();
       if (u && u.verified) {      /* signed in: never show made-up numbers. Say what is missing instead. */
         var eh = !D && FAIL < 3 ? '<div class="card-head"><h2>Live account</h2></div><p class="note">Loading your account...</p>'
           : !D ? '<div class="card-head"><h2>Live account</h2></div><p class="note">Cannot reach the server. Check your internet and try again.</p>'
-          : '<div class="card-head"><h2>No account connected yet</h2></div><p class="note">Your balance, profit today and open trades will show here as soon as a broker is connected. Nothing on this screen is invented.</p><button class="btn primary" type="button" data-go="connect">Connect a broker</button>';
+          : '<div class="card-head"><h2>No account connected yet</h2></div><p class="note">Your balance, profit today and open trades will show here as soon as a broker is connected. Nothing on this screen is invented. If your broker already looks connected, the Connect tab says exactly what is missing.</p><button class="btn primary" type="button" data-go="connect">Connect a broker</button>';
         E.hidden = false; E.style.display = ""; if (E.innerHTML !== eh) E.innerHTML = eh; showSamples(false);
       } else {      /* signed out: no sample numbers either */
         var sh = '<div class="card-head"><h2>Sign in to see your account</h2></div><p class="note">Your balance, profit today and trades show here once you sign in with a verified email and connect a broker. Nothing on this screen is invented.</p>';
@@ -2621,7 +2621,7 @@ build()})();
   function paint() {
     if (!ready()) { box.hidden = true; msg.hidden = false; msg.textContent = me() ? "Verify your email to see your bridge status." : "Sign in to see your real bridge status."; if (head) { head.className = HEAD0; head.innerHTML = HT0; } return; }
     if (!D) { box.hidden = true; msg.hidden = false; msg.textContent = FAIL ? "Cannot reach the server right now. Check your internet and try again." : "Checking your bridge..."; return; }
-    msg.hidden = true; box.hidden = false; var h = html(D); if (h !== box.getAttribute("data-h")) { box.innerHTML = h; box.setAttribute("data-h", h); } setChip(chip(D));
+    msg.hidden = true; box.hidden = false; var h = html(D); if (h !== box.getAttribute("data-h")) { box.innerHTML = h; box.setAttribute("data-h", h); } setChip(window.__sx2 ? window.__sx2.chip(chip(D)) : chip(D));
   }
   function poll() {
     if (!ready() || BUSY) return Promise.resolve(); BUSY = true;
@@ -2638,6 +2638,66 @@ build()})();
   paint();
 })();
 /*S7-end*/
+</script>
+
+<script>
+/* ---- Section R2: the Connect tab says WHY something is not connected (GET /api/connections). One row per way of connecting (Deriv, MT5 bridge): a chip, one plain sentence, and
+   when something is wrong the checks and the first thing to do. The chip on the Your broker card now counts Deriv too (before it only looked at the MT5 bridge). ---- */
+/*R2-start*/
+(function () {
+  "use strict";
+  var vc = document.getElementById("view-connect");
+  if (!vc || !window.SXA) return;
+  var D = null, BUSY = false, FAIL = 0, SIG = "", TK = 0, LH = "";
+  var C = document.createElement("div"); C.className = "card"; C.id = "whyc"; C.hidden = true; vc.insertBefore(C, vc.firstChild);
+  var head = vc.querySelector(".grid2 .card-head .chip");
+  var LAB = { ok: "Connected", stale: "Offline", problem: "Not connected", none: "Not set up" }, CLS = { ok: "ok", stale: "watch", problem: "stop", none: "info" };
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function me() { try { return SXA.user(); } catch (e) { return null; } }
+  function ready() { var u = me(); return !!(u && u.verified); }
+  function over(prev) {      /* the chip on the Your broker card: keep a green MT5 chip, otherwise say Connected / Offline if Deriv is */
+    if (prev && prev[0] === "ok") return prev;
+    if (!D || !D.rows) return prev;
+    var up = D.rows.filter(function (r) { return r.state === "ok"; }), old = D.rows.filter(function (r) { return r.state === "stale"; });
+    if (up.length) return ["ok", "Connected - " + up.map(function (r) { return r.id; }).join(" + ")];
+    if (old.length) return ["watch", "Offline - " + old.map(function (r) { return r.id; }).join(" + ")];
+    return prev;
+  }
+  window.__sx2 = { chip: over, esc: esc };
+  function row(r) {
+    var h = '<div class="jrow"><b>' + esc(r.name) + '</b><span class="chip ' + (CLS[r.state] || "info") + '"><span class="dot"></span>' + (LAB[r.state] || "Unknown") + "</span></div>";
+    h += '<p class="note">' + esc(r.headline) + "</p>";
+    if (r.state !== "ok" && r.checks && r.checks.length) {
+      h += '<ol class="steps">' + r.checks.map(function (c) { return "<li><div><b>" + esc(c.t) + (c.ok ? " - OK" : " - needs attention") + "</b>" + (c.ok ? "" : "<span>" + esc(c.d) + "</span>") + "</div></li>"; }).join("") + "</ol>";
+    }
+    if (r.state === "ok" && r.bot_why) h += '<p class="note">' + esc(r.bot_why) + "</p>";
+    return h;
+  }
+  function html() {
+    var h = '<div class="card-head"><h2>Connection check</h2>' + (D ? '<span class="chip ' + (D.state === "connected" ? "ok" : "stop") + '"><span class="dot"></span>' + (D.state === "connected" ? "Connected" : "Not connected") + "</span>" : "") + "</div>";
+    if (!D) return h + '<p class="note">' + (FAIL ? "Cannot reach the server right now. Check your internet and try again." : "Checking your connections...") + "</p>";
+    h += '<p class="note"><b>' + esc(D.message) + "</b></p>";
+    return h + (D.rows || []).map(row).join("");
+  }
+  function paint() {
+    var on = ready(); C.hidden = !on; C.style.display = on ? "" : "none";
+    if (!on) { if (LH) { C.innerHTML = ""; LH = ""; } return; }
+    var h = html(); if (h !== LH) C.innerHTML = LH = h;
+    if (head && D && !/\bok\b/.test(head.className)) { var o = over(null); if (o) { head.className = "chip " + o[0]; head.innerHTML = '<span class="dot"></span>' + esc(o[1]); } }
+  }
+  function poll() {
+    if (!ready() || BUSY) return Promise.resolve(); BUSY = true;
+    return SXA.api("/api/connections", { method: "GET" }).then(function (j) { D = j; FAIL = 0; }, function () { FAIL++; }).then(function () { BUSY = false; paint(); });
+  }
+  setInterval(function () {
+    var u = me(), sg = u ? [u.uid, !!u.verified].join("|") : ""; TK++;
+    if (sg !== SIG) { SIG = sg; D = null; FAIL = 0; paint(); if (ready()) poll(); return; }
+    if (ready() && vc.classList.contains("on") && !document.hidden && TK % 5 === 0) poll();
+  }, 1000);
+  new MutationObserver(function () { if (ready() && vc.classList.contains("on") && !document.hidden) poll(); }).observe(vc, { attributes: true, attributeFilter: ["class"] });
+  paint();
+})();
+/*R2-end*/
 </script>
 
 <script>

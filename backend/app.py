@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard, tradeview, pnlreset
+from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard, tradeview, pnlreset, connwhy
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -403,6 +403,14 @@ def bridge_api(u):
     if not site.startswith('http'): site = request.host_url.rstrip('/'); site = site.replace('http://', 'https://') if 'localhost' not in site and '127.0.0.1' not in site else site
     return jsonify(bridge.describe(u['uid'], bool(u['admin']), _paid(u['uid']), site))
 
+@app.get('/api/connections')
+@need(verified=True)
+def connections_api(u):
+    """Section R2: for Deriv and for the MT5 bridge: really connected or not, the checks, and the first thing to fix (nothing made up, no secrets)."""
+    site = (os.getenv('BASE_URL') or '').strip().rstrip('/')
+    if not site.startswith('http'): site = request.host_url.rstrip('/'); site = site.replace('http://', 'https://') if 'localhost' not in site and '127.0.0.1' not in site else site
+    return jsonify(connwhy.snapshot(u['uid'], bool(u['admin']), _paid(u['uid']), site))
+
 @app.get('/api/botstate')
 @need(verified=True)
 def botstate_api(u):
@@ -414,18 +422,32 @@ def botstate_api(u):
         out['deriv'] = {'on': bool(bk.bot_flag(u['uid'], 'Deriv')), 'why': row.get('why')}
     return jsonify(out)
 
+def _deriv_bot(u, on):
+    """The Bot tab's Start / Stop also drives Deriv when this person has a Deriv token. None if fine, or (message, status) if it cannot start."""
+    r = st.q("SELECT status FROM broker_links WHERE uid=? AND broker='Deriv'", (u['uid'],), True)
+    if not r: return None
+    if on and r['status'] != 'verified': return 'Your Deriv token is not checked yet. Save it again to check it.', 400
+    bk.set_bot(u['uid'], 'Deriv', on)
+    if on: deriv.kick(u['uid'], _scan, _paid)
+    else: bk.set_why(u['uid'], 'Deriv', 'bot off')
+    return None
+
 @app.post('/api/bot')
 @need(verified=True)
 def bot_switch(u):
     """Section 4: the Bot tab's Start / Stop. The owner switches the owner's EA; everyone else switches their own link (plan and Phone-mode rules as before)."""
     on = _j().get('on') is True
     if u['admin']:
-        st.put('bot_enabled', '1' if on else '0'); learn.log(u['uid'], 'setting', data={'path': request.path, 'on': on})
+        st.put('bot_enabled', '1' if on else '0'); learn.log(u['uid'], 'setting', data={'path': request.path, 'on': on}); _deriv_bot(u, on)
         return jsonify(ok=True, **botstate.explain(u['uid'], True))
     if on and not u['active']: return jsonify(error='subscription required'), 402
     if on and assist.is_on(u['uid']): return jsonify(error='Turn off Phone mode first, so the same signal is not traded twice.'), 400
-    if not links.get(u['uid']): return jsonify(error='Make your MT5 key on the Connect tab first.'), 400
-    links.set_bot(u['uid'], on); learn.log(u['uid'], 'setting', data={'path': request.path, 'on': on})
+    has_mt5 = bool(links.get(u['uid']))
+    if not has_mt5 and not st.q("SELECT 1 FROM broker_links WHERE uid=? AND broker='Deriv'", (u['uid'],), True): return jsonify(error='Make your MT5 key on the Connect tab first.'), 400
+    if has_mt5: links.set_bot(u['uid'], on)
+    err = _deriv_bot(u, on)
+    if err and not has_mt5: return jsonify(error=err[0]), err[1]
+    learn.log(u['uid'], 'setting', data={'path': request.path, 'on': on})
     return jsonify(ok=True, **botstate.explain(u['uid'], False, _paid(u['uid'])))
 
 @app.get('/api/live')

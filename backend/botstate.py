@@ -1,7 +1,7 @@
 """Section 4: what the bot is really doing, in plain words. Nothing here is made up: it reads the real switch, the EA's last
 heartbeat, the real risk gates and the note the scanner leaves after each candle ('scan:<uid>:<symbol>')."""
 import json, time
-from . import store as st, links, risk
+from . import store as st, links, risk, brokers as bk
 
 PLAIN = {
     'bot off': 'The bot is stopped. Tap Start bot.',
@@ -36,11 +36,33 @@ def _last(uid):
 
 def _words(why): why = str(why or ''); return PLAIN.get(why) or ('Waiting: %s.' % why if why else 'Waiting for a safe moment.')
 
+def _deriv(uid):
+    """The person's Deriv connection row (no secrets), or None."""
+    try: return next((r for r in bk.view(uid) if r['name'] == 'Deriv'), None)
+    except Exception: return None
+
+def _dbot(uid):
+    from . import deriv
+    try: return bool(deriv._bot(uid))
+    except Exception: return False
+
+def _deriv_state(uid, dv):
+    """What the bot is doing on Deriv, from the note the Deriv loop saves after every round (brokers.REASONS)."""
+    if not _dbot(uid): return {'running': False, 'state': 'stopped', 'why': PLAIN['bot off'], 'code': 'bot off', 'broker': 'Deriv'}
+    code = dv.get('why_code'); out = {'running': True, 'broker': 'Deriv', 'checked': dv.get('why_t')}
+    if code == 'ok': out.update(state='watching', code='watching', why='Connected to Deriv and watching. It checks the market each time a new 15-minute candle closes.')
+    elif code: out.update(state='waiting', code=code, why=dv.get('why') or 'Waiting.')
+    else: out.update(state='waiting', code='starting', why='Deriv is connected. The first check runs within a minute.')
+    return out
+
 def explain(uid, admin, paid=True, now=None):
     """-> {running, state, why, checked}. state: stopped | waiting | watching. Scope is the owner's EA for admins, the person's own link otherwise."""
     now = now or time.time(); sc = '' if admin else uid
     running = links.bot_on(sc); a = st.acct(sc); out = {'running': running, 'checked': None}
     if not admin and not paid: out.update(state='stopped', why=PLAIN['plan ended'], code='plan ended'); return out
+    mt5_up = bool(a.get('seen')) and now - a.get('seen', 0) <= 120
+    dv = None if mt5_up else _deriv(uid)
+    if dv is not None and (_dbot(uid) or not running): out.update(_deriv_state(uid, dv)); return out          # Deriv is the one that is running (or nothing is): say so, not "MT5 is not talking"
     if not running: out.update(state='stopped', why=PLAIN['bot off'], code='bot off'); return out
     if not a.get('seen') or now - a.get('seen', 0) > 120: out.update(state='waiting', why=PLAIN['EA offline'], code='EA offline'); return out
     ok, why = risk.global_gate(now, uid=sc)
