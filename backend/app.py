@@ -11,7 +11,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped. Please try again.'), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import lag
+from . import lag, multi
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -85,10 +85,18 @@ def _scan(sym, uid=''):
     if not s: botstate.note(uid, sym, 'nosetup'); return
     ok, why = risk.symbol_gate(sym, s['side'], uid=uid)
     if not ok: print('skip', sym, s['side'], why); botstate.note(uid, sym, 'skip', why); return
+    n = multi.entries(uid, s['score']); base = links.risk(uid) if uid else st.fget('risk_pct')          # R8: 1 unless the owner allows more and the setup is strong
     sid = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
-         (sym, s['side'], s['entry'], s['sl'], s['tp'], links.risk(uid) if uid else st.fget('risk_pct'), s['strategy'], s['score'], 'pending', int(time.time()), uid or None))
+         (sym, s['side'], s['entry'], s['sl'], s['tp'], multi.share(base, n), s['strategy'], s['score'], 'pending', int(time.time()), uid or None))
     sbauth.notify(f"{s['side'].upper()} {sym}", si.alert_body(s['strategy'], s['entry'], s['sl'], s['tp']), key=f'sig{sid}-new', only=uid or None)
     lag.created(sid, m15[-1]['t'], uid)
+    if n > 1:
+        st.x('UPDATE signals SET grp=? WHERE id=?', (sid, sid))
+        for _ in range(n - 1):
+            sib = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid,grp) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+                       (sym, s['side'], s['entry'], s['sl'], s['tp'], multi.share(base, n), s['strategy'], s['score'], 'pending', int(time.time()), uid or None, sid))
+            lag.created(sib, m15[-1]['t'], uid)
+        print('multi-entry', sym, s['side'], n, 'entries sharing', base, 'percent')
     botstate.note(uid, sym, 'signal')
     learn.log(uid, 'signal', s['strategy'], sym, s['side'], data={'score': s['score'], 'adx': s['adx'], 'entry': s['entry']})
     if not uid: assist.announce(sid)          # phone-mode people get the signal with their own lot size

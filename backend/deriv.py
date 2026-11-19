@@ -275,7 +275,7 @@ def _resnap(sess, uid, acct):
     st.set_acct({'balance': b, 'equity': b, 'open': n, 'demo': acct['demo'], 'allow_live': bk.mode(uid, 'Deriv') == 'real', 'src': 'deriv'}, uid)
     bk.set_bal(uid, 'Deriv', b, acct['currency'], acct['demo'])
 
-def _trade(sess, uid, acct, bal, now):
+def _trade_one(sess, uid, acct, bal, now):
     if not acct['demo'] and os.getenv('DERIV_REAL') != '1': return          # real money needs the owner's switch as well as the customer's Real mode
     s = st.q("SELECT * FROM signals WHERE uid=? AND status='pending' AND created>=? ORDER BY id LIMIT 1", (uid, int(now) - 120), True)
     if not s or not _bot(uid): return
@@ -291,6 +291,16 @@ def _trade(sess, uid, acct, bal, now):
     else:
         st.x("UPDATE signals SET status='rejected',note=? WHERE id=?", (r[:120], s['id'])); _report(uid, s['id'], 'rejected', r)
     _resnap(sess, uid, acct)
+
+def _trade(sess, uid, acct, bal, now):
+    """R8: open every entry that is waiting (up to 12), one after the other, so a multi-entry setup is not spread over minutes.
+    Stops at once if one buy could not be confirmed (it stays 'sent') or nothing moved."""
+    for _ in range(12):
+        pend = lambda: st.q("SELECT COUNT(*) n FROM signals WHERE uid=? AND status='pending'", (uid,), True)['n']
+        before = pend()
+        if not before: return
+        _trade_one(sess, uid, acct, bal, now)
+        if pend() >= before or st.q("SELECT COUNT(*) n FROM signals WHERE uid=? AND status='sent'", (uid,), True)['n']: return
 
 def _track(sess, uid, acct):
     """Ask Deriv about every open trade of this customer; when one has been sold (stop, target or by hand) record the result."""

@@ -42,6 +42,7 @@ ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kv ENABLE ROW LEVEL SECURITY;
 ALTER TABLE signals ADD COLUMN IF NOT EXISTS uid TEXT;
 ALTER TABLE signals ADD COLUMN IF NOT EXISTS broker TEXT;
+ALTER TABLE signals ADD COLUMN IF NOT EXISTS grp BIGINT;
 CREATE INDEX IF NOT EXISTS ix_signals_uid ON signals(uid);
 CREATE TABLE IF NOT EXISTS links(uid TEXT PRIMARY KEY,key_hash TEXT,mode TEXT DEFAULT 'demo',bot INTEGER DEFAULT 0,risk DOUBLE PRECISION,acct TEXT,seen BIGINT DEFAULT 0,created BIGINT);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_links_key ON links(key_hash);
@@ -96,7 +97,7 @@ def init():
             try: c.execute('ALTER TABLE users ADD COLUMN ' + col)
             except sqlite3.OperationalError: pass
         c.execute('CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL')
-        for col in ('uid TEXT', 'broker TEXT'):      # broker = which connection traded it ('Deriv' / 'MT5'); older rows are empty and journal.broker_of() works it out
+        for col in ('uid TEXT', 'broker TEXT', 'grp INTEGER'):      # broker = which connection traded it ('Deriv' / 'MT5'); older rows are empty and journal.broker_of() works it out
             try: c.execute('ALTER TABLE signals ADD COLUMN ' + col)
             except sqlite3.OperationalError: pass
         c.execute('CREATE INDEX IF NOT EXISTS ix_signals_uid ON signals(uid)')
@@ -132,7 +133,7 @@ DEFAULTS = {'bot_enabled': '0', 'risk_pct': os.getenv('RISK_PCT', '1.0'), 'max_o
     'max_weekly_loss_pct': os.getenv('MAX_WEEKLY_LOSS_PCT', '6.0'), 'max_losing_streak': os.getenv('MAX_LOSING_STREAK', '3'),
     'streak_cooldown_h': os.getenv('STREAK_COOLDOWN_H', '4'), 'max_ccy_exposure': os.getenv('MAX_CCY_EXPOSURE', '2'),
     'news_lock': os.getenv('NEWS_LOCK', '1'), 'news_before_min': os.getenv('NEWS_BEFORE_MIN', '30'), 'news_after_min': os.getenv('NEWS_AFTER_MIN', '30'),
-    'feed_on': os.getenv('FEED_ON', '0'), 'strategies_off': '', 'strategies_solo': '', 'auto_disable': '0', 'auto_disable_min_trades': '20', 'plans': ''}
+    'multi_entries': os.getenv('MULTI_ENTRIES', '1'), 'multi_min_score': os.getenv('MULTI_MIN_SCORE', '3'), 'feed_on': os.getenv('FEED_ON', '0'), 'strategies_off': '', 'strategies_solo': '', 'auto_disable': '0', 'auto_disable_min_trades': '20', 'plans': ''}
 def get(k):
     r = q('SELECT v FROM kv WHERE k=?', (k,), True); return r['v'] if r else DEFAULTS.get(k)
 def put(k, v): x('INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', (k, str(v)))

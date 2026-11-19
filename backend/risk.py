@@ -45,7 +45,7 @@ def global_gate(now=None, uid=''):
     if bal and _pnl_since(since, uid) <= -bal * st.fget('max_daily_loss_pct') / 100: return False, 'daily loss limit hit'
     if bal and _pnl_since(_week_start(now), uid) <= -bal * st.fget('max_weekly_loss_pct') / 100: return False, 'weekly loss limit hit'
     k = limits.streak(uid)
-    last = st.q("SELECT pnl,closed FROM signals WHERE status='closed' AND pnl IS NOT NULL AND COALESCE(uid,'')=? ORDER BY closed DESC LIMIT ?", (uid, k))
+    last = _setups(st.q("SELECT pnl,closed,grp FROM signals WHERE status='closed' AND pnl IS NOT NULL AND COALESCE(uid,'')=? ORDER BY closed DESC LIMIT ?", (uid, k * 12)))[:k]
     if k > 0 and len(last) == k and all(x['pnl'] < 0 for x in last) and now - last[0]['closed'] < st.fget('streak_cooldown_h') * 3600:
         return False, f'{k} losses in a row: cooling down'
     return True, 'ok'
@@ -54,10 +54,23 @@ def _legs(sym, side):
     s = sym.upper(); sg = 1 if side == 'buy' else -1
     return {s[:3]: sg, s[3:6]: -sg} if len(s) >= 6 else {s: sg}
 
+def _setups(rows):
+    """R8: entries opened together for one setup (same grp) count as ONE result; their profit and loss are added up."""
+    out, at = [], {}
+    for x in rows:
+        g = x['grp']
+        if g and g in at: at[g]['pnl'] += x['pnl']; continue
+        o = {'pnl': x['pnl'], 'closed': x['closed']}; out.append(o)
+        if g: at[g] = o
+    return out
+
 def exposure(uid=''):
     """Net directional exposure per currency over open/pending/sent signals."""
-    net = {}
-    for r in st.q("SELECT symbol,side FROM signals WHERE status IN('pending','sent','open') AND COALESCE(uid,'')=?", (uid,)):
+    net, seen = {}, set()
+    for r in st.q("SELECT id,symbol,side,grp FROM signals WHERE status IN('pending','sent','open') AND COALESCE(uid,'')=?", (uid,)):
+        k = r['grp'] or -r['id']          # R8: every entry of one setup counts once
+        if k in seen: continue
+        seen.add(k)
         for c, v in _legs(r['symbol'], r['side']).items(): net[c] = net.get(c, 0) + v
     return net
 
