@@ -72,6 +72,29 @@ Rule for every alerts section: add a test that sends the kind through a FAKE FCM
 - **N2**: Added `backend/alerts.py` with a single daemon thread background loop and job registration table (including self-test). Raised `PUSH_DAILY_CAP` default to 30 (`backend/push.py`, `.env.example`). Implemented custom per-user quiet hours (`quiet_start`, `quiet_end`) in notification preferences (`backend/accounts.py`). Ensured trade results (kinds 2, 3, 4) bypass quiet hours while others obey. Documented Render free tier sleep behavior in README.md. Added unit tests in `tests/test_push3.py`.
 - **Remaining**: Sections N3, N5, N6.
 
+## MASTER PLAN Nov 19 (one section per reply; the owner says "go N"; update the status here after every section)
+Numbering follows the "Trading bot demo account fixes" chat (Sections 1-5), extended with 6-10. Status was checked against the code on Nov 19. The older S1-S6 list below is the backend half of Sections 6, 9 and 10 (S2+S3 = 6, S4+S5 = 9, S6 = 10).
+Facts found in the code (do not guess, re-check if in doubt):
+- Home, Trades, Journal, Stats and Charts run on HARDCODED sample data in static/index.html (PAIRS, OPEN, HIST, EQ, genSeries). They never read /api/signals or /api/stats. The chip "Demo data" is always on.
+- The big Start/Stop on the Bot tab (#botToggle) only flips a local flag and says "Bot started in demo mode". The scan log under it is invented (random pairs). The REAL switch is the Start bot button on the Platforms tile (Connect tab, S1).
+- The Connect screen "Test connection" (#testBtn) is a hardcoded message ("No signal from X yet... next build step"). It never calls the server. The real bridge exists (ea/SpaceXBridge.mq5 -> POST /api/ea/sync) and GET /api/status already returns ea_online.
+- The owner's MT5/EA path stays off until setting bot_enabled = 1 (default 0, risk.global_gate says "bot off"). Deriv needs DERIV_APP_ID + BROKER_KEY on Render, a verified token and the Start bot button. Render free sleeps after 15 min idle.
+- A signal needs 2 strategies to agree (min_confluence 2) unless the strategy has "may trade alone"; also max 6 trades a day, 60 min cooldown, news lock, no trades Sat/Sun or Fri after 20:00 UTC. First backtest: roughly break-even. Not proven.
+- Download buttons in static/index.html point to github.com/specialpanda26-sudo/spacexbot-mt5./releases/... If the real repo is another owner or name, that is the 404.
+Sections:
+- 1 DONE  Clean-up: tab letters (H, M, B, T, C) and every "Replay setup" button removed (apply_p1_cleanup.py, already in static/index.html). If the site still shows them, Render has not redeployed.
+- 2 DONE  Account card on the Bot tab (/*S2-start*/ in static/index.html; tests/test_acct.py): broker balance, Demo/Real badge, switch, typing REAL, any switch stops the bot.
+- 3 TODO  Live stats: Home + header show the real balance, equity, today's profit in dollars, open trades, refreshed every few seconds; "Demo data" chip only when no broker is connected.
+- 4 TODO  Real Start/Stop on the Bot tab (calls the real bot switch), the fake scan log replaced by the real status, the card says in plain words why it is not trading (uses brokers.REASONS, /api/status gates, last scan result per market).
+- 5 TODO  Test and deploy checklist (Render env DERIV_APP_ID, BROKER_KEY, EA_KEY, bot_enabled; run after 3-4 and again at the end).
+- 6 TODO  Real Journal and Stats: delete HIST/OPEN/EQ sample data, signals.broker column, GET /api/journal, Journal + Stats tabs read it, empty state "No trades yet", All/Wins/Losses filter, broker picker.
+- 7 TODO  Connect screen shows the REAL bridge: replace the hardcoded #testBtn message with /api/status (EA online, last seen, balance, demo or live, login) and plain setup help.
+- 8 TODO  Download links (APK and desktop .exe 404): needs the owner's real GitHub owner/repo; make the link come from ONE setting; check the Actions release exists.
+- 9 TODO  P&L card (today / week / total, win rate, equity curve) per broker, then chart pop-ups (entry, SL, TP, exit).
+- 10 TODO Auto-trading for other brokers (MT5 brokers only through the EA or the Windows app, never from the server).
+Recommended order: 3, 4, 6, 7, 8, 5, 9, 10.
+PARKED until the owner says so: phone notification panel (L1 live panel with arrow, L2 cartoons per situation), N3-N6, video 4C (orb_session.py), the backtest on real data, the wiring check of videos 3-5.
+
 ## PLAN Nov 19 - "bot does not trade / no real trades in Journal and P&L" (one section per session; tick each when done)
 Findings (read from code): the Deriv loop needs DERIV_APP_ID + BROKER_KEY on Render; it used to need an MT5 link row for the bot switch (admins could never have one); the app's Journal/Stats tabs are device-local and never read /api/signals or /api/stats; signals have no broker column; admins read scope '' while Deriv trades are saved under the admin's own uid.
 - S1  DONE - make the bot run and say why. brokers.bot_flag/set_bot/set_why/REASONS (kv rows bot:<uid>:<broker>, why:<uid>:<broker>); deriv._bot (the Deriv switch wins once used, else the old MT5-link switch); deriv.run_once records the reason on every round; round_all/kick; POST /api/brokers/Deriv/bot (no MT5 key needed, admins allowed); admin health names missing BROKER_KEY / DERIV_APP_ID and shows the loop heartbeat; Platforms tile in static/index.html (/*S1-start*/../*S1-end*/: Start/Stop bot button + the reason line); tests/test_bot1.py (29 checks, mutation-checked). Env docs in .env.example. NOT done here: admin dashboard still reads scope '' (see S2).
