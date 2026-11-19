@@ -53,6 +53,14 @@ Rule for every alerts section: add a test that sends the kind through a FAKE FCM
 - Owner trades now reach admin phones only (see N1b); remember this when N4 adds 'new signal to every subscriber'.
 - Server route names #signals/#stats/#plans do not exist in the app; N1 maps them on the phone (signals,stats -> trades, plans -> profile).
 
+## SECTIONS 1-5 (cleanup, account card, live stats, real trading, deploy; the owner's Nov 19 plan, one per reply)
+- Section 1  DONE: tab letters (H M B T C) and every "Replay setup" button removed (apply_p1_cleanup.py).
+- Section 2  DONE: Account card on the Bot tab (broker balance, Demo/Real badge and switch, REAL typed to confirm, any switch stops the bot); code between /*S2-start*/ and /*S2-end*/; tests/test_acct.py.
+- Section 3  DONE: live stats. backend/livestats.py + GET /api/live (today's profit in dollars, equity, balance, floating, open trades, per-account rows, fresh/stale); the page gets a Live card on Home and a strip on the Bot tab, the top chip says Live Demo / Live Real / Offline / Demo data, the sample equity, stats and open-trades cards hide while real numbers show; refresh every 5 s on Home/Bot; code between /*S3-start*/ and /*S3-end*/; tests/test_live3.py.
+- Section 4  TODO: real trading from the Bot tab: Start/Stop control the real bot (Deriv from the server; MT5 brokers only through the EA or Windows app), the fake scan log is replaced by the real status, the card says WHY it is not trading.
+- Section 5  TODO: test everything together, deploy checklist (Render env, APK rebuild when native files change).
+- Owner wishes still open: live "Bot running" notification with up/down arrow and expanded cartoon per situation (L1, L2 in the alerts plan below), at least 20 useful alerts a day (N2-N6).
+
 ## UI / BACKEND FEATURES for the strategies (one section per session, same rules as above)
 - A1  DONE: backend/strategy_info.py (INFO = readable name + one line per strategy; label(); listing()) + GET /api/admin/strategies + tests/test_sinfo.py. The test FAILS when a strategy is registered without an INFO line, so add one whenever you add a strategy.
 - A2  DONE (static/index.html admin panel: Strategies card with on/off switches + Results table, code between /*A2-start*/ and /*A2-end*/; tests/test_strui.py runs it in node). Original spec: admin panel "Strategies" card in static/index.html (function panel(), next to Test price / Packages): one row per strategy from GET /api/admin/strategies: name, description, trend/reversion tag, on/off switch (POST /api/admin/settings {strategies_off: "a,b"}), and a results table (n, win rate, average) with "no trades yet" when n = 0. Build from the site's own cards and inputs.
@@ -72,3 +80,28 @@ Findings (read from code): the Deriv loop needs DERIV_APP_ID + BROKER_KEY on Ren
 - S4  TODO - profit and loss card (today / week / total, win rate, equity curve) per broker.
 - S5  TODO - chart pop-ups for a trade (entry, SL, TP, exit markers) from the stored candles.
 - S6  TODO - auto-trading for the other brokers (MT5 brokers via desktop app/EA; Binance only if wanted).
+
+
+## HOW THE OWNER WORKS (follow exactly)
+- Phone only: Termux inside the repo folder, push to GitHub from there. Never ask him to download anything from the AI. He talks by voice dictation: read the intent, not the exact words.
+- Every reply, in this order: (1) each NEW file as `cat > path << 'EOF' ... EOF` (full content, pasted in the reply), (2) edits to existing files as `python - << 'EOF'` with an edit(path, old, new, marker) helper (replace only if old appears EXACTLY ONCE, print "STOP: cannot find exactly once" and exit otherwise, skip when the marker is already there, so it is safe to run twice; copy the helper from the newest apply script), (3) one block that runs all tests and prints only each last line, plus the numbers to expect, (4) git add (named files), git commit -m, git pull --rebase, git push.
+- No temp files, no /tmp or any TMP directory, no downloads. One section per reply; end with the next section and tell him to reply "go". Short, phone-readable, lead with what to run.
+- BEFORE answering: unzip the repo, apply your own blocks exactly as you will give them to a FRESH copy, run EVERY test (`for f in tests/test_*.py; do echo "$f: $(python $f 2>&1 | tail -1)"; done`, read the FAIL lines too; every test must end N/N passed, test_push3 prints OK), run it twice to prove the patch is safe to run twice, and mutation-check new rules by breaking each on purpose (a test must go red).
+- static/index.html is ~1 MB with inline JavaScript: after editing it, test_strui and the node harness tests must still pass. Anchors repeat, so confirm each is unique. Prefer small separate script blocks with /*Xn-start*/ ... /*Xn-end*/ markers, and prefer static/live.js for non-layout code.
+- Never claim a strategy works: only tools/backtest.py on real data can say that.
+
+## WEBSITE VIBE RULE (owner: every upgrade must match the website)
+Same look everywhere (app, admin, notifications, cartoons): dark navy with green for profit, berry for loss, sky for info, sun for warnings; a light theme exists too. Use the site's CSS variables (--bg --surface --surface2 --line --fg --muted --green --berry --sky --sun --good --bad), never hard-coded colours, and the site's own components (.card, .card-head, .chip ok/stop/watch/info, .stats/.stat, .list/.row, .btn, .inp, .seg, window.sxToast). Copy how the Account card (/*S2-start*/) and the Live card (/*S3-start*/) are built. Wording: friendly, facts only, never a promise of profit. Notification cartoons: backend/notifart.py (same dark-haired outline character).
+
+## NEEDS OUTSIDE THE CODE
+Render env: ADMIN_EMAILS, ADMIN_PASS, EA_KEY (owner's MT5 EA), FCM_SERVICE_ACCOUNT (without it no push), BROKER_KEY + DERIV_APP_ID (Deriv trading), PUBLIC_URL, optional PUSH_DAILY_CAP, LIVE_NOTIF=0, Supabase, Resend, payment keys. APK: android-wrapper/google-services.json must exist at build time or the APK has no push. The APK loads the site from Render: static/*.js and backend/*.py changes reach phones after a Render deploy; android-wrapper/native/*.java changes need an APK rebuild. Render FREE sleeps after 15 min idle (timers only run while awake).
+MT5 on the owner's PC (FBS demo): Tools > Options > Expert Advisors > Allow WebRequest for the Render address; attach ea/SpaceXBridge.mq5 to the XAUUSD chart (F7 opens its settings: ServerUrl = Render address without a slash, EAKey = EA_KEY, SymbolSuffix empty, AllowLive false); Algo Trading button green; read the Experts tab (error 4014/4060 = address not allowed).
+
+## PROMPT TO PASTE INTO THE NEXT AI (attach the repo zip)
+```
+You are continuing a project: a gold/forex signal bot (Python/Flask backend, static/index.html app + admin panel, MT5 EA bridge, Deriv trading, Android app wrapper, Termux workflow). I attached the repo as a zip. Read docs/HANDOFF.md FIRST, all of it, including "HOW THE OWNER WORKS" and "WEBSITE VIBE RULE". It lists what is DONE and what is REMAINING. Do the NEXT section: first the unfinished item of the "SECTIONS 1-5" plan, then the PHONE ALERTS N3..N6, then the S2..S6 plan, then strategy 4C, then the backtest. One section per reply.
+
+I work only from my phone in Termux and push to GitHub from there; I do not download files from you. Deliver exactly as HANDOFF says: new files as cat heredocs, edits to existing files as python heredocs with the edit() helper (replace only if the old text appears exactly once, skip when the marker is there), one block that runs all tests (last line of each), one git block. No temp files. Before you answer: apply your own blocks to a fresh copy of the repo, run every test twice, mutation-check your new rules, and update docs/HANDOFF.md in the same patch. Every upgrade must match the website look and wording. Keep replies short; end with the next section and tell me to reply "go".
+
+Start now: tell me in one short line what you found in docs/HANDOFF.md, then give me the blocks for the next section.
+```

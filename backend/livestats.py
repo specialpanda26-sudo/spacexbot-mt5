@@ -1,0 +1,62 @@
+"""Section 3: live numbers for the app (Home card, Bot tab strip, the top chip). GET /api/live returns, for the signed-in person only:
+state ('none' no broker balance read yet, 'live' at least one account answered recently, 'stale' balances exist but nothing answered recently),
+mode ('real' if any connected account is real, else 'demo'), balance, equity, floating (equity - balance), today (profit of trades closed since the
+server's day start), today_pct, open (count), trades (up to 8 open trades: symbol, side, price, strategy_name), sources (one row per account).
+Where the numbers come from (nothing is invented, nothing is sample data):
+- Deriv: the balance the Deriv loop last read (brokers bal:<uid>:Deriv). Deriv has no floating figure, so equity = balance.
+- MT5: the account the EA last reported (the owner's EA for admins, the personal key for everyone else): balance, equity, open.
+- today / open trades: the signals table, scope = the person's own uid (+ the owner's EA scope '' for admins).
+Amounts are shown with $ like the live notification: the EA does not report the account currency (assumption).
+ASSUMPTIONS (tunable): FRESH seconds a Deriv balance counts as live; MT5_FRESH is the same limit the rest of the app uses for 'EA online'."""
+import time
+from . import store as st, links, brokers as bk, strategy_info as si
+
+FRESH = 180
+MT5_FRESH = 120
+MAX_TRADES = 8
+
+
+def _f(v):
+    try: x = float(v)
+    except (TypeError, ValueError): return None
+    return x if x == x and abs(x) != float('inf') else None
+
+
+def _mode(demo, saved):
+    return 'demo' if demo is True else 'real' if demo is False else ('real' if saved == 'real' else 'demo')
+
+
+def sources(uid, admin, now):
+    out = []
+    for b in bk.view(uid):
+        if b.get('name') != 'Deriv': continue
+        bal = _f(b.get('balance'))
+        if bal is None: continue
+        t = _f(b.get('bal_t')) or 0
+        out.append({'id': 'Deriv', 'name': 'Deriv', 'mode': _mode(b.get('acct_demo'), b.get('mode')), 'balance': round(bal, 2), 'equity': round(bal, 2), 'open': None,
+                    'online': now - t < FRESH, 'age': int(max(0, now - t)) if t else None})
+    lk = None if admin else links.get(uid)
+    a = st.acct('') if admin else (st.acct(uid) if lk else {})
+    bal = _f(a.get('balance'))
+    if bal is not None:
+        eq = _f(a.get('equity')); eq = bal if eq is None else eq
+        seen = _f(a.get('seen')) or 0; n = a.get('open')
+        out.append({'id': 'MT5', 'name': 'MT5', 'mode': _mode(a.get('demo'), (lk or {}).get('mode')), 'balance': round(bal, 2), 'equity': round(eq, 2),
+                    'open': int(n) if _f(n) is not None else None, 'online': now - seen < MT5_FRESH, 'age': int(max(0, now - seen)) if seen else None})
+    return out
+
+
+def snapshot(uid, admin=False, now=None):
+    now = now or time.time(); src = sources(uid, admin, now); sc = ('' if admin else uid, uid)
+    t = st.q("SELECT COALESCE(SUM(pnl),0) p, COUNT(*) n FROM signals WHERE closed>=? AND pnl IS NOT NULL AND COALESCE(uid,'') IN (?,?)", (st.day_start(), sc[0], sc[1]), True) or {}
+    today = round(_f(t.get('p')) or 0.0, 2)
+    n_sig = (st.q("SELECT COUNT(*) n FROM signals WHERE status='open' AND COALESCE(uid,'') IN (?,?)", sc, True) or {}).get('n') or 0
+    rows = st.q("SELECT symbol,side,fill,entry,strategy FROM signals WHERE status='open' AND COALESCE(uid,'') IN (?,?) ORDER BY id DESC LIMIT %d" % MAX_TRADES, sc) or []
+    bal = round(sum(s['balance'] for s in src), 2); eq = round(sum(s['equity'] for s in src), 2)
+    state = 'none' if not src else 'live' if any(s['online'] for s in src) else 'stale'
+    base = bal - today
+    return {'state': state, 'mode': 'real' if any(s['mode'] == 'real' for s in src) else 'demo', 'balance': bal, 'equity': eq, 'floating': round(eq - bal, 2),
+            'today': today, 'today_pct': round(today / base * 100, 2) if base > 0 else 0.0, 'today_n': int(t.get('n') or 0),
+            'open': max(int(n_sig), sum(s['open'] or 0 for s in src)),
+            'trades': [{'symbol': r['symbol'], 'side': str(r['side']).lower(), 'price': r.get('fill') or r.get('entry'), 'strategy_name': si.label(r['strategy'])} for r in rows],
+            'sources': src, 'ts': int(now)}

@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv
+from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -391,6 +391,12 @@ def status(u):
                    open=int(a.get('open', 0)), max_open=int(st.fget('max_open')), news_next=nh, news_loaded=news.loaded(),
                    news_lock=st.get('news_lock') == '1', exposure=risk.exposure(sc), demo=a.get('demo'),
                    strategies=[f.__name__ for f in __import__('backend.strategies', fromlist=['ALL']).ALL], off=[x for x in (st.get('strategies_off') or '').split(',') if x])
+
+@app.get('/api/live')
+@need(verified=True)
+def live_api(u):
+    """Section 3: the person's own live numbers (balance, equity, today, open trades). No secrets in the answer."""
+    return jsonify(livestats.snapshot(u['uid'], bool(u['admin'])))
 
 @app.get('/api/stats')
 @need(active=True)

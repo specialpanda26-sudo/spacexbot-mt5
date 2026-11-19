@@ -2307,6 +2307,94 @@ build()})();
 </script>
 
 <script>
+/*S3-start*/
+/* ---- Live numbers: today's profit, equity and open trades, refreshed every few seconds. A Live card on Home, a one-line strip on the Bot tab, and the top chip says the truth (Live Demo / Live Real / Offline / Demo data). Uses GET /api/live. ---- */
+(function () {
+  "use strict";
+  var vh = document.getElementById("view-home"), vb = document.getElementById("view-bot");
+  if (!vh || !vb || !window.SXA) return;
+  var chip = document.querySelector(".top-actions .chip.demo"), CH = chip ? { h: chip.innerHTML, c: chip.className, t: chip.title } : null;
+  var D = null, GOT = 0, FAIL = 0, BUSY = false, SIG = "", TK = 0, LH = "", LB = "";
+  var H = document.createElement("div"); H.className = "card"; H.id = "livec"; H.hidden = true;
+  var bu = vh.querySelector(".buddy-card"); vh.insertBefore(H, bu ? bu.nextSibling : vh.firstChild);
+  var S = document.createElement("div"); S.className = "card"; S.id = "livebar"; S.hidden = true;
+  var ac = document.getElementById("acctc"); vb.insertBefore(S, ac ? ac.nextSibling : vb.firstChild);
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function me() { try { return SXA.user(); } catch (e) { return null; } }
+  function money(n, sign) {
+    var x = Math.round(Number(n) * 100) / 100; if (!isFinite(x)) return "-";
+    return (x < 0 ? "-" : sign && x > 0 ? "+" : "") + "$" + Math.abs(x).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function arrow(n) { return n > 0 ? "\u25B2 " : n < 0 ? "\u25BC " : ""; }
+  function cls(n) { return n > 0 ? "good" : n < 0 ? "bad" : "muted"; }
+  function ago() { if (!GOT) return ""; var s = Math.max(0, Math.round((Date.now() - GOT) / 1000)); return s < 5 ? "just now" : s < 90 ? s + " s ago" : Math.round(s / 60) + " min ago"; }
+  function kind() { return !D || D.state === "none" ? "none" : (FAIL >= 3 || D.state === "stale") ? "stale" : "live"; }
+  function badge(k) {
+    if (k === "stale") return '<span class="chip watch"><span class="dot"></span>Offline</span>';
+    var real = D.mode === "real"; return '<span class="chip ' + (real ? "stop" : "ok") + '"><span class="dot"></span>Live ' + (real ? "Real" : "Demo") + "</span>";
+  }
+  function stat(l, v, c) { return '<div class="stat"><span>' + l + '</span><b class="num' + (c ? " " + c : "") + '">' + esc(v) + "</b></div>"; }
+  function pct() { return D.today_pct ? " (" + (D.today_pct > 0 ? "+" : "") + D.today_pct.toFixed(1) + "%)" : ""; }
+  function warn(k) { return k !== "stale" ? "" : '<p class="note">' + (FAIL >= 3 ? "Cannot reach the server. These are the last numbers we saw." : "Your broker looks offline. These are the last numbers we saw.") + "</p>"; }
+
+  function homeHtml(k) {
+    var t = D.today, h = '<div class="card-head"><h2>Live account</h2>' + badge(k) + "</div>";
+    h += '<div class="equity num">' + esc(money(D.equity)) + '</div><div class="num ' + cls(t) + '">' + arrow(t) + esc(money(t, true)) + " today" + esc(pct()) + "</div>";
+    h += '<div class="stats">' + stat("Balance", money(D.balance)) + stat("Equity", money(D.equity)) + stat("Today", money(t, true), cls(t)) + stat("Open trades", String(D.open || 0)) + "</div>";
+    h += '<ul class="list">' + (D.trades || []).map(function (x) {
+      var up = x.side === "buy";
+      return '<li class="row"><span class="ic ' + (up ? "up" : "dn") + '">' + (up ? "\u25B2" : "\u25BC") + '</span><span class="t">' + esc(x.symbol) + " " + (up ? "Buy" : "Sell") + '</span><span class="r num">' + (x.price ? "at " + esc(x.price) : "") + '</span><span class="r2">' + esc(x.strategy_name || "") + "</span></li>";
+    }).join("") + "</ul>";
+    h += warn(k) + '<p class="note">' + (D.floating ? "Floating " + esc(money(D.floating, true)) + " | " : "") + (D.sources || []).map(function (s) { return esc(s.name) + " " + esc(s.mode) + (s.online ? "" : " offline"); }).join(" | ") + " | updated " + esc(ago()) + "</p>";
+    return h;
+  }
+  function barHtml(k) {
+    var t = D.today;
+    return '<div class="card-head"><h2>Live</h2>' + badge(k) + '</div><p class="note"><b class="num">Equity ' + esc(money(D.equity)) + '</b> | Today <span class="' + cls(t) + '">' + arrow(t) + esc(money(t, true)) + "</span> | " + esc(String(D.open || 0)) + " open | updated " + esc(ago()) + "</p>" + warn(k);
+  }
+  function samples() {
+    var a = [], e = document.getElementById("eq"), o = document.getElementById("openList"), s = document.getElementById("stats");
+    if (e && e.closest) a.push(e.closest(".card")); if (s) a.push(s); if (o && o.closest) a.push(o.closest(".card"));
+    return a.filter(Boolean);
+  }
+  function showSamples(on) { samples().forEach(function (el) { el.style.display = on ? "" : "none"; }); }
+  function setChip(k) {
+    if (!chip) return;
+    if (k === "none") { if (chip.className !== CH.c) chip.className = CH.c; if (chip.innerHTML !== CH.h) chip.innerHTML = CH.h; chip.title = CH.t; return; }
+    var real = D.mode === "real", txt = k === "stale" ? "Offline" : real ? "Live Real" : "Live Demo", c = "chip app-only " + (k === "stale" ? "watch" : real ? "stop" : "ok"), h = '<span class="dot"></span>' + txt;
+    if (chip.className !== c) chip.className = c; if (chip.innerHTML !== h) chip.innerHTML = h;
+    chip.title = k === "stale" ? "Your broker looks offline. These are the last numbers we saw." : "Real numbers from your connected account.";
+  }
+  function paint() {
+    var u = me(), k = u && u.verified && D ? kind() : "none";
+    setChip(k);
+    if (k === "none") { H.hidden = S.hidden = true; H.style.display = S.style.display = "none"; if (LH || LB) { H.innerHTML = S.innerHTML = ""; LH = LB = ""; } showSamples(true); return; }
+    var h = homeHtml(k), b = barHtml(k);
+    H.hidden = S.hidden = false; H.style.display = S.style.display = "";
+    if (h !== LH) H.innerHTML = LH = h; if (b !== LB) S.innerHTML = LB = b;
+    showSamples(false);
+  }
+  function poll() {
+    var u = me(); if (!u || !u.verified || BUSY) return Promise.resolve();
+    BUSY = true;
+    return SXA.api("/api/live", { method: "GET" }).then(function (j) { D = j; GOT = Date.now(); FAIL = 0; }, function () { FAIL++; }).then(function () { BUSY = false; paint(); });
+  }
+  setInterval(function () {      /* every second: notice sign-in / sign-out, keep "updated Ns ago" true; every 5 s on Home and Bot (20 s elsewhere): ask the server */
+    var u = me(), sg = u ? [u.uid, !!u.verified].join("|") : ""; TK++;
+    if (sg !== SIG) { SIG = sg; D = null; GOT = 0; FAIL = 0; paint(); if (u && u.verified) poll(); return; }
+    var near = vh.classList.contains("on") || vb.classList.contains("on");
+    if (u && u.verified && !document.hidden && TK % (near ? 5 : 20) === 0) poll(); else paint();
+  }, 1000);
+  var mo = new MutationObserver(function () { if (me() && !document.hidden) poll(); });
+  mo.observe(vh, { attributes: true, attributeFilter: ["class"] }); mo.observe(vb, { attributes: true, attributeFilter: ["class"] });
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) poll(); });
+  paint();
+})();
+/*S3-end*/
+</script>
+
+<script>
 /* ---- Phone mode card: signals for people with only a phone. Take or skip by hand in your MT5 phone app, then log the result. Uses /api/assist/*. ---- */
 (function () {
   "use strict";
