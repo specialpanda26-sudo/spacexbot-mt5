@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats, limits, journal
+from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -392,6 +392,14 @@ def status(u):
                    open=int(a.get('open', 0)), max_open=int(st.fget('max_open')), news_next=nh, news_loaded=news.loaded(),
                    news_lock=st.get('news_lock') == '1', exposure=risk.exposure(sc), demo=a.get('demo'),
                    strategies=[f.__name__ for f in __import__('backend.strategies', fromlist=['ALL']).ALL], off=[x for x in (st.get('strategies_off') or '').split(',') if x])
+
+@app.get('/api/bridge')
+@need(verified=True)
+def bridge_api(u):
+    """Section 7: is the MT5 bridge reporting, which account, demo or real, and plain setup help (nothing made up)."""
+    site = (os.getenv('BASE_URL') or '').strip().rstrip('/')
+    if not site.startswith('http'): site = request.host_url.rstrip('/'); site = site.replace('http://', 'https://') if 'localhost' not in site and '127.0.0.1' not in site else site
+    return jsonify(bridge.describe(u['uid'], bool(u['admin']), _paid(u['uid']), site))
 
 @app.get('/api/botstate')
 @need(verified=True)

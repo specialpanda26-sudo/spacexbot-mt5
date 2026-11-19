@@ -90,7 +90,7 @@ Sections:
 - 4 TODO  Real Start/Stop on the Bot tab (calls the real bot switch), the fake scan log replaced by the real status, the card says in plain words why it is not trading (uses brokers.REASONS, /api/status gates, last scan result per market).
 - 5 TODO  Test and deploy checklist (Render env DERIV_APP_ID, BROKER_KEY, EA_KEY, bot_enabled; run after 3-4 and again at the end).
 - 6 TODO  Real Journal and Stats: delete HIST/OPEN/EQ sample data, signals.broker column, GET /api/journal, Journal + Stats tabs read it, empty state "No trades yet", All/Wins/Losses filter, broker picker.
-- 7 TODO  Connect screen shows the REAL bridge: replace the hardcoded #testBtn message with /api/status (EA online, last seen, balance, demo or live, login) and plain setup help.
+- 7 DONE (Nov 19: backend/bridge.py + GET /api/bridge + the S7 block in static/index.html + tests/test_bridge7.py + tests/test_bridge7ui.py; the fake "No signal ... next build step" message is gone)  Connect screen shows the REAL bridge: replace the hardcoded #testBtn message with /api/status (EA online, last seen, balance, demo or live, login) and plain setup help.
 - 8 TODO  Download links (APK and desktop .exe 404): needs the owner's real GitHub owner/repo; make the link come from ONE setting; check the Actions release exists.
 - 9 TODO  P&L card (today / week / total, win rate, equity curve) per broker, then chart pop-ups (entry, SL, TP, exit).
 - 10 TODO Auto-trading for other brokers (MT5 brokers only through the EA or the Windows app, never from the server).
