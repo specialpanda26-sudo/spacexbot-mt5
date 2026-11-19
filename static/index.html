@@ -1932,7 +1932,7 @@ var tries=0;(function wait(){if(get())return;if(document.querySelector("#boot:no
 /* cartoons: hero, features, how it works, closing band, empty lists */
 function add(sel,i,c,first){var h=$(sel);if(!h||h.querySelector(".ill"))return;h.insertAdjacentHTML(first?"afterbegin":"beforeend",'<svg class="ill '+c+'" viewBox="0 0 160 120" aria-hidden="true"><use href="#ill-'+i+'"/></svg>')}
 add(".hero .stage","rocket","hero-ill");add("#features","guard","sec-ill",1);add("#how","plug","sec-ill",1);add(".ctaband","rocket","sec-ill");
-function empties(){["#tList","#openList"].forEach(function(s){var e=$(s);if(e&&!e.querySelector(".ill")&&/^\s*(No|Nothing|You have no)/i.test(e.textContent))e.insertAdjacentHTML("afterbegin",'<svg class="ill ill-empty" viewBox="0 0 160 120" aria-hidden="true"><use href="#ill-sleep"/></svg>')})}
+function empties(){["#tList","#openList"].forEach(function(s){var e=$(s);if(e&&!e.querySelector(".ill,.ill2")&&/^\s*(No|Nothing|You have no)/i.test(e.textContent))e.insertAdjacentHTML("afterbegin",'<svg class="ill ill-empty" viewBox="0 0 160 120" aria-hidden="true"><use href="#ill-sleep"/></svg>')})}
 empties();var mo=new MutationObserver(empties);["#tList","#openList"].forEach(function(s){var e=$(s);if(e)mo.observe(e,{childList:true})});
 })();
 </script><style>
