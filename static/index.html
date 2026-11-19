@@ -2383,6 +2383,83 @@ build()})();
 </script>
 
 <script>
+/*P9A-start*/
+/* ---- Section 9A: the Profit and loss card on Home. Today, last 7 days, all time, win rate and the profit curve, from the person's REAL closed trades (GET /api/pnl). A broker picker shows when more than one broker has trades.  Nothing on it is made up. ---- */
+(function () {
+  "use strict";
+  var vh = document.getElementById("view-home");
+  if (!vh || !window.SXA) return;
+  var D = null, WANT = "", ST = "idle", BUSY = false, AGAIN = false, FAIL = 0, SIG = "", TK = 0, LH = "";
+  var C = document.createElement("div"); C.className = "card"; C.id = "pnlc"; C.hidden = true; C.style.display = "none";
+  var le = document.getElementById("liveempty"); vh.insertBefore(C, le ? le.nextSibling : vh.firstChild);
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function me() { try { return SXA.user(); } catch (e) { return null; } }
+  function r2(n) { var x = Math.round(Number(n) * 100) / 100; return isFinite(x) ? x + 0 : 0; }
+  function money(n, sign) {
+    var x = r2(n);
+    return (x < 0 ? "-" : sign && x > 0 ? "+" : "") + "$" + Math.abs(x).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function cls(n) { var x = r2(n); return x > 0 ? "good" : x < 0 ? "bad" : "muted"; }
+  function stat(l, v, c) { return '<div class="stat"><span>' + l + '</span><b class="num' + (c ? " " + c : "") + '">' + esc(v) + "</b></div>"; }
+
+  function curve(pts) {
+    var v = [0].concat(pts.map(function (p) { return Number(p.v); }).filter(isFinite)), n = v.length, W = 300, Hh = 110, P = 8;
+    var lo = Math.min.apply(null, v), hi = Math.max.apply(null, v); if (hi === lo) { hi += 1; lo -= 1; }
+    function X(i) { return (P + (W - 2 * P) * i / (n - 1)).toFixed(1); }
+    function Y(x) { return (P + (Hh - 2 * P) * (hi - x) / (hi - lo)).toFixed(1); }
+    var d = v.map(function (x, i) { return (i ? "L" : "M") + X(i) + " " + Y(x); }).join(" ");
+    var col = v[n - 1] >= 0 ? "var(--good)" : "var(--bad)";
+    var zero = lo < 0 && hi > 0 ? '<line x1="' + P + '" x2="' + (W - P) + '" y1="' + Y(0) + '" y2="' + Y(0) + '" stroke-width="1" stroke-dasharray="3 3" style="stroke:var(--line)"/>' : "";
+    return '<svg viewBox="0 0 ' + W + " " + Hh + '" role="img" aria-label="Profit curve">' + zero + '<path d="' + d + '" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:' + col + '"/><circle cx="' + X(n - 1) + '" cy="' + Y(v[n - 1]) + '" r="4" style="fill:' + col + '"/></svg>';
+  }
+
+  function html() {
+    var h = '<div class="card-head"><h2>Profit and loss</h2></div>';
+    if (!D) return h + '<p class="note">' + (ST === "err" ? "Cannot load your profit and loss. Check your internet and try again." : "Loading your profit and loss...") + "</p>";
+    var B = D.brokers || [], T = D.total || { pnl: 0, n: 0 }, S = D.stats || {}, t0 = D.today || { pnl: 0, n: 0 }, w0 = D.week || { pnl: 0, n: 0 };
+    if (B.length > 1) h += '<div class="seg" id="pnlBroker" role="group" aria-label="Broker" style="justify-self:start">' + [["", "All brokers"]].concat(B.map(function (b) { return [b, b]; })).map(function (b) { return '<button type="button" data-pb="' + esc(b[0]) + '" aria-pressed="' + (D.broker === b[0]) + '">' + esc(b[1]) + "</button>"; }).join("") + "</div>";
+    if (!T.n) return h + '<p class="note">No closed trades yet. Your profit and loss shows up here after your broker closes a trade. Nothing on this card is invented.</p>';
+    h += '<div class="stats">' + stat("Today", money(t0.pnl, true), cls(t0.pnl)) + stat("Last 7 days", money(w0.pnl, true), cls(w0.pnl)) + stat("All time", money(T.pnl, true), cls(T.pnl)) + stat("Win rate", (Math.round((Number(S.win_rate) || 0) * 10) / 10) + "%") + "</div>";
+    h += '<p class="note">' + (Number(t0.n) || 0) + " closed today | " + (Number(w0.n) || 0) + " in 7 days | " + (Number(T.n) || 0) + " in all, " + (Number(S.wins) || 0) + " won, " + (Number(S.losses) || 0) + " lost" + (S.max_drawdown ? " | biggest drop " + money(S.max_drawdown) : "") + "</p>";
+    if ((D.curve_n || 0) >= 2 && D.curve && D.curve.length >= 2) h += '<div class="chart" style="min-height:0;margin-top:6px">' + curve(D.curve) + '</div><p class="note">Profit since your first trade (' + (Number(D.curve_n) || 0) + " trades): " + esc(money(T.pnl, true)) + ". This is profit only, not your account balance.</p>";
+    else h += '<p class="note">The profit curve needs at least 2 closed trades.</p>';
+    if (FAIL >= 3) h += '<p class="note">Cannot reach the server. These are the last numbers we saw.</p>';
+    return h;
+  }
+  function paint() {
+    var u = me(), on = !!(u && u.verified);
+    C.hidden = !on; C.style.display = on ? "" : "none";
+    if (!on) { if (LH) { C.innerHTML = ""; LH = ""; } return; }
+    var h = html(); if (h !== LH) C.innerHTML = LH = h;
+  }
+  function poll() {
+    var u = me(); if (!u || !u.verified) return;
+    if (BUSY) { AGAIN = true; return; }
+    BUSY = true; var asked = WANT;
+    SXA.api("/api/pnl" + (asked ? "?broker=" + encodeURIComponent(asked) : ""), { method: "GET" }).then(function (j) {
+      if (asked !== WANT) return;      /* the person picked another broker while this was loading */
+      D = j; ST = "ok"; FAIL = 0;
+    }, function () { FAIL++; if (!D) ST = "err"; }).then(function () { BUSY = false; paint(); if (AGAIN) { AGAIN = false; poll(); } });
+  }
+  setInterval(function () {      /* every second: notice sign-in / sign-out; every 15 s while Home is open: ask the server again */
+    var u = me(), sg = u ? [u.uid, !!u.verified].join("|") : ""; TK++;
+    if (sg !== SIG) { SIG = sg; D = null; ST = "idle"; FAIL = 0; WANT = ""; paint(); if (u && u.verified) poll(); return; }
+    if (u && u.verified && !document.hidden && vh.classList.contains("on") && TK % 15 === 0) poll();
+  }, 1000);
+  var mo = new MutationObserver(function () { if (vh.classList.contains("on") && !document.hidden) poll(); });
+  mo.observe(vh, { attributes: true, attributeFilter: ["class"] });
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && vh.classList.contains("on")) poll(); });
+  C.addEventListener("click", function (e) {
+    var b = e.target && e.target.closest ? e.target.closest("[data-pb]") : null; if (!b) return;
+    WANT = b.getAttribute("data-pb") || ""; poll();
+  });
+  paint();
+})();
+/*P9A-end*/
+</script>
+
+<script>
 /* ---- Section 7: the Connect tab shows the REAL bridge (GET /api/bridge): online or not, which account, demo or real, last report, and plain setup help.
    The old made-up connection message is gone. The chip on the Your broker card tells the truth too. ---- */
 /*S7-start*/

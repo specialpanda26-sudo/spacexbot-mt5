@@ -92,7 +92,8 @@ Sections:
 - 6 TODO  Real Journal and Stats: delete HIST/OPEN/EQ sample data, signals.broker column, GET /api/journal, Journal + Stats tabs read it, empty state "No trades yet", All/Wins/Losses filter, broker picker.
 - 7 DONE (Nov 19: backend/bridge.py + GET /api/bridge + the S7 block in static/index.html + tests/test_bridge7.py + tests/test_bridge7ui.py; the fake "No signal ... next build step" message is gone)  Connect screen shows the REAL bridge: replace the hardcoded #testBtn message with /api/status (EA online, last seen, balance, demo or live, login) and plain setup help.
 - 8 TODO  Download links (APK and desktop .exe 404): needs the owner's real GitHub owner/repo; make the link come from ONE setting; check the Actions release exists.
-- 9 TODO  P&L card (today / week / total, win rate, equity curve) per broker, then chart pop-ups (entry, SL, TP, exit).
+- 9A DONE (Nov 19: backend/pnlcard.py + GET /api/pnl + the P9A block in static/index.html + tests/test_pnl9.py + tests/test_pnl9ui.py)  Profit and loss card on Home: today, last 7 days, all time, win rate, profit curve (profit since the first trade, NOT the account balance), broker picker when 2+ brokers have trades. Week = rolling 7 days, day = since 00:00 UTC (same as the Live card).
+- 9B TODO  Chart pop-ups: tap a closed trade (Trades list or a point on the curve) to see its chart with entry, SL, TP and exit. The EA never reports why a trade closed, so the exit is the close price only if the server stores it (check the signals columns first); say so on the pop-up.
 - 10 TODO Auto-trading for other brokers (MT5 brokers only through the EA or the Windows app, never from the server).
 Recommended order: 3, 4, 6, 7, 8, 5, 9, 10.
 PARKED until the owner says so: phone notification panel (L1 live panel with arrow, L2 cartoons per situation), N3-N6, video 4C (orb_session.py), the backtest on real data, the wiring check of videos 3-5.

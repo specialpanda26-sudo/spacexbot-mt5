@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge
+from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -437,6 +437,12 @@ def live_api(u):
 def journal_api(u):
     """Section 6: the person's own closed trades + the numbers from them. ?broker=Deriv|MT5 (default all), ?result=win|loss (list only; the numbers always cover every trade)."""
     return jsonify(journal.snapshot(u['uid'], bool(u['admin']), request.args.get('broker', ''), request.args.get('result', 'all')))
+
+@app.get('/api/pnl')
+@need(verified=True)
+def pnl_api(u):
+    """Section 9A: the person's own profit and loss (today, 7 days, all time, win rate, profit curve) from their closed trades. ?broker=Deriv|MT5 (default all)."""
+    return jsonify(pnlcard.snapshot(u['uid'], bool(u['admin']), request.args.get('broker', '')))
 
 @app.get('/api/stats')
 @need(active=True)
