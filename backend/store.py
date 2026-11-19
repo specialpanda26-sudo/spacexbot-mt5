@@ -141,12 +141,17 @@ def acct(uid=''):
     """The EA account snapshot. uid '' = the owner's own EA; otherwise that subscriber's link."""
     if uid:
         r = q('SELECT acct FROM links WHERE uid=?', (uid,), True)
-        try: return json.loads(r['acct']) if r and r['acct'] else {}
+        try: a = json.loads(r['acct']) if r and r['acct'] else {}
+        except ValueError: a = {}
+        if a: return a
+        r = q('SELECT v FROM kv WHERE k=?', ('acct:' + uid,), True)          # R7: a Deriv-only person has no MT5 link row, so the snapshot is kept in kv
+        try: return json.loads(r['v']) if r else {}
         except ValueError: return {}
     r = q("SELECT v FROM kv WHERE k='acct'", one=True); return json.loads(r['v']) if r else {}
 def set_acct(a, uid=''):
     a['seen'] = int(time.time())
-    if uid: x('UPDATE links SET acct=?,seen=? WHERE uid=?', (json.dumps(a), a['seen'], uid))
+    if uid:
+        if not x('UPDATE links SET acct=?,seen=? WHERE uid=?', (json.dumps(a), a['seen'], uid), True): put('acct:' + uid, json.dumps(a))          # R7: no link row = keep it in kv
     else: put('acct', json.dumps(a))
 def day_start(): t = time.time(); return int(t - t % 86400)
 

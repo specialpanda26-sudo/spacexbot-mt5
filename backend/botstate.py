@@ -60,7 +60,7 @@ def explain(uid, admin, paid=True, now=None):
     now = now or time.time(); sc = '' if admin else uid
     running = links.bot_on(sc); a = st.acct(sc); out = {'running': running, 'checked': None}
     if not admin and not paid: out.update(state='stopped', why=PLAIN['plan ended'], code='plan ended'); return out
-    mt5_up = bool(a.get('seen')) and now - a.get('seen', 0) <= 120
+    mt5_up = bool(a.get('seen')) and now - a.get('seen', 0) <= 120 and a.get('src') != 'deriv'          # R7: a Deriv snapshot is not the MT5 bridge talking
     dv = None if mt5_up else _deriv(uid)
     if dv is not None and (_dbot(uid) or not running): out.update(_deriv_state(uid, dv)); return out          # Deriv is the one that is running (or nothing is): say so, not "MT5 is not talking"
     if not running: out.update(state='stopped', why=PLAIN['bot off'], code='bot off'); return out

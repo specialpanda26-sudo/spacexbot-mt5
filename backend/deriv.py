@@ -166,7 +166,7 @@ def _run_once(uid, scan, paid, connect, http, now):
         bal = balance(sess)
         if bal is None: return 'no balance'
         n_open = st.q("SELECT COUNT(*) n FROM signals WHERE status='open' AND COALESCE(uid,'')=?", (uid,), True)['n']
-        st.set_acct({'balance': bal, 'equity': bal, 'open': n_open, 'demo': acct['demo'], 'allow_live': real}, uid)
+        st.set_acct({'balance': bal, 'equity': bal, 'open': n_open, 'demo': acct['demo'], 'allow_live': real, 'src': 'deriv'}, uid)
         bk.set_bal(uid, 'Deriv', bal, acct['currency'], acct['demo'])
         try: _track(sess, uid, acct)
         except ConnectionError: raise
@@ -271,7 +271,7 @@ def _resnap(sess, uid, acct):
     b = balance(sess)
     if b is None: return
     n = st.q("SELECT COUNT(*) n FROM signals WHERE status='open' AND COALESCE(uid,'')=?", (uid,), True)['n']
-    st.set_acct({'balance': b, 'equity': b, 'open': n, 'demo': acct['demo'], 'allow_live': bk.mode(uid, 'Deriv') == 'real'}, uid)
+    st.set_acct({'balance': b, 'equity': b, 'open': n, 'demo': acct['demo'], 'allow_live': bk.mode(uid, 'Deriv') == 'real', 'src': 'deriv'}, uid)
     bk.set_bal(uid, 'Deriv', b, acct['currency'], acct['demo'])
 
 def _trade(sess, uid, acct, bal, now):

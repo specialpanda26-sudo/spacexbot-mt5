@@ -113,6 +113,7 @@ def ea_sync():
     now = int(time.time())
     st.x("UPDATE signals SET status='expired' WHERE status IN('pending','sent') AND created<? AND COALESCE(uid,'')=?", (now - 180, who))
     s = st.q("SELECT id,symbol,side,sl,tp,risk_pct FROM signals WHERE status='pending' AND COALESCE(uid,'')=? ORDER BY id LIMIT 1", (who,), one=True)
+    if s and who and risk.bot_on(who) and not links.bot_on(who): s = None          # R7: the bot is on only for Deriv, so this signal is for Deriv; the MT5 bridge never sees it (the MT5 bridge itself ignores the bot flag)
     if s: st.x("UPDATE signals SET status='sent' WHERE id=?", (s['id'],))
     return jsonify(signal=s, bot=links.bot_on(who), symbols=st.get('symbols'))
 

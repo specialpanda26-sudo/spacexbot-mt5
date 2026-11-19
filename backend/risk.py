@@ -1,7 +1,7 @@
 """Pre-trade gates (ideas from claude-trading-skills: drawdown-circuit-breaker, pre-trade-discipline-gate,
 exposure-coach). global_gate() runs before analysis, symbol_gate() after a side is known."""
 import time, datetime as dt
-from . import store as st, news, links, limits
+from . import store as st, news, links, limits, brokers as bk
 
 def _week_start(now):
     d = dt.datetime.utcfromtimestamp(now); m = d - dt.timedelta(days=d.weekday())
@@ -18,12 +18,21 @@ def open_count(uid='', a=None):
     except (TypeError, ValueError): ea = 0
     return max(ea, r.get('open', 0)) + r.get('pending', 0) + r.get('sent', 0)
 
+def bot_on(uid=''):
+    """R7: is the bot switched on for this person? The MT5 link switch counts, and so does the Deriv switch, so a person with only a Deriv token (no MT5 key) can trade."""
+    return bool(links.bot_on(uid)) or (bool(uid) and bk.bot_flag(uid, 'Deriv') is True)
+
+def real_ok(uid, a):
+    """R7: may this person's snapshot be a real-money account? A Deriv snapshot (src 'deriv') needs Real mode on the Deriv card; an MT5 snapshot needs Real mode on the MT5 link. One never unlocks the other."""
+    if not a.get('allow_live'): return False
+    return (bk.mode(uid, 'Deriv') if a.get('src') == 'deriv' else links.mode(uid)) == 'real'
+
 def global_gate(now=None, uid=''):
     now = now or time.time(); a = st.acct(uid); d = dt.datetime.utcfromtimestamp(now)
-    if not links.bot_on(uid): return False, 'bot off'
+    if not bot_on(uid): return False, 'bot off'
     if now - a.get('seen', 0) > 120: return False, 'EA offline'
     if uid:      # a subscriber's EA: anything that is not a confirmed demo account needs Real mode ON and live trading allowed in the EA
-        if a.get('demo') is not True and not (links.mode(uid) == 'real' and a.get('allow_live')): return False, 'real account needs Real mode and live trading allowed'
+        if a.get('demo') is not True and not real_ok(uid, a): return False, 'real account needs Real mode and live trading allowed'
     elif a.get('demo') is False and not a.get('allow_live'): return False, 'live account not allowed in EA'
     if d.weekday() >= 5 or (d.weekday() == 4 and d.hour >= 20): return False, 'weekend/Friday-night risk'
     if open_count(uid, a) >= limits.max_open(uid): return False, 'max open positions'
