@@ -93,7 +93,7 @@ def refresh(uid, http=None, connect=None):
 def _mark(uid, status): st.x("UPDATE broker_links SET status=?,updated=? WHERE uid=? AND broker='Deriv'", (status, int(time.time()), uid))
 
 # ---------------- step 2: candles + account snapshot + scan (still NO trading) ----------------
-GRAN = {'M15': 900, 'H1': 3600}
+GRAN = {'M5': 300, 'M15': 900, 'H1': 3600}
 def _frx(sym): return 'frx' + str(sym).upper()          # XAUUSD -> frxXAUUSD (what Deriv calls it)
 
 def _connect(url):
@@ -174,8 +174,9 @@ def _run_once(uid, scan, paid, connect, http, now):
         syms = [x.strip() for x in (st.get('symbols') or '').split(',') if x.strip()][:8]
         for sym in syms:
             try:
-                for tf in ('M15', 'H1'):
-                    rows = candles(sess, sym, tf, 300 if tf == 'M15' else 200, now)
+                from . import prefs
+                for tf in (('M5', 'M15', 'H1') if prefs.get(uid)['fast'] else ('M15', 'H1')):
+                    rows = candles(sess, sym, tf, 200 if tf == 'H1' else 300, now)
                     if rows: bars.merge(sym, tf, rows, uid=uid)
                 lag.got(uid, 'deriv')
                 scan(sym, uid)

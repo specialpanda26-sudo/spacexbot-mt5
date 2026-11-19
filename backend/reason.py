@@ -37,6 +37,7 @@ def lines(raw, strategy=''):
         if k == 1 and j.get('solo'): t += ' It is allowed to trade on its own.'
         if ag_n: t += ' %d other strateg%s pointed the other way.' % (ag_n, 'y' if ag_n == 1 else 'ies')
         out.append(t)
+    if j.get('tf') == 'M5': out.append('Found on the 5-minute chart (fast scan). Its stop and target are sized from 5-minute candles.')
     adx = _n(j.get('adx')); rg = j.get('regime')
     if adx is not None:
         out.append('Market strength (ADX) was %.1f: %s.' % (adx, {'strong trend': 'a strong trend, so trend setups are favoured and reversal setups are skipped',

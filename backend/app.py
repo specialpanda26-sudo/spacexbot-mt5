@@ -68,12 +68,18 @@ def cfgjs():
 
 # ---------------- EA bridge ----------------
 def _scan(sym, uid=''):
-    k = (uid, sym)
+    _scan_tf(sym, uid, 'M15', 'H1')
+    if prefs.get(uid)['fast']: _scan_tf(sym, uid, 'M5', 'M15')          # fast scan: the same strategies on 5-minute candles, 15-minute candles as the higher chart
+
+def _scan_tf(sym, uid, tf, hi):
+    k = (uid, sym) if tf == 'M15' else (uid, sym, tf)
     if time.time() - _last_scan.get(k, 0) < 20: return
     _last_scan[k] = time.time()
-    m15 = bars.get(sym, 'M15', uid); h1 = bars.get(sym, 'H1', uid)
-    if not m15: return
-    key = f'lastbar:{uid}:{sym}' if uid else f'lastbar:{sym}'
+    m15 = bars.get(sym, tf, uid); h1 = bars.get(sym, hi, uid)          # (names kept from the 15-minute code: m15 = the main candles, h1 = the higher chart)
+    if not m15:
+        if tf != 'M15': botstate.note(uid, sym, 'nosetup', '5-minute candles have not arrived yet. Update the EA, then give it a minute.')
+        return
+    key = (f'lastbar:{uid}:{sym}' if uid else f'lastbar:{sym}') + ('' if tf == 'M15' else ':' + tf)
     if st.get(key) == str(m15[-1]['t']): return          # already evaluated this candle
     st.put(key, m15[-1]['t'])
     ok, why = risk.global_gate(uid=uid)
@@ -85,6 +91,7 @@ def _scan(sym, uid=''):
     off, solo, mc = prefs.apply(uid, off, solo, int(st.fget('min_confluence')))
     info = {}; s = brain.evaluate(m15, h1, mc, st.fget('rr'), off, solo=solo, info=info, off_reg=orf)
     if not s: botstate.note(uid, sym, 'nosetup', rgm.note_text(info)); return
+    if tf != 'M15': s.setdefault('why', {})['tf'] = tf
     ok, why = risk.symbol_gate(sym, s['side'], uid=uid)
     if not ok: print('skip', sym, s['side'], why); botstate.note(uid, sym, 'skip', why); return
     n = multi.entries(uid, s['score'], s['strategy']); base = links.risk(uid) if uid else st.fget('risk_pct')          # R8: 1 unless the owner allows more and the setup is strong
@@ -117,7 +124,7 @@ def ea_sync():
     st.set_acct(a, who)
     for sym, tfs in bz.items():
         for tf, rows in (tfs.items() if isinstance(tfs, dict) else ()):
-            if who and (tf not in ('M15', 'H1') or not isinstance(rows, list)): continue
+            if who and (tf not in ('M5', 'M15', 'H1') or not isinstance(rows, list)): continue
             try: bars.merge(sym, tf, rows[:500] if who else rows, uid=who)
             except (TypeError, ValueError, IndexError) as e: print('bad bars from EA', sym, tf, e)
     if bz: lag.got(who, 'ea')

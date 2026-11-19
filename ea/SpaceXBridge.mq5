@@ -127,7 +127,7 @@ void OnTimer()
       {
          StringTrimLeft(list[i]); StringTrimRight(list[i]);
          if(i > 0) bars += ",";
-         bars += "\"" + list[i] + "\":{\"M15\":" + BarsJson(list[i], PERIOD_M15, firstPush ? 450 : 6) + ",\"H1\":" + BarsJson(list[i], PERIOD_H1, firstPush ? 320 : 4) + "}";
+         bars += "\"" + list[i] + "\":{\"M15\":" + BarsJson(list[i], PERIOD_M15, firstPush ? 450 : 6) + ",\"H1\":" + BarsJson(list[i], PERIOD_H1, firstPush ? 320 : 4) + ",\"M5\":" + BarsJson(list[i], PERIOD_M5, firstPush ? 450 : 14) + "}";
       }
       bars += "}"; lastBars = TimeLocal();
    }

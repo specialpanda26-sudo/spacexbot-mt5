@@ -14,7 +14,7 @@
     var after = document.getElementById("posc") || document.getElementById("botstatec");
     vb.insertBefore(C, after ? after.nextSibling : vb.firstChild);
     var DATA = null, D = null, PICK = false, DIRTY = false, BUSY = false, ERR = "", SIG = "", TK = 0, LH = "";
-    function copy(p) { return { strategies: (p.strategies || []).slice(), alone: !!p.alone, min_conf: p.min_conf || 0, entries: p.entries || 0, scale: !!p.scale }; }
+    function copy(p) { return { strategies: (p.strategies || []).slice(), alone: !!p.alone, min_conf: p.min_conf || 0, entries: p.entries || 0, scale: !!p.scale, fast: !!p.fast }; }
     function seg(key, vals, cur, label) {
       var b = vals.map(function (v) { return '<button type="button" data-k="' + key + '" data-v="' + v[0] + '" aria-pressed="' + (cur === v[0]) + '">' + esc(v[1]) + "</button>"; }).join("");
       return '<div class="field"><label>' + esc(label) + '</label><div class="seg" role="group" aria-label="' + esc(label) + '" style="justify-self:start;max-width:100%;overflow-x:auto">' + b + "</div></div>";
@@ -39,6 +39,7 @@
       h += '<p class="note">Several entries share the risk of ONE trade, so total risk stays the same. The owner allows up to ' + esc(DATA.ceiling) + ". Open trades at once are set in the card above.</p>";
       h += sw("scale", "Auto-scale", (DATA.scale_now && DATA.scale_now.why) || "Open more entries only while recent setups are winning.", D.scale);
       if (D.scale && D.entries <= 1) h += '<p class="note">Auto-scale needs "Entries per setup" above 1 to have any effect.</p>';
+      h += sw("fast", "Also scan every 5 minutes", "Checks 5-minute candles too, so it looks for setups more often. Not tested on past data yet: use a demo account. MT5 users need the updated EA.", D.fast);
       if (ERR) h += '<p class="note">' + esc(ERR) + "</p>";
       h += '<div class="jrow"><button type="button" class="btn primary" data-save="1"' + (!DIRTY || BUSY ? " disabled" : "") + ">" + (BUSY ? "Saving..." : "Save") + "</button></div>";
       return h;
@@ -57,7 +58,7 @@
       var s = t.closest("[data-save]");
       if (s) {
         BUSY = true; ERR = ""; paint();
-        SXA.api("/api/prefs", { method: "POST", body: { strategies: PICK ? D.strategies : [], alone: PICK ? D.alone : false, min_conf: PICK ? D.min_conf : 0, entries: D.entries, scale: D.scale } })
+        SXA.api("/api/prefs", { method: "POST", body: { strategies: PICK ? D.strategies : [], alone: PICK ? D.alone : false, min_conf: PICK ? D.min_conf : 0, entries: D.entries, scale: D.scale, fast: D.fast } })
           .then(function () { DIRTY = false; BUSY = false; toast("Saved on the server"); return load(true); },
             function (x) { ERR = (x && x.message) || "Not saved."; BUSY = false; paint(); });
         return;
@@ -68,7 +69,7 @@
         if (k === "mode") { PICK = v === "pick"; } else D[k] = parseInt(v, 10) || 0;
       } else if (w) {
         var key = w.getAttribute("data-t");
-        if (key === "alone") D.alone = !D.alone; else if (key === "scale") D.scale = !D.scale;
+        if (key === "alone") D.alone = !D.alone; else if (key === "scale") D.scale = !D.scale; else if (key === "fast") D.fast = !D.fast;
         else if (key.indexOf("s:") === 0) { var id = key.slice(2), i = D.strategies.indexOf(id); if (i >= 0) D.strategies.splice(i, 1); else D.strategies.push(id); }
       } else return;
       DIRTY = true; ERR = ""; paint();
