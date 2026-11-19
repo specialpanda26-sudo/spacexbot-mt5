@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats
+from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -76,17 +76,18 @@ def _scan(sym, uid=''):
     if st.get(key) == str(m15[-1]['t']): return          # already evaluated this candle
     st.put(key, m15[-1]['t'])
     ok, why = risk.global_gate(uid=uid)
-    if not ok: return
+    if not ok: botstate.note(uid, sym, 'gate', why); return
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
     if st.get('auto_disable') == '1': off |= stats.losers(int(st.fget('auto_disable_min_trades')), uid)
     solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
     s = brain.evaluate(m15, h1, int(st.fget('min_confluence')), st.fget('rr'), off, solo=solo)
-    if not s: return
+    if not s: botstate.note(uid, sym, 'nosetup'); return
     ok, why = risk.symbol_gate(sym, s['side'], uid=uid)
-    if not ok: print('skip', sym, s['side'], why); return
+    if not ok: print('skip', sym, s['side'], why); botstate.note(uid, sym, 'skip', why); return
     sid = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
          (sym, s['side'], s['entry'], s['sl'], s['tp'], links.risk(uid) if uid else st.fget('risk_pct'), s['strategy'], s['score'], 'pending', int(time.time()), uid or None))
     sbauth.notify(f"{s['side'].upper()} {sym}", si.alert_body(s['strategy'], s['entry'], s['sl'], s['tp']), key=f'sig{sid}-new', only=uid or None)
+    botstate.note(uid, sym, 'signal')
     learn.log(uid, 'signal', s['strategy'], sym, s['side'], data={'score': s['score'], 'adx': s['adx'], 'entry': s['entry']})
     if not uid: assist.announce(sid)          # phone-mode people get the signal with their own lot size
 
@@ -391,6 +392,31 @@ def status(u):
                    open=int(a.get('open', 0)), max_open=int(st.fget('max_open')), news_next=nh, news_loaded=news.loaded(),
                    news_lock=st.get('news_lock') == '1', exposure=risk.exposure(sc), demo=a.get('demo'),
                    strategies=[f.__name__ for f in __import__('backend.strategies', fromlist=['ALL']).ALL], off=[x for x in (st.get('strategies_off') or '').split(',') if x])
+
+@app.get('/api/botstate')
+@need(verified=True)
+def botstate_api(u):
+    """Section 4: is the bot running, and if it is not trading, why (plain words, from the real gates)."""
+    out = botstate.explain(u['uid'], bool(u['admin']), _paid(u['uid']))
+    d = st.q("SELECT 1 FROM broker_links WHERE uid=? AND broker='Deriv'", (u['uid'],), True)
+    if d:
+        row = next((r for r in bk.view(u['uid']) if r['name'] == 'Deriv'), {})
+        out['deriv'] = {'on': bool(bk.bot_flag(u['uid'], 'Deriv')), 'why': row.get('why')}
+    return jsonify(out)
+
+@app.post('/api/bot')
+@need(verified=True)
+def bot_switch(u):
+    """Section 4: the Bot tab's Start / Stop. The owner switches the owner's EA; everyone else switches their own link (plan and Phone-mode rules as before)."""
+    on = _j().get('on') is True
+    if u['admin']:
+        st.put('bot_enabled', '1' if on else '0'); learn.log(u['uid'], 'setting', data={'path': request.path, 'on': on})
+        return jsonify(ok=True, **botstate.explain(u['uid'], True))
+    if on and not u['active']: return jsonify(error='subscription required'), 402
+    if on and assist.is_on(u['uid']): return jsonify(error='Turn off Phone mode first, so the same signal is not traded twice.'), 400
+    if not links.get(u['uid']): return jsonify(error='Make your MT5 key on the Connect tab first.'), 400
+    links.set_bot(u['uid'], on); learn.log(u['uid'], 'setting', data={'path': request.path, 'on': on})
+    return jsonify(ok=True, **botstate.explain(u['uid'], False, _paid(u['uid'])))
 
 @app.get('/api/live')
 @need(verified=True)

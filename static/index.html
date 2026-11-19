@@ -1531,7 +1531,7 @@ if(vm){
 
 /* ---- Autobot (auto toggle, scan timing, live log) ---- */
 var vb=$("#view-bot"),A=Object.assign({on:true,tf:"M15"},LS("sxb_auto")||{}),logs=[],cd=8;
-if(vb){var ac=document.createElement("div");ac.className="card";
+if(vb){var ac=document.createElement("div");ac.className="card";ac.id="autobotc";
  ac.innerHTML='<div class="card-head"><h2>Autobot</h2><span class="chip" id="aChip"></span></div><button class="switch" id="aSw" role="switch"><span><b>Let the bot trade automatically</b><small id="aSub"></small></span><span class="sw"></span></button><div class="field"><label>Read the market every</label><div class="seg" id="aTf" role="group" aria-label="Scan timeframe" style="justify-self:start">'+["M5","M15","H1","H4"].map(function(t){return'<button data-v="'+t+'">'+t+'</button>'}).join("")+'</div></div><div><b style="font-size:13px" class="muted">LIVE ACTIVITY</b><div id="aLog"></div></div><p class="note">Demo speed: a scan runs every few seconds so you can watch it work. Nothing is sent to a broker.</p>';
  vb.insertBefore(ac,vb.firstChild);
  var aR=function(){$("#aSw").setAttribute("aria-checked",A.on);$("#aChip").className="chip "+(A.on?"ok":"stop");$("#aChip").innerHTML='<span class="dot"></span>'+(A.on?"Scanning":"Paused");$("#aSub").textContent=A.on?"Next scan in "+cd+"s on the "+A.tf+" chart":"Paused. Turn on to resume scanning";$$("#aTf button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.v===A.tf)});
@@ -2409,6 +2409,64 @@ build()})();
   paint();
 })();
 /*S3-end*/
+</script>
+
+<script>
+/* ---- Section 4: the Bot tab tells the truth. A "Bot status" card says in plain words if the bot is trading and, if not, why (GET /api/botstate).
+   The owner's Start/Stop is real (POST /api/bot). The made-up Autobot scan log is hidden once you are signed in. ---- */
+/*S4-start*/
+(function () {
+  var vb = document.getElementById("view-bot"); if (!vb) return;
+  var C = document.createElement("div"); C.className = "card"; C.id = "botstatec"; C.hidden = true; vb.insertBefore(C, vb.firstChild);
+  var D = null, ERR = "", BUSY = false, FAIL = 0, SIG = "";
+  function me() { try { return SXA.user(); } catch (e) { return null; } }
+  function ready() { var u = me(); return !!(u && u.verified); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function ago(t, now) { var s = Math.max(0, Math.round((now - t * 1000) / 1000)); return s < 10 ? "just now" : s < 90 ? s + " s ago" : s < 5400 ? Math.round(s / 60) + " min ago" : Math.round(s / 3600) + " h ago"; }
+  function fake() { var a = document.getElementById("autobotc"); if (a) a.style.display = ready() ? "none" : ""; }
+  function paint() {
+    fake();
+    if (!ready()) { C.hidden = true; return; }
+    C.hidden = false;
+    if (!D) { C.innerHTML = '<div class="card-head"><h2>Bot status</h2></div><p class="muted">' + esc(ERR || "Checking…") + "</p>"; return; }
+    var chip = D.state === "watching" ? ["chip ok", "Running"] : D.state === "waiting" ? ["chip watch", "Waiting"] : ["chip", "Stopped"];
+    var h = '<div class="card-head"><h2>Bot status</h2><span class="' + chip[0] + '"><span class="dot"></span>' + chip[1] + "</span></div>";
+    h += '<p id="bsWhy">' + esc(D.why || "") + "</p>";
+    if (D.checked) h += '<p class="muted">Last market check ' + ago(D.checked, Date.now()) + "</p>";
+    if (D.deriv && D.deriv.on) h += '<p class="muted">Deriv: ' + esc(D.deriv.why || "on") + "</p>";
+    if (FAIL >= 3) h += '<p class="muted">Cannot reach the server. Showing the last answer.</p>';
+    if (ERR) h += '<p class="muted">' + esc(ERR) + "</p>";
+    C.innerHTML = h;
+    var u = me();
+    if (u && u.admin) {      /* the owner has no MT5 link card: keep the Home buttons in step with the real switch */
+      var on = !!D.running, t = document.getElementById("botToggle"), c = document.getElementById("botChip"), p = document.getElementById("pillTxt");
+      if (t) { t.textContent = on ? "Stop bot" : "Start bot"; t.className = "btn " + (on ? "" : "primary"); }
+      if (c) { c.className = chip[0]; c.innerHTML = '<span class="dot"></span>' + chip[1]; }
+      if (p) p.textContent = on ? "Bot running" : "Bot stopped";
+    }
+  }
+  function load() {
+    if (!ready() || BUSY) return paint();
+    return SXA.api("/api/botstate").then(function (j) { D = j; FAIL = 0; ERR = ""; paint(); }, function () { FAIL++; if (!D) ERR = "Cannot reach the server."; paint(); });
+  }
+  document.addEventListener("click", function (e) {      /* the owner's Start/Stop: real, not the sample toggle */
+    if (!(e.target.closest && e.target.closest("#botToggle,#botPill"))) return;
+    var u = me(); if (!u || !u.verified || !u.admin) return;
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    if (BUSY) return; BUSY = true;
+    var on = !(D && D.running);
+    SXA.api("/api/bot", { method: "POST", body: { on: on } }).then(function (j) { D = j; ERR = ""; if (window.sxToast) window.sxToast(on ? "Bot started" : "Bot stopped"); },
+      function (x) { ERR = (x && x.message) || "Could not change the bot."; }).then(function () { BUSY = false; paint(); load(); });
+  }, true);
+  setInterval(function () {
+    var u = me(), sg = u ? [u.uid, !!u.verified, !!u.admin].join("|") : "";
+    if (sg !== SIG) { SIG = sg; D = null; ERR = ""; FAIL = 0; paint(); if (u) load(); return; }
+    if (u && !document.hidden && (vb.classList.contains("on") || document.getElementById("view-home").classList.contains("on"))) load(); else paint();
+  }, 5000);
+  new MutationObserver(function () { if (ready() && vb.classList.contains("on") && !BUSY) load(); }).observe(vb, { attributes: true, attributeFilter: ["class"] });
+  paint();
+})();
+/*S4-end*/
 </script>
 
 <script>
