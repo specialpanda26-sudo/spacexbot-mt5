@@ -87,8 +87,7 @@ def stk_push(uid, pid, phone_raw):
     prov = _provider()
     body = {'amount': int(p['kes']), 'phone_number': ph, 'channel_id': _channel(), 'provider': prov, 'external_reference': ref}
     if prov == 'sasapay': body['network_code'] = '63902'
-    acc = _env('PAYHERO_ACCOUNT_ID')
-    if acc.isdigit(): body['account_id'] = int(acc)
+    # account_id is for payouts only: the channel already names the account, so the prompt does not send it
     body['callback_url'] = _cb_url()
     try:
         r = requests.post(base() + '/api/v2/payments', json=body, headers=_head(), timeout=25)

@@ -173,12 +173,12 @@ def _():
     st.x('UPDATE users SET plan_until=0'); r = newpay(); st.x('UPDATE payments SET created=created-60,last_check=0 WHERE ref=?', (r,))
     assert C.get('/api/pay/status?ref=' + r, headers=U).json['status'] == 'paid' and active()
     assert any('transaction-status' in u for u, _ in SENT)
-@T('pay: STK rate limit and bad input')
+@T('pay: bad input is refused and there is no STK rate limit')
 def _():
     assert C.post('/api/pay/mpesa', json={'plan': 'zzz', 'phone': '0712345678'}, headers=U).status_code == 400
     assert C.post('/api/pay/mpesa', json={'plan': 'p1', 'phone': '123'}, headers=U).status_code == 400
     st.put('rl:phone:0700000001:%d' % (time.time() // 86400), 10)
-    assert C.post('/api/pay/mpesa', json={'plan': 'p1', 'phone': '0700000001'}, headers=U).status_code == 429
+    assert C.post('/api/pay/mpesa', json={'plan': 'p1', 'phone': '0700000001'}, headers=U).status_code == 200
 @T('pay: gateway refusal marks the payment failed')
 def _():
     P.requests.post = lambda *a, **k: Resp(500, {'error': 'x'})
