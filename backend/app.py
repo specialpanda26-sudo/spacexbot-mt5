@@ -11,7 +11,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped. Please try again.'), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import lag, multi, automarkets
+from . import lag, multi, automarkets, prefs, scale
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -82,11 +82,12 @@ def _scan(sym, uid=''):
     if st.get('auto_disable') == '1': off |= stats.losers(int(st.fget('auto_disable_min_trades')), uid)
     solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
     orf = stats.regime_off(uid) if st.get('regime_switch') == '1' else None          # R3: strategies that keep losing in this kind of market (off unless the owner switches it on)
-    info = {}; s = brain.evaluate(m15, h1, int(st.fget('min_confluence')), st.fget('rr'), off, solo=solo, info=info, off_reg=orf)
+    off, solo, mc = prefs.apply(uid, off, solo, int(st.fget('min_confluence')))
+    info = {}; s = brain.evaluate(m15, h1, mc, st.fget('rr'), off, solo=solo, info=info, off_reg=orf)
     if not s: botstate.note(uid, sym, 'nosetup', rgm.note_text(info)); return
     ok, why = risk.symbol_gate(sym, s['side'], uid=uid)
     if not ok: print('skip', sym, s['side'], why); botstate.note(uid, sym, 'skip', why); return
-    n = multi.entries(uid, s['score']); base = links.risk(uid) if uid else st.fget('risk_pct')          # R8: 1 unless the owner allows more and the setup is strong
+    n = multi.entries(uid, s['score'], s['strategy']); base = links.risk(uid) if uid else st.fget('risk_pct')          # R8: 1 unless the owner allows more and the setup is strong
     rz = rsn.pack(s)
     sid = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
          (sym, s['side'], s['entry'], s['sl'], s['tp'], multi.share(base, n), s['strategy'], s['score'], 'pending', int(time.time()), uid or None, rz))
@@ -559,6 +560,23 @@ def limits_set(u):
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in ('max_trades', 'streak', 'max_open', 'ceiling')}})
     return jsonify(out)
+
+@app.get('/api/prefs')
+@need(verified=True)
+def prefs_get(u):
+    sc = _mine(u); from . import strategies as S
+    p = prefs.get(sc); hot = scale.hot(sc)
+    return jsonify(prefs=p, strategies=[{'id': f.__name__, 'name': si.name(f.__name__), 'about': si.desc(f.__name__)} for f in S.ALL],
+                   ceiling=limits.ceiling(), scale_now={'on': hot[0], 'why': hot[1]}, owner_entries=multi._g('multi_entries', 1))
+
+@app.post('/api/prefs')
+@need(verified=True)
+def prefs_set(u):
+    j = _j()
+    try: out = prefs.save(_mine(u), j)
+    except ValueError as e: return jsonify(error=str(e)), 400
+    learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in ('min_conf', 'entries', 'alone', 'scale')}})
+    return jsonify(prefs=out)
 
 @app.post('/api/admin/testprice')
 @need(admin=True)

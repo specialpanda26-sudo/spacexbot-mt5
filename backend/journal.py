@@ -45,7 +45,22 @@ def _closed(uid, admin):
         out.append({'id': r['id'], 't': int(r.get('closed') or r.get('created') or 0), 'opened': int(r.get('created') or 0), 'symbol': r['symbol'],
                     'side': str(r['side'] or '').lower(), 'strategy': r['strategy'], 'strategy_name': si.label(r['strategy']), 'pnl': round(p, 2),
                     'result': 'win' if p > 0 else 'loss', 'broker': broker_of(r), 'entry': r.get('entry'), 'fill': r.get('fill'), 'sl': r.get('sl'),
-                    'tp': r.get('tp'), 'lots': r.get('lots'), 'why': rsn.short(r.get('reason'))})
+                    'tp': r.get('tp'), 'lots': r.get('lots'), 'why': rsn.short(r.get('reason')), '_raw': r.get('reason')})
+    return out
+
+
+def _detail(r):
+    raw = r.pop('_raw', None); r['why_lines'] = rsn.lines(raw, r.get('strategy'))
+    r['how'] = [{'name': si.name(x), 'about': si.desc(x)} for x in str(r.get('strategy') or '').split('+') if x]
+    c = st.q("SELECT v FROM kv WHERE k=?", ('closedby:%s' % r['id'],), True); r['closed_by'] = c['v'] if c else ''
+
+
+def open_now(uid, admin):
+    a, b = scope(uid, admin); out = []
+    for r in st.q("SELECT id,symbol,side,strategy,entry,sl,tp,fill,lots,created,status,reason FROM signals WHERE status IN('open','pending','sent') AND COALESCE(uid,'') IN (?,?) ORDER BY id DESC LIMIT 50", (a, b)) or []:
+        out.append({'id': r['id'], 'symbol': r['symbol'], 'side': str(r['side'] or '').lower(), 'strategy_name': si.label(r['strategy']), 'status': r['status'], 'entry': r['entry'], 'fill': r['fill'],
+                    'sl': r['sl'], 'tp': r['tp'], 'lots': r['lots'], 't': int(r['created'] or 0), 'why_lines': rsn.lines(r['reason'], r['strategy']),
+                    'how': [{'name': si.name(x), 'about': si.desc(x)} for x in str(r['strategy'] or '').split('+') if x]})
     return out
 
 
@@ -80,5 +95,8 @@ def snapshot(uid, admin=False, broker='', result='all', limit=LIMIT, now=None):
     want = _canon(broker) or (str(broker or '').strip()[:20] if broker else '')
     rows = [r for r in allr if r['broker'] == want] if want else allr
     show = [r for r in rows if result == 'all' or r['result'] == result] if result in ('win', 'loss') else rows
-    return {'rows': show[:max(1, int(limit))], 'total': len(show), 'stats': numbers(rows), 'pairs': by_pair(rows), 'brokers': brokers, 'broker': want,
+    shown = show[:max(1, int(limit))]
+    for r in shown: _detail(r)
+    for r in allr: r.pop('_raw', None)
+    return {'rows': shown, 'open': open_now(uid, admin), 'total': len(show), 'stats': numbers(rows), 'pairs': by_pair(rows), 'brokers': brokers, 'broker': want,
             'result': result if result in ('win', 'loss') else 'all', 'ts': int(now or time.time())}

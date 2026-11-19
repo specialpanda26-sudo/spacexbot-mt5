@@ -63,6 +63,10 @@ def _quiet_for(sc, now):
     s = max(0, int(now - c)); t = '%d min' % (s // 60) if s < 5400 else '%d h' % round(s / 3600) if s < 129600 else '%d days' % round(s / 86400)
     return ' Last signal: %s ago.' % t
 
+def _quiet_min(sc, now):
+    r = st.q("SELECT MAX(created) c FROM signals WHERE COALESCE(uid,'')=?", (sc or '',), True) or {}
+    return int(max(0, now - r['c']) // 60) if r.get('c') else None
+
 def _scan_words(n, sc='', now=None):
     """The scanner note in words. A 'nosetup' note that carries a reason says WHY nothing was taken; an older note (no reason) keeps the standard sentence."""
     base = SCAN[n['c']]
@@ -91,4 +95,5 @@ def explain(uid, admin, paid=True, now=None):
         # No market was looked at then, so it is not shown as a market check either.
         out.update(state='watching', why='Connected and watching. It checks the market each time a new 15-minute candle closes.', code='watching')
     else: out.update(state='watching', why='Connected and watching. It checks the market each time a new 15-minute candle closes.', code='watching')
+    out['quiet_min'] = _quiet_min(sc, now)
     return out
