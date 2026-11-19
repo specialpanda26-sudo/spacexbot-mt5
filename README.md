@@ -4,7 +4,7 @@ MT5 terminal (PC/VPS) <-> **EA** <-> Render backend (Flask) <-> app (Supabase si
 The backend does the thinking (11 rule-based strategies, regime filter, safety gates). The EA only fetches signals and places orders.
 
 ## What changed from v1
-- **FinoQ = PayHero.** One gateway, not two. Ported from Comrade Connect: webhook secret required, a success must name an amount >= the price and the same phone, repeats are harmless, late success after expiry still credits, a missed webhook is recovered by the status API, STK prompts are rate-limited per account and phone.
+- **FinoQ = PayHero.** One gateway, not two. Ported from Comrade Connect: webhook secret required, a success must name an amount >= the price and the same phone, repeats are harmless, late success after expiry still credits, a missed webhook is recovered by the status API; STK prompts are not rate-limited.
 - **PayPal** now checks the captured amount and currency before crediting.
 - **11 strategies** (was 5): added MACD cross, Heikin-Ashi flip, Parabolic SAR flip, Awesome Oscillator, Dual Thrust, shooting-star/hammer (from quant-trading).
 - **Regime filter:** reversion setups skipped when ADX > 28, trend setups skipped when ADX < 18.

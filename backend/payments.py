@@ -67,15 +67,6 @@ def norm_phone(p):
     d = d[-9:] if len(d) >= 9 else ''
     return '0' + d if d[:1] in ('7', '1') and len(d) == 9 else None
 
-_rl = threading.Lock()
-def bump(key, limit):
-    """Daily counter; False once `limit` is reached (stops STK spam at strangers)."""
-    k = f'rl:{key}:{int(time.time() // 86400)}'
-    with _rl:
-        n = int(st.get(k) or 0)
-        if n >= limit: return False
-        st.put(k, n + 1); return True
-
 def note(ref, text):
     """Owner-only detail for one attempt (never shown to the customer)."""
     try: st.put('paylog:' + ref, str(text)[:400])
@@ -92,8 +83,6 @@ def stk_push(uid, pid, phone_raw):
     p = plan(pid); ph = norm_phone(phone_raw)
     if not p or not ph: raise ValueError('Check the plan and phone number')
     if not ready(): raise RuntimeError('Payments are not set up yet')
-    if not (bump('aid:' + uid, int(_env('STK_DAILY_PER_ACCOUNT', d='30'))) and bump('phone:' + ph, int(_env('STK_DAILY_PER_PHONE', d='10')))):
-        raise PermissionError('Too many payment attempts today. Try again tomorrow.')
     ref = _new(uid, 'finoq', pid, p['kes'], 'KES', ph)
     prov = _provider()
     body = {'amount': int(p['kes']), 'phone_number': ph, 'channel_id': _channel(), 'provider': prov, 'external_reference': ref}
