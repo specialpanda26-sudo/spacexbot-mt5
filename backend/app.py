@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard, tradeview
+from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard, tradeview, pnlreset
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -445,6 +445,16 @@ def journal_api(u):
 def pnl_api(u):
     """Section 9A: the person's own profit and loss (today, 7 days, all time, win rate, profit curve) from their closed trades. ?broker=Deriv|MT5 (default all)."""
     return jsonify(pnlcard.snapshot(u['uid'], bool(u['admin']), request.args.get('broker', '')))
+
+@app.post('/api/pnl/reset')
+@need(verified=True)
+def pnl_reset_api(u):
+    """Section 6: the Reset today button. Only moves where 'today' starts for this person's Profit and loss card and Live card. Nothing is deleted and the
+    risk limits keep reading the real day. {"undo": true} puts the day back. ?broker is not needed: the body may carry {"broker": "Deriv"} for the card's picker."""
+    j = _j()
+    if j.get('undo'): pnlreset.clear(u['uid'])
+    else: pnlreset.reset(u['uid'])
+    return jsonify(pnlcard.snapshot(u['uid'], bool(u['admin']), str(j.get('broker') or '')[:20]))
 
 @app.get('/api/trade/<int:tid>')
 @need(verified=True)

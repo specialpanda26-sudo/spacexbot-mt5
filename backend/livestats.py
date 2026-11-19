@@ -9,7 +9,7 @@ Where the numbers come from (nothing is invented, nothing is sample data):
 Amounts are shown with $ like the live notification: the EA does not report the account currency (assumption).
 ASSUMPTIONS (tunable): FRESH seconds a Deriv balance counts as live; MT5_FRESH is the same limit the rest of the app uses for 'EA online'."""
 import time
-from . import store as st, links, brokers as bk, strategy_info as si
+from . import store as st, links, brokers as bk, strategy_info as si, pnlreset as pr
 
 FRESH = 180
 MT5_FRESH = 120
@@ -48,7 +48,7 @@ def sources(uid, admin, now):
 
 def snapshot(uid, admin=False, now=None):
     now = now or time.time(); src = sources(uid, admin, now); sc = ('' if admin else uid, uid)
-    t = st.q("SELECT COALESCE(SUM(pnl),0) p, COUNT(*) n FROM signals WHERE closed>=? AND pnl IS NOT NULL AND COALESCE(uid,'') IN (?,?)", (st.day_start(), sc[0], sc[1]), True) or {}
+    t = st.q("SELECT COALESCE(SUM(pnl),0) p, COUNT(*) n FROM signals WHERE closed>=? AND pnl IS NOT NULL AND COALESCE(uid,'') IN (?,?)", (pr.since(uid), sc[0], sc[1]), True) or {}
     today = round(_f(t.get('p')) or 0.0, 2)
     n_sig = (st.q("SELECT COUNT(*) n FROM signals WHERE status='open' AND COALESCE(uid,'') IN (?,?)", sc, True) or {}).get('n') or 0
     rows = st.q("SELECT id,symbol,side,fill,entry,strategy FROM signals WHERE status='open' AND COALESCE(uid,'') IN (?,?) ORDER BY id DESC LIMIT %d" % MAX_TRADES, sc) or []
@@ -56,7 +56,7 @@ def snapshot(uid, admin=False, now=None):
     state = 'none' if not src else 'live' if any(s['online'] for s in src) else 'stale'
     base = bal - today
     return {'state': state, 'mode': 'real' if any(s['mode'] == 'real' for s in src) else 'demo', 'balance': bal, 'equity': eq, 'floating': round(eq - bal, 2),
-            'today': today, 'today_pct': round(today / base * 100, 2) if base > 0 else 0.0, 'today_n': int(t.get('n') or 0),
+            'today': today, 'today_reset': pr.get(uid) or None, 'today_pct': round(today / base * 100, 2) if base > 0 else 0.0, 'today_n': int(t.get('n') or 0),
             'open': max(int(n_sig), sum(s['open'] or 0 for s in src)),
             'trades': [{'id': r['id'], 'symbol': r['symbol'], 'side': str(r['side']).lower(), 'price': r.get('fill') or r.get('entry'), 'strategy_name': si.label(r['strategy'])} for r in rows],
             'sources': src, 'ts': int(now)}

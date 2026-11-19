@@ -6,7 +6,7 @@ Not the broker's equity history: we only store the profit of each closed trade, 
 ASSUMPTIONS (tunable): "today" = since 00:00 UTC (the same day the Live card uses); "week" = the last 7 days (rolling), not Monday to Sunday;
 MAXP = most curve points sent to the app (a long history is thinned, the first and the last point always stay)."""
 import time
-from . import journal as jn
+from . import journal as jn, pnlreset as pr
 
 MAXP = 80
 WEEK = 7 * 86400
@@ -33,7 +33,8 @@ def snapshot(uid, admin=False, broker='', now=None):
     num = jn.numbers(rows); run = 0.0; pts = []
     for r in reversed(rows):                                                   # oldest first
         run += r['pnl']; pts.append({'t': r['t'], 'v': round(run, 2), 'id': r['id']})
-    return {'today': _part(rows, now - now % 86400), 'week': _part(rows, now - WEEK),
+    day = now - now % 86400
+    return {'today': _part(rows, pr.since(uid, day)), 'today_reset': pr.get(uid, day) or None, 'week': _part(rows, now - WEEK),
             'total': {'pnl': pts[-1]['v'] if pts else 0.0, 'n': len(rows)},
             'stats': {k: num[k] for k in ('trades', 'wins', 'losses', 'win_rate', 'max_drawdown', 'best', 'worst')},
             'curve': _thin(pts), 'curve_n': len(pts), 'brokers': brokers, 'broker': want, 'ts': now}

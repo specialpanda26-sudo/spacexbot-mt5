@@ -108,6 +108,11 @@ Findings (read from code): the Deriv loop needs DERIV_APP_ID + BROKER_KEY on Ren
 - S6  TODO - auto-trading for the other brokers (MT5 brokers via desktop app/EA; Binance only if wanted).
 
 
+## PLAN Nov 19 (owner: "plan the work into sections, one at a time")
+- R1 DONE  Reset today button. backend/pnlreset.py (kv pnlreset:<uid>, ends at the next 00:00 UTC) + POST /api/pnl/reset ({"undo":true} puts it back) + pnlcard.snapshot and livestats.snapshot start "today" at the reset + today_reset field + the button inside the P9A block (two taps, Undo reset) + Live card says "since reset". Display only: Journal, Stats, 7-day, all-time, curve and the risk limits (/api/status day_loss_pct, risk gates) still read the real day. tests/test_reset6.py + tests/test_reset6ui.py.
+- R2 TODO  "Broker connected but the bot says Not connected": the app only counts a broker as connected when it has a balance (Deriv: the token was verified and the loop or verify read it; MT5: the EA posted to /api/ea/sync with THAT person's key, owner key = owner only). A saved MT5 broker (FBS, Exness...) stores only a server name, it is not a connection. Build a "why not connected" line per broker from real checks.
+- R3 OPTIONAL (only when the owner asks; needs the EA reinstalled in MT5)  ea/SpaceXBridge.mq5 sends "reason" (tp / sl / manual / other) when a trade closes. The server side already exists (app.ea_report stores closedby:<id>, tradeview reads it); the Journal list does not show it yet.
+
 ## HOW THE OWNER WORKS (follow exactly)
 - Phone only: Termux inside the repo folder, push to GitHub from there. Never ask him to download anything from the AI. He talks by voice dictation: read the intent, not the exact words.
 - Every reply, in this order: (1) each NEW file as `cat > path << 'EOF' ... EOF` (full content, pasted in the reply), (2) edits to existing files as `python - << 'EOF'` with an edit(path, old, new, marker) helper (replace only if old appears EXACTLY ONCE, print "STOP: cannot find exactly once" and exit otherwise, skip when the marker is already there, so it is safe to run twice; copy the helper from the newest apply script), (3) one block that runs all tests and prints only each last line, plus the numbers to expect, (4) git add (named files), git commit -m, git pull --rebase, git push.

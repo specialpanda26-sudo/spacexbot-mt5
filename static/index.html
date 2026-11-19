@@ -2314,7 +2314,7 @@ build()})();
 
   function homeHtml(k) {
     var t = D.today, h = '<div class="card-head"><h2>Live account</h2>' + badge(k) + "</div>";
-    h += '<div class="equity num">' + esc(money(D.equity)) + '</div><div class="num ' + cls(t) + '">' + arrow(t) + esc(money(t, true)) + " today" + esc(pct()) + "</div>";
+    h += '<div class="equity num">' + esc(money(D.equity)) + '</div><div class="num ' + cls(t) + '">' + arrow(t) + esc(money(t, true)) + (D.today_reset ? " since reset" : " today") + esc(pct()) + "</div>";
     h += '<div class="stats">' + stat("Balance", money(D.balance)) + stat("Equity", money(D.equity)) + stat("Today", money(t, true), cls(t)) + stat("Open trades", String(D.open || 0)) + "</div>";
     h += '<ul class="list">' + (D.trades || []).map(function (x) {
       var up = x.side === "buy";
@@ -2394,7 +2394,7 @@ build()})();
   "use strict";
   var vh = document.getElementById("view-home");
   if (!vh || !window.SXA) return;
-  var D = null, WANT = "", ST = "idle", BUSY = false, AGAIN = false, FAIL = 0, SIG = "", TK = 0, LH = "";
+  var D = null, WANT = "", ST = "idle", BUSY = false, AGAIN = false, FAIL = 0, SIG = "", TK = 0, LH = "", CONF = 0, RB = false;
   var C = document.createElement("div"); C.className = "card"; C.id = "pnlc"; C.hidden = true; C.style.display = "none";
   var le = document.getElementById("liveempty"); vh.insertBefore(C, le ? le.nextSibling : vh.firstChild);
 
@@ -2419,14 +2419,30 @@ build()})();
     return '<svg viewBox="0 0 ' + W + " " + Hh + '" role="img" aria-label="Profit curve">' + zero + '<path d="' + d + '" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:' + col + '"/><circle cx="' + X(n - 1) + '" cy="' + Y(v[n - 1]) + '" r="4" style="fill:' + col + '"/></svg>';
   }
 
+  function hm(t) { var d = new Date(Number(t) * 1000); return isFinite(d) ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""; }
+  function resetRow() {      /* the Reset today button: only moves where "today" starts on the cards; nothing is deleted, limits are not touched */
+    var dis = RB ? " disabled" : "";
+    if (D.today_reset) return '<p class="note">Today counts from ' + esc(hm(D.today_reset)) + " because you reset it. Your trades, Journal, 7-day and all-time numbers and your risk limits are not changed. " + '<button class="btn" type="button" data-rs="undo"' + dis + ">Undo reset</button></p>";
+    return '<p class="note"><button class="btn" type="button" data-rs="' + (CONF ? "go" : "ask") + '"' + dis + ">" + (CONF ? "Tap again to reset today" : "Reset today") + "</button> Starts today's count again from zero. Nothing is deleted.</p>";
+  }
+  function doReset(k) {
+    if (k === "ask") { CONF = TK + 6; paint(); return; }
+    if (RB || (k !== "go" && k !== "undo")) return;
+    RB = true; CONF = 0; paint();
+    SXA.api("/api/pnl/reset", { method: "POST", body: k === "undo" ? { undo: true, broker: WANT } : { broker: WANT } }).then(function (j) {
+      D = j; ST = "ok"; FAIL = 0;
+      if (window.sxToast) window.sxToast(k === "undo" ? "Reset undone" : "Today starts again from zero");
+    }, function (e) { if (window.sxToast) window.sxToast((e && e.message) || "Could not reset. Try again."); }).then(function () { RB = false; paint(); });
+  }
   function html() {
     var h = '<div class="card-head"><h2>Profit and loss</h2></div>';
     if (!D) return h + '<p class="note">' + (ST === "err" ? "Cannot load your profit and loss. Check your internet and try again." : "Loading your profit and loss...") + "</p>";
     var B = D.brokers || [], T = D.total || { pnl: 0, n: 0 }, S = D.stats || {}, t0 = D.today || { pnl: 0, n: 0 }, w0 = D.week || { pnl: 0, n: 0 };
     if (B.length > 1) h += '<div class="seg" id="pnlBroker" role="group" aria-label="Broker" style="justify-self:start">' + [["", "All brokers"]].concat(B.map(function (b) { return [b, b]; })).map(function (b) { return '<button type="button" data-pb="' + esc(b[0]) + '" aria-pressed="' + (D.broker === b[0]) + '">' + esc(b[1]) + "</button>"; }).join("") + "</div>";
     if (!T.n) return h + '<p class="note">No closed trades yet. Your profit and loss shows up here after your broker closes a trade. Nothing on this card is invented.</p>';
-    h += '<div class="stats">' + stat("Today", money(t0.pnl, true), cls(t0.pnl)) + stat("Last 7 days", money(w0.pnl, true), cls(w0.pnl)) + stat("All time", money(T.pnl, true), cls(T.pnl)) + stat("Win rate", (Math.round((Number(S.win_rate) || 0) * 10) / 10) + "%") + "</div>";
-    h += '<p class="note">' + (Number(t0.n) || 0) + " closed today | " + (Number(w0.n) || 0) + " in 7 days | " + (Number(T.n) || 0) + " in all, " + (Number(S.wins) || 0) + " won, " + (Number(S.losses) || 0) + " lost" + (S.max_drawdown ? " | biggest drop " + money(S.max_drawdown) : "") + "</p>";
+    h += '<div class="stats">' + stat(D.today_reset ? "Since reset" : "Today", money(t0.pnl, true), cls(t0.pnl)) + stat("Last 7 days", money(w0.pnl, true), cls(w0.pnl)) + stat("All time", money(T.pnl, true), cls(T.pnl)) + stat("Win rate", (Math.round((Number(S.win_rate) || 0) * 10) / 10) + "%") + "</div>";
+    h += '<p class="note">' + (Number(t0.n) || 0) + (D.today_reset ? " closed since reset | " : " closed today | ") + (Number(w0.n) || 0) + " in 7 days | " + (Number(T.n) || 0) + " in all, " + (Number(S.wins) || 0) + " won, " + (Number(S.losses) || 0) + " lost" + (S.max_drawdown ? " | biggest drop " + money(S.max_drawdown) : "") + "</p>";
+    h += resetRow();
     if ((D.curve_n || 0) >= 2 && D.curve && D.curve.length >= 2) h += '<div class="chart" style="min-height:0;margin-top:6px">' + curve(D.curve) + '</div><p class="note">Profit since your first trade (' + (Number(D.curve_n) || 0) + " trades): " + esc(money(T.pnl, true)) + ". This is profit only, not your account balance. Tap a point on the curve to see that trade.</p>";
     else h += '<p class="note">The profit curve needs at least 2 closed trades.</p>';
     if (FAIL >= 3) h += '<p class="note">Cannot reach the server. These are the last numbers we saw.</p>';
@@ -2449,7 +2465,8 @@ build()})();
   }
   setInterval(function () {      /* every second: notice sign-in / sign-out; every 15 s while Home is open: ask the server again */
     var u = me(), sg = u ? [u.uid, !!u.verified].join("|") : ""; TK++;
-    if (sg !== SIG) { SIG = sg; D = null; ST = "idle"; FAIL = 0; WANT = ""; paint(); if (u && u.verified) poll(); return; }
+    if (CONF && TK > CONF) { CONF = 0; paint(); }
+    if (sg !== SIG) { SIG = sg; D = null; ST = "idle"; FAIL = 0; WANT = ""; CONF = 0; paint(); if (u && u.verified) poll(); return; }
     if (u && u.verified && !document.hidden && vh.classList.contains("on") && TK % 15 === 0) poll();
   }, 1000);
   var mo = new MutationObserver(function () { if (vh.classList.contains("on") && !document.hidden) poll(); });
@@ -2466,7 +2483,11 @@ build()})();
   }
   C.addEventListener("click", function (e) {
     var b = e.target && e.target.closest ? e.target.closest("[data-pb]") : null;
-    if (!b) { tapCurve(e); return; }
+    if (!b) {
+      var rb = e.target && e.target.closest ? e.target.closest("[data-rs]") : null;
+      if (rb) { doReset(rb.getAttribute("data-rs")); return; }
+      tapCurve(e); return;
+    }
     WANT = b.getAttribute("data-pb") || ""; poll();
   });
   paint();
