@@ -23,7 +23,7 @@ SCAN = {
 
 def note(uid, sym, code, why=''):
     """Called by the scanner after each candle. code: nosetup | signal | gate | skip."""
-    try: st.put('scan:%s:%s' % (uid or '', sym), json.dumps({'t': int(time.time()), 'c': code, 'w': str(why)[:120]}))
+    try: st.put('scan:%s:%s' % (uid or '', sym), json.dumps({'t': int(time.time()), 'c': code, 'w': str(why)[:240]}))
     except Exception as e: print('scan note failed', str(e)[:80])
 
 def _last(uid):
@@ -55,6 +55,20 @@ def _deriv_state(uid, dv):
     else: out.update(state='waiting', code='starting', why='Deriv is connected. The first check runs within a minute.')
     return out
 
+def _quiet_for(sc, now):
+    """' Last signal: 3 h ago.' for this scope, or '' when it never had one."""
+    r = st.q("SELECT MAX(created) c FROM signals WHERE COALESCE(uid,'')=?", (sc or '',), True) or {}
+    c = r.get('c')
+    if not c: return ''
+    s = max(0, int(now - c)); t = '%d min' % (s // 60) if s < 5400 else '%d h' % round(s / 3600) if s < 129600 else '%d days' % round(s / 86400)
+    return ' Last signal: %s ago.' % t
+
+def _scan_words(n, sc='', now=None):
+    """The scanner note in words. A 'nosetup' note that carries a reason says WHY nothing was taken; an older note (no reason) keeps the standard sentence."""
+    base = SCAN[n['c']]
+    if n.get('c') != 'nosetup' or not n.get('w'): return base
+    return 'Looked at the market. No good setup yet. ' + str(n['w']).strip() + _quiet_for(sc, now or time.time())
+
 def explain(uid, admin, paid=True, now=None):
     """-> {running, state, why, checked}. state: stopped | waiting | watching. Scope is the owner's EA for admins, the person's own link otherwise."""
     now = now or time.time(); sc = '' if admin else uid
@@ -71,7 +85,7 @@ def explain(uid, admin, paid=True, now=None):
     if n and n.get('c') == 'skip':
         out.update(checked=n['t'], state='waiting', why=_words(n.get('w') or ''), code=n.get('w'))
     elif n and n.get('c') in SCAN:
-        out.update(checked=n['t'], state='watching', why=SCAN[n['c']], code=n['c'])
+        out.update(checked=n['t'], state='watching', why=_scan_words(n, sc, now), code=n['c'])
     elif n:
         # an old 'gate' note (for example 'bot off' left while it was stopped): the live gates above just passed, so it is stale.
         # No market was looked at then, so it is not shown as a market check either.

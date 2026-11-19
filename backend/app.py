@@ -81,8 +81,8 @@ def _scan(sym, uid=''):
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
     if st.get('auto_disable') == '1': off |= stats.losers(int(st.fget('auto_disable_min_trades')), uid)
     solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
-    s = brain.evaluate(m15, h1, int(st.fget('min_confluence')), st.fget('rr'), off, solo=solo)
-    if not s: botstate.note(uid, sym, 'nosetup'); return
+    info = {}; s = brain.evaluate(m15, h1, int(st.fget('min_confluence')), st.fget('rr'), off, solo=solo, info=info)
+    if not s: botstate.note(uid, sym, 'nosetup', info.get('text', '')); return
     ok, why = risk.symbol_gate(sym, s['side'], uid=uid)
     if not ok: print('skip', sym, s['side'], why); botstate.note(uid, sym, 'skip', why); return
     n = multi.entries(uid, s['score']); base = links.risk(uid) if uid else st.fget('risk_pct')          # R8: 1 unless the owner allows more and the setup is strong
