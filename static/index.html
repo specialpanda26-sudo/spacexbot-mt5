@@ -2822,7 +2822,7 @@ build()})();
   if (!vt || !window.SXA || typeof SXJ === "undefined") return;
   var WANT = "", BUSY = false, AGAIN = false, SIG = "", TK = 0;
   function me() { try { return SXA.user(); } catch (e) { return null; } }
-  function paint() { try { renderTrades(); jr(); sr(); } catch (e) {} try { if (window.sxBotCards) window.sxBotCards(); } catch (e) {} }
+  function paint() { try { renderTrades(); jr(); sr(); } catch (e) {} try { if (window.sxBotCards) window.sxBotCards(); } catch (e) {} try { if (window.sxOpenTrades) window.sxOpenTrades(); } catch (e) {} }
   function reset(state) { SXJ.rows = []; SXJ.total = 0; SXJ.stats = null; SXJ.pairs = []; SXJ.brokers = []; SXJ.broker = ""; SXJ.state = state; }
   function poll() {
     var u = me(); if (!u || !u.verified) return;
@@ -2831,7 +2831,7 @@ build()})();
     if (SXJ.state === "idle" || SXJ.state === "out") { SXJ.state = "load"; paint(); }
     SXA.api("/api/journal" + (asked ? "?broker=" + encodeURIComponent(asked) : ""), { method: "GET" }).then(function (j) {
       if (asked !== WANT) return;      /* the person picked another broker while this was loading */
-      SXJ.rows = j.rows || []; SXJ.total = j.total || 0; SXJ.stats = j.stats || null; SXJ.pairs = j.pairs || []; SXJ.brokers = j.brokers || []; SXJ.broker = j.broker || ""; SXJ.state = "ok";
+      SXJ.rows = j.rows || []; SXJ.total = j.total || 0; SXJ.stats = j.stats || null; SXJ.pairs = j.pairs || []; SXJ.brokers = j.brokers || []; SXJ.broker = j.broker || ""; SXJ.open = j.open || []; SXJ.state = "ok";
     }, function () { if (SXJ.state !== "ok") SXJ.state = "err"; }).then(function () {
       BUSY = false; paint(); if (AGAIN) { AGAIN = false; poll(); }
     });
@@ -2995,4 +2995,5 @@ build()})();
 })();
 </script>
 
+<script src="/static/prefs_ui.js"></script>
 </body></html>
