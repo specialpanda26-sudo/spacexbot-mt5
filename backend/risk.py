@@ -27,7 +27,7 @@ def real_ok(uid, a):
     if not a.get('allow_live'): return False
     return (bk.mode(uid, 'Deriv') if a.get('src') == 'deriv' else links.mode(uid)) == 'real'
 
-def global_gate(now=None, uid=''):
+def global_gate(now=None, uid='', burst=False):
     now = now or time.time(); a = st.acct(uid); d = dt.datetime.utcfromtimestamp(now)
     if not bot_on(uid): return False, 'bot off'
     if now - a.get('seen', 0) > 120: return False, 'EA offline'
@@ -35,7 +35,7 @@ def global_gate(now=None, uid=''):
         if a.get('demo') is not True and not real_ok(uid, a): return False, 'real account needs Real mode and live trading allowed'
     elif a.get('demo') is False and not a.get('allow_live'): return False, 'live account not allowed in EA'
     if d.weekday() >= 5 or (d.weekday() == 4 and d.hour >= 20): return False, 'weekend/Friday-night risk'
-    if open_count(uid, a) >= limits.max_open(uid): return False, 'max open positions'
+    if not burst and open_count(uid, a) >= limits.max_open(uid): return False, 'max open positions'          # burst mode has its own ceiling (burst.py)
     since = int(now - now % 86400)
     mt = limits.trades(uid)      # 0 = no daily trade limit (the stop loss and the loss limits protect the account)
     if mt > 0:
@@ -74,13 +74,13 @@ def exposure(uid=''):
         for c, v in _legs(r['symbol'], r['side']).items(): net[c] = net.get(c, 0) + v
     return net
 
-def symbol_gate(sym, side, now=None, uid=''):
+def symbol_gate(sym, side, now=None, uid='', cool=True):
     now = now or time.time()
     if st.get('news_lock') == '1':
         b, why = news.blocked(sym, now, st.fget('news_before_min'), st.fget('news_after_min'))
         if b: return False, why
     last = st.q("SELECT created FROM signals WHERE symbol=? AND COALESCE(uid,'')=? ORDER BY id DESC LIMIT 1", (sym, uid), True)
-    if last and now - last['created'] < st.fget('cooldown_min') * 60: return False, 'symbol cooldown'
+    if cool and last and now - last['created'] < st.fget('cooldown_min') * 60: return False, 'symbol cooldown'
     net = exposure(uid); cap = int(st.fget('max_ccy_exposure'))
     for c, v in _legs(sym, side).items():
         if abs(net.get(c, 0) + v) > cap: return False, f'{c} exposure already at limit (correlated trades)'

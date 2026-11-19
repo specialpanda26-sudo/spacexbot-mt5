@@ -11,7 +11,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped. Please try again.'), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import lag, multi, automarkets, prefs, scale
+from . import lag, multi, automarkets, prefs, scale, burst
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -584,6 +584,19 @@ def prefs_set(u):
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in ('min_conf', 'entries', 'alone', 'scale')}})
     return jsonify(prefs=out)
+
+@app.get('/api/burst')
+@need(verified=True)
+def burst_get(u): return jsonify(burst.view(_mine(u)))
+
+@app.post('/api/burst')
+@need(verified=True)
+def burst_set(u):
+    j = _j()
+    try: out = burst.save(_mine(u), j)
+    except ValueError as e: return jsonify(error=str(e)), 400
+    learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in burst.KEYS}})
+    return jsonify(burst.view(_mine(u)))
 
 @app.post('/api/admin/testprice')
 @need(admin=True)
