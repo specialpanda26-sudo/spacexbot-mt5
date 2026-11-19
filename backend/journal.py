@@ -6,7 +6,7 @@ The numbers always cover every closed trade of the chosen broker (up to MAX_ROWS
 ASSUMPTIONS (tunable): LIMIT rows are sent to the app; MAX_ROWS rows are used for the numbers. Amounts are plain numbers, the app shows them with $ like the live card.
 The EA reports only the profit of a closed trade, not why it closed, so there is no tp / sl / manual label here (it would be a guess)."""
 import re, time, math
-from . import store as st, strategy_info as si
+from . import store as st, strategy_info as si, reason as rsn
 
 LIMIT = 300
 MAX_ROWS = 5000
@@ -36,7 +36,7 @@ def _num(v):
 
 def _closed(uid, admin):
     a, b = scope(uid, admin)
-    rows = st.q("SELECT id,symbol,side,strategy,entry,sl,tp,fill,lots,pnl,closed,created,note,broker FROM signals "
+    rows = st.q("SELECT id,symbol,side,strategy,entry,sl,tp,fill,lots,pnl,closed,created,note,broker,reason FROM signals "
                 "WHERE status='closed' AND pnl IS NOT NULL AND COALESCE(uid,'') IN (?,?) ORDER BY COALESCE(closed,created) DESC, id DESC LIMIT %d" % MAX_ROWS, (a, b)) or []
     out = []
     for r in rows:
@@ -45,7 +45,7 @@ def _closed(uid, admin):
         out.append({'id': r['id'], 't': int(r.get('closed') or r.get('created') or 0), 'opened': int(r.get('created') or 0), 'symbol': r['symbol'],
                     'side': str(r['side'] or '').lower(), 'strategy': r['strategy'], 'strategy_name': si.label(r['strategy']), 'pnl': round(p, 2),
                     'result': 'win' if p > 0 else 'loss', 'broker': broker_of(r), 'entry': r.get('entry'), 'fill': r.get('fill'), 'sl': r.get('sl'),
-                    'tp': r.get('tp'), 'lots': r.get('lots')})
+                    'tp': r.get('tp'), 'lots': r.get('lots'), 'why': rsn.short(r.get('reason'))})
     return out
 
 

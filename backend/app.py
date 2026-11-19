@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard, tradeview, pnlreset, connwhy
+from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, reason as rsn, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard, tradeview, pnlreset, connwhy
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -86,15 +86,16 @@ def _scan(sym, uid=''):
     ok, why = risk.symbol_gate(sym, s['side'], uid=uid)
     if not ok: print('skip', sym, s['side'], why); botstate.note(uid, sym, 'skip', why); return
     n = multi.entries(uid, s['score']); base = links.risk(uid) if uid else st.fget('risk_pct')          # R8: 1 unless the owner allows more and the setup is strong
-    sid = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
-         (sym, s['side'], s['entry'], s['sl'], s['tp'], multi.share(base, n), s['strategy'], s['score'], 'pending', int(time.time()), uid or None))
+    rz = rsn.pack(s)
+    sid = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+         (sym, s['side'], s['entry'], s['sl'], s['tp'], multi.share(base, n), s['strategy'], s['score'], 'pending', int(time.time()), uid or None, rz))
     sbauth.notify(f"{s['side'].upper()} {sym}", si.alert_body(s['strategy'], s['entry'], s['sl'], s['tp']), key=f'sig{sid}-new', only=uid or None)
     lag.created(sid, m15[-1]['t'], uid)
     if n > 1:
         st.x('UPDATE signals SET grp=? WHERE id=?', (sid, sid))
         for _ in range(n - 1):
-            sib = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid,grp) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-                       (sym, s['side'], s['entry'], s['sl'], s['tp'], multi.share(base, n), s['strategy'], s['score'], 'pending', int(time.time()), uid or None, sid))
+            sib = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid,grp,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                       (sym, s['side'], s['entry'], s['sl'], s['tp'], multi.share(base, n), s['strategy'], s['score'], 'pending', int(time.time()), uid or None, sid, rz))
             lag.created(sib, m15[-1]['t'], uid)
         print('multi-entry', sym, s['side'], n, 'entries sharing', base, 'percent')
     botstate.note(uid, sym, 'signal')

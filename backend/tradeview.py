@@ -10,7 +10,7 @@ Scope = the same as the Journal (backend/journal.py): a person sees only their o
 ASSUMPTIONS (tunable): the chart uses M15 candles, PRE bars before the trade opened and POST bars after it closed; more than MAXC candles are merged into
 bigger ones (open of the first, high, low, close of the last) so the picture stays small; fewer than MINC candles counts as no candles."""
 import math, time
-from . import store as st, bars, journal as jn, strategy_info as si
+from . import store as st, bars, journal as jn, strategy_info as si, reason as rsn
 
 TF = 'M15'; TFS = 900
 PRE = 24; POST = 8; MAXC = 90; MINC = 5
@@ -64,7 +64,7 @@ def detail(uid, admin, tid):
     try: tid = int(tid)
     except (TypeError, ValueError): return None
     a, b = jn.scope(uid, admin)
-    r = st.q("SELECT id,symbol,side,strategy,entry,sl,tp,fill,lots,pnl,closed,created,note,broker,status FROM signals "
+    r = st.q("SELECT id,symbol,side,strategy,entry,sl,tp,fill,lots,pnl,closed,created,note,broker,status,reason FROM signals "
              "WHERE id=? AND status IN ('open','closed') AND COALESCE(uid,'') IN (?,?)", (tid, a, b), True)
     if not r: return None
     is_open = r.get('status') == 'open'
@@ -76,7 +76,7 @@ def detail(uid, admin, tid):
     lots = jn._num(r.get('lots'))
     return {'id': r['id'], 'symbol': r['symbol'], 'side': str(r['side'] or '').lower(), 'strategy': r['strategy'], 'strategy_name': si.label(r['strategy']),
             'broker': jn.broker_of(r), 'lots': lots if lots and lots > 0 else None, 'pnl': round(p, 2) if p is not None else None, 'result': None if p is None else 'win' if p > 0 else 'loss',
-            'status': 'open' if is_open else 'closed', 'opened_by': 'bot', 'closed_by': why,
+            'status': 'open' if is_open else 'closed', 'why_taken': rsn.lines(r.get('reason'), r['strategy']), 'opened_by': 'bot', 'closed_by': why,
             'opened': opened, 'closed': closed, 'levels': lv, 'dec': _dec([x for x in lv.values() if x]),
             'exit': {'recorded': False, 'price': None, 'reason': why, 'note': OPEN_NOTE if is_open else PRICE_NOTE if why else EXIT_NOTE},
             'candles': _candles((a, b), r['symbol'], opened, closed or int(time.time()))}

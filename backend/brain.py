@@ -27,5 +27,9 @@ def evaluate(m15, h1, min_conf=2, rr=2.0, off=(), adx_trend_min=18.0, adx_rev_ma
     if len(grp) == 1 and grp[0].get('tp'):      # a lone strategy that brings its own target (video-1 setup)
         t = grp[0]['tp']
         if (side == 'buy' and t > entry) or (side == 'sell' and t < entry): tp = t
+    why = {'agree': [x['name'] for x in grp], 'against': len(sells if side == 'buy' else buys), 'adx': round(ax, 1),
+           'regime': 'strong trend' if ax > adx_rev_max else 'quiet' if ax < adx_trend_min else 'moderate',
+           'atr': round(a, 5), 'sl_atr': round(dist / a, 2) if a else None, 'rr': round(abs(tp - entry) / dist, 2) if dist else None,
+           'own_tp': bool(len(grp) == 1 and grp[0].get('tp') and tp == grp[0]['tp']), 'solo': len(grp) < min_conf, 'min_conf': min_conf}
     return {'side': side, 'entry': round(entry, 5), 'sl': round(sl, 5), 'tp': round(tp, 5),
-            'strategy': '+'.join(x['name'] for x in grp), 'score': len(grp), 'adx': round(ax, 1)}
+            'strategy': '+'.join(x['name'] for x in grp), 'score': len(grp), 'adx': round(ax, 1), 'why': why}

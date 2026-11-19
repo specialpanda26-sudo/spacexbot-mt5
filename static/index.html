@@ -2543,6 +2543,11 @@ build()})();
     return '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Trade chart">' + s + "</svg>";
   }
 
+  function whyBlock(d) {
+    var L = d.why_taken || [];
+    if (!L.length) return '<p style="margin:10px 0 0;font-size:13px;color:var(--muted)">Why the bot took it: not saved. This trade was opened before the bot started writing its reasons down.</p>';
+    return '<h3 style="margin:14px 0 6px;font-size:15px">Why the bot took this trade</h3><ul class="note" style="margin:0 0 8px;padding-left:18px">' + L.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>";
+  }
   function render(d) {
     var buy = d.side === "buy", win = Number(d.pnl) > 0, lv = d.levels || {}, cn = d.candles || {}, dec = Number(d.dec) || 2, rows = [];
     [["tp", "Take profit"], ["entry", "Planned entry"], ["fill", "Filled at"], ["sl", "Stop loss"]].forEach(function (x) { var p = num(lv[x[0]]); if (p > 0) rows.push("<dt>" + x[1] + '</dt><dd class="num">' + esc(price(p, dec)) + "</dd>"); });
@@ -2560,7 +2565,7 @@ build()})();
     if (!(num(lv.fill) > 0)) notes.push("No fill price was recorded, so Entry is the planned price.");
     return '<div class="grab"></div><div class="card-head"><h2 id="shTitle" style="font-size:26px">' + esc(d.symbol) + '</h2><span class="chip ' + (buy ? "ok" : "stop") + '">' + (buy ? "Buy" : "Sell") + "</span></div>" +
       (isOpen ? '<div class="pmeta"><b class="num" style="font-size:30px">Open now</b><span class="note">opened ' + esc(when(d.opened)) + "</span></div>" : '<div class="pmeta"><b class="num ' + (win ? "good" : "bad") + '" style="font-size:30px">' + esc(money(d.pnl)) + '</b><span class="note">closed ' + esc(when(d.closed)) + "</span></div>") +
-      (ch ? '<div class="chart" style="min-height:0">' + ch + "</div>" : "") + '<dl class="kv">' + rows.join("") + "</dl>" +
+      (ch ? '<div class="chart" style="min-height:0">' + ch + "</div>" : "") + '<dl class="kv">' + rows.join("") + "</dl>" + whyBlock(d) +
       notes.map(function (t) { return '<p class="note">' + esc(t) + "</p>"; }).join("") + '<button class="btn block" data-close="1">Close</button>';
   }
 
