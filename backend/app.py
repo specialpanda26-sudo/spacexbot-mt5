@@ -723,7 +723,7 @@ def admin_payments(u):
 def plans(): return jsonify(pay.plans())
 
 @app.post('/api/pay/mpesa')
-@need(verified=True)
+@need()
 def p_mpesa(u):
     j = _j()
     try: return jsonify(ref=pay.stk_push(u['uid'], j.get('plan'), j.get('phone')), msg='Check your phone for the M-Pesa prompt')
