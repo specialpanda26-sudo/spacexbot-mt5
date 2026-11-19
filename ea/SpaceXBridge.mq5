@@ -121,7 +121,7 @@ long CmGid(const string cm){ int p = StringFind(cm, "G", 3); return (StringFind(
 string GV(const string k, long gid){ return "SXB_" + k + (string)gid; }
 void RejectAll(const long &ids[], string why){ for(int i = 0; i < ArraySize(ids); i++) Reject(ids[i], why); }
 
-void ExecuteBasket(long gid, string canon, string side, double sl, double tp, double riskPct, double each, int gb, string idsCsv)
+void ExecuteBasket(long gid, string canon, string side, double sl, double tp, double riskPct, double each, int gb, string idsCsv, double grpTgt, double lossPct)
 {
    string idl[]; int n = StringSplit(idsCsv, ',', idl); if(n <= 0) return;
    long ids[]; ArrayResize(ids, n); for(int i = 0; i < n; i++) ids[i] = (long)StringToInteger(idl[i]);
@@ -152,6 +152,7 @@ void ExecuteBasket(long gid, string canon, string side, double sl, double tp, do
    }
    lots = MathMin(lots, MathMin(mx, MaxLots));
    trade.SetExpertMagicNumber(Magic); trade.SetDeviationInPoints(Deviation); trade.SetTypeFillingBySymbol(sym);
+   double balBefore = AccountInfoDouble(ACCOUNT_BALANCE);
    long okId[]; ulong okTk[]; double okPx[]; ArrayResize(okId, n); ArrayResize(okTk, n); ArrayResize(okPx, n); int k = 0;
    for(int i = 0; i < n; i++)
    {
@@ -164,8 +165,10 @@ void ExecuteBasket(long gid, string canon, string side, double sl, double tp, do
    }
    if(k > 0)
    {  // remember the basket BEFORE the slow reports, so the profit watch can start at once
-      GlobalVariableSet(GV("T", gid), each * k); GlobalVariableSet(GV("B", gid), (double)gb); GlobalVariableSet(GV("P", gid), 0.0);
-      Print("Basket ", gid, ": ", k, " of ", n, " opened, ", DoubleToString(lots, 2), " lots each, target ", DoubleToString(each * k, 2), ", give-back ", gb, "%");
+      double tgtMoney = (grpTgt > 0) ? grpTgt : each * k;                                 // the group target is for the WHOLE group, even if the group was trimmed
+      GlobalVariableSet(GV("T", gid), tgtMoney); GlobalVariableSet(GV("B", gid), (double)gb); GlobalVariableSet(GV("P", gid), 0.0);
+      GlobalVariableSet(GV("L", gid), (lossPct > 0) ? balBefore * lossPct / 100.0 : 0.0);   // group loss limit in money, from the balance when the group opened
+      Print("Basket ", gid, ": ", k, " of ", n, " opened, ", DoubleToString(lots, 2), " lots each, target ", DoubleToString(GlobalVariableGet(GV("T", gid)), 2), ", loss limit ", DoubleToString(GlobalVariableGet(GV("L", gid)), 2), ", give-back ", gb, "%");
    }
    for(int i = 0; i < k; i++)
       Report(okId[i], "open", ",\"ticket\":" + (string)okTk[i] + ",\"lots\":" + DoubleToString(lots, 2) + ",\"price\":" + DoubleToString(okPx[i], dg));
@@ -203,6 +206,13 @@ void ManageBaskets()
       if(GlobalVariableCheck(GV("X", gid))){ CloseBasket(gid); continue; }               // already closing: finish it (retry what failed)
       double target = GlobalVariableGet(GV("T", gid)), gbp = GlobalVariableGet(GV("B", gid)), peak = GlobalVariableGet(GV("P", gid));
       if(sum[j] > peak){ peak = sum[j]; GlobalVariableSet(GV("P", gid), peak); }
+      double lossMoney = GlobalVariableCheck(GV("L", gid)) ? GlobalVariableGet(GV("L", gid)) : 0.0;
+      if(lossMoney > 0 && sum[j] <= -lossMoney)
+      {
+         Print("Basket ", gid, " hit its loss limit: ", DoubleToString(sum[j], 2), " (limit -", DoubleToString(lossMoney, 2), ") - closing the group");
+         GlobalVariableSet(GV("S", gid), sum[j]); GlobalVariableSet(GV("X", gid), (double)TimeCurrent());
+         CloseBasket(gid); continue;
+      }
       bool hit = (sum[j] >= target);
       bool back = (!hit && gbp > 0 && peak >= target * BasketArmPct / 100.0 && sum[j] <= peak * (1.0 - gbp / 100.0));
       if(hit || back)
@@ -222,7 +232,7 @@ void ManageBaskets()
       datetime now = TimeCurrent();
       if(now - GlobalVariableTime(nm) < 120) continue;
       if(GlobalVariableCheck(GV("X", gid)) && now - (datetime)GlobalVariableGet(GV("X", gid)) < 60) continue;
-      GlobalVariableDel(GV("T", gid)); GlobalVariableDel(GV("B", gid)); GlobalVariableDel(GV("P", gid)); GlobalVariableDel(GV("X", gid)); GlobalVariableDel(GV("S", gid));
+      GlobalVariableDel(GV("T", gid)); GlobalVariableDel(GV("B", gid)); GlobalVariableDel(GV("P", gid)); GlobalVariableDel(GV("L", gid)); GlobalVariableDel(GV("X", gid)); GlobalVariableDel(GV("S", gid));
    }
 }
 
@@ -267,7 +277,8 @@ void PollServer()
    if(bgid > 0)   // a burst group arrived: all its entries at once
    {
       ExecuteBasket(bgid, JStr(res, "symbol"), JStr(res, "side"), StringToDouble(JStr(res, "sl")), StringToDouble(JStr(res, "tp")),
-                    StringToDouble(JStr(res, "risk_pct")), StringToDouble(JStr(res, "each")), (int)StringToInteger(JStr(res, "gb")), JStr(res, "ids"));
+                    StringToDouble(JStr(res, "risk_pct")), StringToDouble(JStr(res, "each")), (int)StringToInteger(JStr(res, "gb")), JStr(res, "ids"),
+                    StringToDouble(JStr(res, "tgt")), StringToDouble(JStr(res, "loss")));
       return;
    }
    long id = (long)StringToInteger(JStr(res, "id"));
