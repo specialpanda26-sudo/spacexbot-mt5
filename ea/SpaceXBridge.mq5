@@ -43,6 +43,7 @@ string Post(const string path, const string body)
    ResetLastError();
    int code = WebRequest("POST", ServerUrl + path, h, 15000, data, res, rh);
    if(code < 0){ Print("WebRequest error ", GetLastError(), " - add ", ServerUrl, " in Tools>Options>Expert Advisors"); return ""; }
+   if(code >= 300){ Print("Server answered HTTP ", code, " for ", path); return ""; }          // an error answer is a failure, not a result
    return CharArrayToString(res, 0, -1, CP_UTF8);
 }
 long UtcOffset()   // broker server time -> UTC, rounded to 15 min
@@ -72,9 +73,17 @@ int OurPositions()
 }
 bool IsDemo(){ return AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_DEMO; }
 
+input int ReportTries = 4;   // how many times a trade report (open/close) is sent before giving up
 void Report(long id, string status, string extra)
 {
-   Post("/api/ea/report", "{\"id\":" + (string)id + ",\"status\":\"" + status + "\"" + extra + "}");
+   string body = "{\"id\":" + (string)id + ",\"status\":\"" + status + "\"" + extra + "}";
+   int wait = 1500;
+   for(int t = 1; t <= ReportTries; t++)
+   {
+      if(Post("/api/ea/report", body) != "") return;
+      if(t < ReportTries){ Print("Report ", status, " for signal ", id, " not delivered (try ", t, " of ", ReportTries, "), trying again"); Sleep(wait); wait *= 2; }
+   }
+   Print("Report ", status, " for signal ", id, " could NOT be delivered. The server may miss this trade: ", body);
 }
 void Reject(long id, string why){ Print("Signal ", id, " rejected: ", why); Report(id, "rejected", ",\"reason\":\"" + why + "\""); }
 
