@@ -70,6 +70,8 @@ def cfgjs():
 def _scan(sym, uid=''):
     _scan_tf(sym, uid, 'M15', 'H1')
     if prefs.get(uid)['fast']: _scan_tf(sym, uid, 'M5', 'M15')          # fast scan: the same strategies on 5-minute candles, 15-minute candles as the higher chart
+    try: _burst_scan(sym, uid)
+    except Exception as e: print('burst scan failed', sym, str(e)[:120])
 
 def _scan_tf(sym, uid, tf, hi):
     k = (uid, sym) if tf == 'M15' else (uid, sym, tf)
@@ -110,6 +112,41 @@ def _scan_tf(sym, uid, tf, hi):
     botstate.note(uid, sym, 'signal')
     learn.log(uid, 'signal', s['strategy'], sym, s['side'], data={'score': s['score'], 'adx': s['adx'], 'entry': s['entry']})
     if not uid: assist.announce(sid)          # phone-mode people get the signal with their own lot size
+
+def _burst_scan(sym, uid=''):
+    """Burst mode: after the quiet minutes, take a quick chance. One strategy is enough (min_conf 1); the ADX regime filter, the stop-distance check,
+    the news lock, currency exposure and every loss limit still apply. 5-minute candles when the EA sends them, else 15-minute."""
+    if not burst.get(uid)['on']: return
+    k = (uid, sym, 'burst')
+    if time.time() - _last_scan.get(k, 0) < 20: return
+    _last_scan[k] = time.time()
+    ok, why = burst.look(uid)
+    if not ok: return
+    m5 = bars.get(sym, 'M5', uid); tf, hi = ('M5', 'M15') if m5 else ('M15', 'H1')
+    m = m5 or bars.get(sym, 'M15', uid); h = bars.get(sym, hi, uid)
+    if not m: return
+    key = f'lastbar:{uid}:{sym}:burst'
+    if st.get(key) == str(m[-1]['t']): return          # already looked at this candle
+    st.put(key, m[-1]['t'])
+    off = {x for x in (st.get('strategies_off') or '').split(',') if x}
+    if st.get('auto_disable') == '1': off |= stats.losers(int(st.fget('auto_disable_min_trades')), uid)
+    solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
+    orf = stats.regime_off(uid) if st.get('regime_switch') == '1' else None
+    off, solo, _mc = prefs.apply(uid, off, solo, 1)
+    info = {}; s = brain.evaluate(m, h, 1, st.fget('rr'), off, solo=solo, info=info, off_reg=orf)
+    if not s: return
+    ok, why = risk.symbol_gate(sym, s['side'], uid=uid, cool=False)
+    if not ok: print('burst skip', sym, s['side'], why); return
+    pl, why = burst.plan(uid, s['score'])
+    if not pl: print('burst skip', sym, why); return
+    s.setdefault('why', {})['burst'] = {'kind': pl['kind'], 'n': pl['n'], 'each': pl['each'], 'tf': tf}
+    ids = burst.create(uid, sym, s, pl, rsn.pack(s))
+    sbauth.notify(f"BURST {s['side'].upper()} {sym}", si.alert_body(s['strategy'], s['entry'], s['sl'], s['tp']), key=f'sig{ids[0]}-new', only=uid or None)
+    for i in ids: lag.created(i, m[-1]['t'], uid)
+    print('burst', pl['kind'], sym, s['side'], pl['n'], 'entries', pl['each'], 'USD each')
+    botstate.note(uid, sym, 'signal')
+    learn.log(uid, 'signal', s['strategy'], sym, s['side'], data={'score': s['score'], 'adx': s['adx'], 'entry': s['entry'], 'burst': pl['kind'], 'n': pl['n']})
+    if not uid: assist.announce(ids[0])
 
 @app.post('/api/ea/sync')
 def ea_sync():

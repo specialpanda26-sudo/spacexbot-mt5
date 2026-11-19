@@ -146,6 +146,13 @@ def due(uid='', now=None):
     return True, 'ok'
 
 
+def look(uid='', now=None):
+    """due() for the scanner. When the bot cannot trade right now (stopped, MT5 offline, a loss limit...) the quiet timer starts again from this moment."""
+    now = now or time.time(); ok, why = due(uid, now)
+    if not ok and not (why.startswith('quiet for') or why in ('a burst is already running', 'burst mode is off', 'burst mode is switched off by the owner')): closed(uid, now)
+    return ok, why
+
+
 def plan(uid, score, now=None):
     """-> (plan or None, why). The kind and size of the burst for a setup that `score` strategies agree on."""
     p = get(uid); big = int(score or 0) >= big_score() and p['big_n'] > p['quick_n']
