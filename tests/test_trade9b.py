@@ -26,7 +26,7 @@ T('signed out: refused, nothing leaks', c.get('/api/trade/%d' % t1).status_code 
 d = J('amy@x.com', t1)
 T('own closed trade: 200 with its id, symbol, side, broker and strategy', G('amy@x.com', t1).status_code == 200 and d['id'] == t1 and d['symbol'] == 'XAUUSD' and d['side'] == 'buy' and d['broker'] == 'MT5' and d['strategy'] == 'gold_scalp')
 T("someone else's trade: 404, same as a trade that does not exist (no way to probe other people's ids)", G('bob@x.com', t1).status_code == 404 and G('amy@x.com', 999999).status_code == 404 and G('bob@x.com', t1).get_json() == G('amy@x.com', 999999).get_json())
-T('a trade that is not closed (open, pending, rejected, expired) is never shown, even if it carries a floating profit figure', all(G('amy@x.com', sig(A, 1.5, status=s)).status_code == 404 for s in ('open', 'pending', 'sent', 'rejected', 'expired')))
+T('only open and closed trades are shown (an open one says status open); pending, sent, rejected and expired are never shown', all(G('amy@x.com', sig(A, 1.5, status=s)).status_code == 404 for s in ('pending', 'sent', 'rejected', 'expired')) and J('amy@x.com', sig(A, 1.5, status='open'))['status'] == 'open')
 T('a closed trade with no profit figure, or a broken one, is never shown', G('amy@x.com', sig(A, None)).status_code == 404 and G('amy@x.com', sig(A, float('inf'))).status_code == 404)
 T('an id that is not a number: 404, not a crash', c.get('/api/trade/abc', headers=H('amy@x.com')).status_code == 404 and tv.detail(A, False, 'abc') is None and tv.detail(A, False, None) is None)
 
@@ -40,7 +40,7 @@ T('a missing, zero, negative or broken price is left out (None), never invented'
 T('lots missing or 0: None', J('amy@x.com', sig(A, lots=None))['lots'] is None and J('amy@x.com', sig(A, lots=0))['lots'] is None)
 T('decimals follow the stored prices (gold 2, forex 5)', d['dec'] == 2 and J('amy@x.com', sig(A, entry=1.08512, sl=1.08, tp=1.09, fill=1.08515))['dec'] == 5)
 T("Deriv trades say Deriv (their note starts with x<multiplier>, old rows carry no broker)", J('amy@x.com', st.x("INSERT INTO signals(symbol,side,entry,status,created,pnl,closed,note,uid) VALUES('R_100','buy',100,'closed',?,1.0,?,'x100','dev-amy@x.com')", (T0, T0 + 60)))['broker'] == 'Deriv')
-T('the answer carries no account, secret or other person details', set(d) == {'id', 'symbol', 'side', 'strategy', 'strategy_name', 'broker', 'lots', 'pnl', 'result', 'opened', 'closed', 'levels', 'dec', 'exit', 'candles'} and all(w not in json.dumps(d).lower() for w in ('token', 'secret', 'password', 'email', '"uid"', 'dev-amy')))
+T('the answer carries no account, secret or other person details', set(d) == {'id', 'symbol', 'side', 'strategy', 'strategy_name', 'broker', 'lots', 'pnl', 'result', 'opened', 'closed', 'levels', 'dec', 'exit', 'candles', 'status', 'opened_by', 'closed_by'} and all(w not in json.dumps(d).lower() for w in ('token', 'secret', 'password', 'email', '"uid"', 'dev-amy')))
 
 # ---- candles: only what the server still holds ----
 T('no candles held: an empty list and both coverage flags false (the page then draws only the price levels)', d['candles']['rows'] == [] and d['candles']['covers_open'] is False and d['candles']['covers_close'] is False)
