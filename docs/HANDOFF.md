@@ -135,3 +135,8 @@ Start now: tell me in one short line what you found in docs/HANDOFF.md, then giv
 - Daily trade limit removed (risk.global_gate skips the check when max_trades_day is 0, default 0). Loss limits, max open trades, cooldown and the stop loss stay.
 - Section 3 finished: a signed-in person with no broker connected no longer sees sample equity, stats, open trades, Daily goals or Safety checks on Home; the chip says Not connected and a card says No account connected yet. Signed-out visitors still see the sample preview. Daily goals / Safety checks come back with real data in Sections 4 and 6.
 - Still fake (Section 6): Trades, Journal, Stats, Charts, Market. The Bot-tab Start/Pause button and 'Max trades a day' box only change a flag in the page (Section 4).
+
+## Section 6 PARTLY DONE (Nov 19)
+- Done: signals.broker column (set when a trade opens: MT5 via /api/ea/report, Deriv via deriv._trade; older rows worked out by journal.broker_of), backend/journal.py + GET /api/journal (closed trades, numbers, by pair, broker picker data, ?broker= ?result=), sample data deleted (HIST, OPEN, EQ, H, the 3 made-up journal lines, the Home sample cards), Closed trades / Journal / Stats tabs read it with empty states, S6 block in static/index.html (apply_s6_journal.py), tests/test_jour6.py (37 checks), tests/test_live3.py updated (63).
+- STILL TODO for Section 6: node tests for the S6 block and renderTrades/jr/sr, mutation checks, fresh-copy run twice. The EA never reports why a trade closed, so there is no tp/sl/manual label.
+- Section 9 must rebuild the Home P&L card and equity curve (the sample ones are gone). Daily goals / Safety checks stay hidden until they have real data.

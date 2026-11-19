@@ -76,7 +76,8 @@ T('the owner route uses the owner scope', c.get('/api/live', headers=H('boss@x.c
 # ---- the page ----
 html = open(os.path.join(ROOT, 'static', 'index.html'), encoding='utf-8').read()
 T('the page code is in the page exactly once, after the Account card', html.count('/*S3-start*/') == 1 and html.count('/*S3-end*/') == 1 and html.find('/*S2-end*/') < html.find('/*S3-start*/'))
-T('the places it uses exist (Home, Bot tab, #eq, #stats, #openList, the Demo data chip)', all(x in html for x in ('id="view-home"', 'id="view-bot"', 'id="eq"', 'id="stats"', 'id="openList"', 'chip demo app-only')))
+T('the places it uses exist (Home, Bot tab, the top chip)', all(x in html for x in ('id="view-home"', 'id="view-bot"', 'chip demo app-only')))
+T('Section 6: the sample equity, stats and open-trades cards are gone from the page (the Live card is the only place for these numbers)', all(x not in html for x in ('id="eq"', 'id="stats"', 'id="openList"', 'id="eqChart"', 'var EQ=', 'var OPEN=', 'HIST.push')))
 m = re.search(r'/\*S3-start\*/(.*?)/\*S3-end\*/', html, re.S); CODE = m.group(1) if m else ''
 HARNESS = r'''
 const code = process.argv[1], OUT = [], tick = () => new Promise(r => setTimeout(r, 5));
@@ -100,7 +101,7 @@ const J = o => Object.assign({state: 'live', mode: 'demo', balance: 1000.5, equi
 const U = {uid: 'u1', verified: true, active: true, admin: false}, ok = j => () => Promise.resolve(j);
 (async () => {
   let p = page(null, {user: null, next: ok(J())}); await p.run(1);
-  OUT.push(['signed out: no Live card, chip keeps its Demo data text, sample cards are shown, nothing asked', p.H.hidden === true && p.S.hidden === true && p.chip.innerHTML.includes('Demo data') && p.live().length === 0 && p.eq.style.display !== 'none']);
+  OUT.push(['signed out: no Live card, the chip says Signed out, a plain Sign in card, no sample numbers, nothing asked', p.H.hidden === true && p.S.hidden === true && p.chip.innerHTML.includes('Signed out') && !p.chip.innerHTML.includes('Demo data') && p.live().length === 0 && p.E.hidden === false && p.E.innerHTML.includes('Sign in to see your account') && p.eq.style.display === 'none']);
   p = page({uid: 'x', verified: false}, {user: {uid: 'x', verified: false}, next: ok(J())}); await p.run(6);
   OUT.push(['email not verified: nothing is asked and nothing is shown', p.live().length === 0 && p.H.hidden === true]);
   p = page(U, {user: U, next: ok(J({state: 'none', sources: [], balance: 0, equity: 0, today: 0, open: 0, trades: []}))}); await p.run(1);
@@ -148,7 +149,7 @@ const U = {uid: 'u1', verified: true, active: true, admin: false}, ok = j => () 
   p = page(U, {user: U, next: ok(J({trades: [{symbol: '<img src=x>', side: 'sell', price: '<b>1</b>', strategy_name: '"><script>x</script>'}], sources: [{name: '<i>MT5', mode: 'demo', online: true}]}))}); await p.run(1);
   OUT.push(['server text is escaped (no HTML injection)', !p.H.innerHTML.includes('<img') && !p.H.innerHTML.includes('<script') && !p.H.innerHTML.includes('<i>') && p.H.innerHTML.includes('&lt;img')]);
   const st2 = {user: U, next: ok(J())}; p = page(U, st2); await p.run(1); st2.user = null; await p.run(1);
-  OUT.push(['signing out hides the card and brings back the Demo data chip at once', p.H.hidden === true && p.S.hidden === true && p.chip.innerHTML.includes('Demo data') && p.eq.style.display === '']);
+  OUT.push(['signing out hides the card, says Signed out and shows the Sign in card at once (never sample numbers)', p.H.hidden === true && p.S.hidden === true && p.chip.innerHTML.includes('Signed out') && p.E.hidden === false && p.E.innerHTML.includes('Sign in to see your account') && p.eq.style.display === 'none']);
   p = page(U, {user: U, next: ok({state: 'live'})}); await p.run(1);
   OUT.push(['a half-empty answer does not crash or print undefined/NaN', p.H.hidden === false && !/undefined|NaN/.test(p.H.innerHTML + p.S.innerHTML)]);
   const st3 = {user: U, next: ok(J())}; p = page(U, st3); p.vh.on = true; await p.run(1); const was = p.H.innerHTML;

@@ -283,7 +283,7 @@ def _trade(sess, uid, acct, bal, now):
     except Exception as e:
         st.x("UPDATE signals SET note=? WHERE id=?", ('buy not confirmed, check Deriv', s['id'])); print('[deriv] buy unconfirmed', repr(e)[:100]); return
     if kind == 'open':
-        st.x("UPDATE signals SET status='open',ticket=?,lots=?,fill=?,note=? WHERE id=?", (str(r['contract_id']), r['stake'], s['entry'], 'x%s' % r['mult'], s['id']))
+        st.x("UPDATE signals SET status='open',ticket=?,lots=?,fill=?,note=?,broker='Deriv' WHERE id=?", (str(r['contract_id']), r['stake'], s['entry'], 'x%s' % r['mult'], s['id']))
         _report(uid, s['id'], 'open')
     else:
         st.x("UPDATE signals SET status='rejected',note=? WHERE id=?", (r[:120], s['id'])); _report(uid, s['id'], 'rejected', r)
