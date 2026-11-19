@@ -138,5 +138,5 @@ Start now: tell me in one short line what you found in docs/HANDOFF.md, then giv
 
 ## Section 6 PARTLY DONE (Nov 19)
 - Done: signals.broker column (set when a trade opens: MT5 via /api/ea/report, Deriv via deriv._trade; older rows worked out by journal.broker_of), backend/journal.py + GET /api/journal (closed trades, numbers, by pair, broker picker data, ?broker= ?result=), sample data deleted (HIST, OPEN, EQ, H, the 3 made-up journal lines, the Home sample cards), Closed trades / Journal / Stats tabs read it with empty states, S6 block in static/index.html (apply_s6_journal.py), tests/test_jour6.py (37 checks), tests/test_live3.py updated (63).
-- STILL TODO for Section 6: node tests for the S6 block and renderTrades/jr/sr, mutation checks, fresh-copy run twice. The EA never reports why a trade closed, so there is no tp/sl/manual label.
+- Section 6 leftovers DONE: tests/test_s6ui.py (67 checks; the S6 block and the renderTrades / jr / sr screens run in node against a fake page and a fake server, no temp files), mutation-checked (31 deliberate breaks, each one turned a check red), run on a fresh copy twice. The EA never reports why a trade closed, so there is no tp/sl/manual label.
 - Section 9 must rebuild the Home P&L card and equity curve (the sample ones are gone). Daily goals / Safety checks stay hidden until they have real data.
