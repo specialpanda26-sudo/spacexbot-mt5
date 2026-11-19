@@ -11,7 +11,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped. Please try again.'), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import lag, multi
+from . import lag, multi, automarkets
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -597,6 +597,10 @@ def admin_health(u):
 @need(admin=True)
 def admin_lag(u): return jsonify(lag.report())
 
+@app.get('/api/admin/markets')
+@need(admin=True)
+def admin_markets(u): return jsonify(automarkets.status())
+
 @app.get('/api/plans')
 def plans(): return jsonify(pay.plans())
 
@@ -656,6 +660,8 @@ threading.Thread(target=_reconciler, daemon=True).start()
 
 try: feed.start(_scan)
 except Exception as e: print('[feed] not started', e)
+try: automarkets.start()
+except Exception as e: print('[markets] loop not started', e)
 try: deriv.start(_scan, _paid)
 except Exception as e: print('deriv loop not started', e)
 try:
