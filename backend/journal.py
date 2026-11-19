@@ -46,6 +46,18 @@ def _closed(uid, admin):
                     'side': str(r['side'] or '').lower(), 'strategy': r['strategy'], 'strategy_name': si.label(r['strategy']), 'pnl': round(p, 2),
                     'result': 'win' if p > 0 else 'loss', 'broker': broker_of(r), 'entry': r.get('entry'), 'fill': r.get('fill'), 'sl': r.get('sl'),
                     'tp': r.get('tp'), 'lots': r.get('lots'), 'why': rsn.short(r.get('reason')), '_raw': r.get('reason')})
+    if uid:                                                  # phone-mode trades the person logged themselves (assist_log), broker 'Phone'
+        try:
+            for r in st.q("SELECT l.sid AS sid,l.pnl AS pnl,l.lots AS lots,l.done AS done,l.ts AS ts,s.symbol AS symbol,s.side AS side,s.strategy AS strategy,s.entry AS entry,s.sl AS sl,s.tp AS tp,s.created AS created,s.reason AS reason "
+                          "FROM assist_log l JOIN signals s ON s.id=l.sid WHERE l.uid=? AND l.action='taken' AND l.pnl IS NOT NULL", (uid,)) or []:
+                p = _num(r.get('pnl'))
+                if p is None: continue
+                out.append({'id': -int(r['sid']), 't': int(r.get('done') or r.get('ts') or r.get('created') or 0), 'opened': int(r.get('ts') or r.get('created') or 0), 'symbol': r['symbol'],
+                            'side': str(r['side'] or '').lower(), 'strategy': r['strategy'], 'strategy_name': si.label(r['strategy']), 'pnl': round(p, 2),
+                            'result': 'win' if p > 0 else 'loss', 'broker': 'Phone', 'entry': r.get('entry'), 'fill': None, 'sl': r.get('sl'),
+                            'tp': r.get('tp'), 'lots': r.get('lots'), 'why': rsn.short(r.get('reason')), '_raw': r.get('reason')})
+        except Exception as e: print('phone-mode rows skipped', e)
+        out.sort(key=lambda r: (r['t'], r['id']), reverse=True)
     return out
 
 
