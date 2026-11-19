@@ -281,6 +281,23 @@ def brokers_verify(u, name):
     ok, msg = deriv.verify(u['uid'])
     return jsonify(ok=ok, message=msg, brokers=bk.view(u['uid']))
 
+@app.post('/api/brokers/<name>/mode')
+@need(verified=True)
+def brokers_mode(u, name):
+    """Demo / Real switch for ONE broker connection (Deriv). Real needs a plan and the word REAL. ANY switch stops that bot."""
+    n = bk.canon(name)
+    if n != 'Deriv': return jsonify(error='This broker trades through the MT5 app. Change its mode on the Connect MT5 card.'), 400
+    j = _j(); m = j.get('mode')
+    if m not in ('demo', 'real'): return jsonify(error='mode must be demo or real'), 400
+    if not st.q("SELECT 1 FROM broker_links WHERE uid=? AND broker='Deriv'", (u['uid'],), True): return jsonify(error='Save your Deriv token first.'), 400
+    if m == 'real':
+        if not u['active']: return jsonify(error='subscription required'), 402
+        if j.get('confirm') != 'REAL': return jsonify(error='Type REAL to confirm. Real mode trades real money.'), 400
+    bk.set_mode(u['uid'], n, m); bk.set_why(u['uid'], n, 'bot off'); learn.log(u['uid'], 'setting', data={'path': request.path, 'mode': m})
+    try: deriv.refresh(u['uid'])
+    except Exception: pass
+    return jsonify(brokers=bk.view(u['uid']))
+
 @app.post('/api/brokers/<name>/bot')
 @need(verified=True)
 def brokers_bot(u, name):

@@ -2206,6 +2206,107 @@ build()})();
 </script>
 
 <script>
+/*S2-start*/
+/* ---- Account card on the Bot tab: balance, Demo / Real badge, Demo / Real switch. Uses /api/brokers, /api/brokers/Deriv/mode, /api/link, /api/link/mode. ---- */
+(function () {
+  "use strict";
+  var vb = document.getElementById("view-bot");
+  if (!vb || !window.SXA) return;
+  var C = document.createElement("div"); C.className = "card"; C.id = "acctc"; C.hidden = true; vb.insertBefore(C, vb.firstChild);
+  var B = null, L = null, ERR = "", BUSY = false, ASK = "", SIG = "";
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function toast(t) { if (window.sxToast) window.sxToast(t); }
+  function me() { try { return SXA.user(); } catch (e) { return null; } }
+  function api(p, m, b) { return SXA.api(p, { method: m || "GET", body: b }); }
+  function num(v) { if (v === null || v === undefined || v === "") return "-"; var n = Number(v); return isFinite(n) ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"; }
+
+  function rows() {
+    var out = [], mt = [];
+    (B || []).forEach(function (b) {
+      if (b.kind === "mt5") mt.push(b.name);
+      else if (b.name === "Deriv") out.push({ id: "Deriv", name: "Deriv", mode: b.mode === "real" ? "real" : "demo", bal: b.balance, cur: b.currency || "USD", url: "/api/brokers/Deriv/mode",
+        sw: b.status === "verified", note: b.status === "verified" ? "" : "Save your Deriv token again on the Connect tab to check it." });
+    });
+    if (L && L.linked) out.push({ id: "MT5", name: mt.length ? "MT5 (" + mt.join(", ") + ")" : "MT5 app", mode: L.mode === "real" ? "real" : "demo", bal: L.balance, cur: "", url: "/api/link/mode", sw: true,
+      note: L.online ? "" : "Your MT5 is offline. Open MT5 and check the EA is running.", ea: true });
+    else mt.forEach(function (n) { out.push({ id: "mt:" + n, name: n, need: true, sw: false, note: "Needs the MT5 app. Make your key on the Connect tab." }); });
+    return out;
+  }
+  function find(id) { return rows().filter(function (r) { return r.id === id; })[0]; }
+
+  function head(chip) { return '<div class="card-head"><h2>Account</h2>' + (chip || "") + "</div>"; }
+  function rowHtml(r, i) {
+    var real = r.mode === "real", id = esc(r.id), dis = BUSY ? " disabled" : "";
+    var h = '<div class="field"' + (i ? ' style="border-top:1px solid var(--surface2);padding-top:12px"' : "") + ">";
+    h += '<div class="card-head" style="margin:0"><h2 style="font-size:16px">' + esc(r.name) + "</h2>" +
+      (r.need ? '<span class="chip watch">Needs MT5 app</span>' : '<span class="chip ' + (real ? "stop" : "ok") + '"><span class="dot"></span>' + (real ? "Real" : "Demo") + "</span>") + "</div>";
+    if (!r.need) h += '<p class="note" style="font-weight:800;color:var(--fg);font-size:22px">' + (r.bal === null || r.bal === undefined ? "Balance not read yet" : esc(num(r.bal)) + (r.cur ? " " + esc(r.cur) : "")) + "</p>";
+    if (r.sw) h += '<div class="seg" role="group" aria-label="' + esc(r.name) + ' account mode"><button type="button" data-m="demo" data-r="' + id + '" aria-pressed="' + !real + '"' + dis + '>Demo</button>' +
+      '<button type="button" data-m="real" data-r="' + id + '" aria-pressed="' + real + '"' + dis + ">Real</button></div>";
+    if (ASK === r.id) h += '<div class="field" style="border:2px solid var(--bad);border-radius:16px;padding:14px"><p class="note" style="color:var(--bad);font-weight:800">Real mode trades real money and you can lose it all.' + (r.ea ? " The EA must also have AllowLive switched on." : "") + "</p>" +
+      '<label for="acRc">Type REAL to confirm</label><input class="inp" id="acRc" autocomplete="off" autocapitalize="characters" spellcheck="false">' +
+      '<div class="jrow"><button class="btn" data-act="no">Cancel</button><button class="btn primary" data-act="go"' + dis + ">Turn on Real</button></div></div>";
+    h += r.note ? '<p class="note">' + esc(r.note) + "</p>" : r.sw ? '<p class="note">' + (real ? "Real mode trades real money." : "Demo is the safe way to practise.") + " Switching mode stops the bot.</p>" : "";
+    return h + "</div>";
+  }
+  function paint(force) {
+    var ae = document.activeElement;
+    if (!force && ae && C.contains(ae) && ae.tagName === "INPUT") return;       /* never wipe what the person is typing */
+    var u = me(); C.hidden = !u || !u.verified;
+    if (C.hidden) { C.innerHTML = ""; return; }
+    var h, rs = B ? rows() : [];
+    if (!B) h = head('<span class="chip">Loading</span>') + '<p class="note">Loading your account.</p>';
+    else if (!rs.length) h = head('<span class="chip">Not connected</span>') + '<p class="note">No broker is connected, so the numbers in the app are samples. Connect Deriv or your MT5 to see your real balance here.</p><button class="btn primary block" data-act="cn">Connect a broker</button>';
+    else h = head("") + rs.map(rowHtml).join("");
+    C.innerHTML = h + '<p class="err" role="alert">' + esc(ERR) + "</p>";
+  }
+
+  function load(quiet) {
+    var u = me();
+    if (!u || !u.verified) { B = null; L = null; paint(true); return Promise.resolve(); }
+    return Promise.all([api("/api/brokers").then(function (j) { return j.brokers || []; }), u.admin ? Promise.resolve(null) : api("/api/link").catch(function () { return null; })]).then(function (r) {
+      B = r[0]; L = r[1]; if (!quiet) ERR = "";
+    }).catch(function (e) { if (!quiet) ERR = e.message || "Could not load."; }).then(function () { paint(); });
+  }
+  function sw(r, body, ok) {
+    if (BUSY) return; BUSY = true; ERR = ""; paint(true);
+    api(r.url, "POST", body).then(function () { ASK = ""; toast(ok); return load(true); })
+      .catch(function (e) { ERR = e.status === 402 ? "A plan is needed for Real mode." : e.message || "Something went wrong."; }).then(function () { BUSY = false; paint(true); });
+  }
+
+  C.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-m],[data-act]"); if (!b || BUSY) return;
+    var a = b.dataset.act, m = b.dataset.m, r;
+    if (a === "cn") { var n = document.querySelector('.nav [data-go="connect"]'); if (n) n.click(); return; }
+    if (a === "no") { ASK = ""; ERR = ""; return paint(true); }
+    if (m) {
+      r = find(b.dataset.r); if (!r || r.mode === m) return;
+      ERR = ""; ASK = "";
+      if (m === "real") { ASK = r.id; return paint(true); }
+      return sw(r, { mode: "demo" }, "Demo mode on. Bot stopped.");
+    }
+    if (a === "go") {
+      r = find(ASK); if (!r) return;
+      if (String((document.getElementById("acRc") || {}).value || "").trim() !== "REAL") { ERR = "Type REAL in capital letters to confirm."; return paint(true); }
+      return sw(r, { mode: "real", confirm: "REAL" }, "Real mode on. Bot stopped.");
+    }
+  });
+
+  var tk = 0;
+  function sig() { var u = me(); return u ? [u.uid, !!u.verified, !!u.admin].join("|") : ""; }
+  setInterval(function () {      /* every 3 s: notice sign-in / sign-out; every 15 s: refresh the numbers */
+    var u = me(), sg = sig(); tk++;
+    if (sg !== SIG) { SIG = sg; B = null; L = null; ASK = ""; ERR = ""; paint(true); if (u) load(); return; }
+    if (tk % 5 === 0 && !document.hidden && !BUSY && u && vb.classList.contains("on")) load(true);
+  }, 3000);
+  new MutationObserver(function () { if (vb.classList.contains("on") && me() && !BUSY) load(true); }).observe(vb, { attributes: true, attributeFilter: ["class"] });
+  paint(true);
+})();
+/*S2-end*/
+</script>
+
+<script>
 /* ---- Phone mode card: signals for people with only a phone. Take or skip by hand in your MT5 phone app, then log the result. Uses /api/assist/*. ---- */
 (function () {
   "use strict";

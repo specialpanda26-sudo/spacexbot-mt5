@@ -77,6 +77,19 @@ def _snapshot(uid, token, acct, http=None, connect=None):
         if bal is not None: bk.set_bal(uid, 'Deriv', bal, acct['currency'], acct['demo'])
     finally: sess.close()
 
+def refresh(uid, http=None, connect=None):
+    """Read the balance of the account type the person picked (Demo or Real) so the Account card shows it. Never trades. True if it worked."""
+    if not APP(): return False
+    r = st.q("SELECT status FROM broker_links WHERE uid=? AND broker='Deriv'", (uid,), True)
+    sec = bk.secret(uid, 'Deriv') if r and r['status'] == 'verified' else None
+    if not sec or not sec.get('token'): return False
+    try:
+        acct = _pick(accounts(sec['token'], http), bk.mode(uid, 'Deriv') == 'real')
+        if not acct: return False
+        _snapshot(uid, sec['token'], acct, http, connect)
+    except Exception: return False
+    return True
+
 def _mark(uid, status): st.x("UPDATE broker_links SET status=?,updated=? WHERE uid=? AND broker='Deriv'", (status, int(time.time()), uid))
 
 # ---------------- step 2: candles + account snapshot + scan (still NO trading) ----------------
@@ -145,7 +158,7 @@ def _run_once(uid, scan, paid, connect, http, now):
     if not r or r['status'] != 'verified': return 'not verified'
     sec = bk.secret(uid, 'Deriv')
     if not sec or not sec.get('token'): return 'no token'
-    real = links.mode(uid) == 'real'
+    real = bk.mode(uid, 'Deriv') == 'real'
     acct = _pick(accounts(sec['token'], http), real)
     if not acct: return 'no real account' if real else 'no demo account'
     sess = Session((connect or _connect)(ws_url(sec['token'], acct['id'], http)))
@@ -258,7 +271,7 @@ def _resnap(sess, uid, acct):
     b = balance(sess)
     if b is None: return
     n = st.q("SELECT COUNT(*) n FROM signals WHERE status='open' AND COALESCE(uid,'')=?", (uid,), True)['n']
-    st.set_acct({'balance': b, 'equity': b, 'open': n, 'demo': acct['demo'], 'allow_live': links.mode(uid) == 'real'}, uid)
+    st.set_acct({'balance': b, 'equity': b, 'open': n, 'demo': acct['demo'], 'allow_live': bk.mode(uid, 'Deriv') == 'real'}, uid)
     bk.set_bal(uid, 'Deriv', b, acct['currency'], acct['demo'])
 
 def _trade(sess, uid, acct, bal, now):

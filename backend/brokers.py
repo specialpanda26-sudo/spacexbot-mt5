@@ -39,7 +39,7 @@ def save(uid, name, f):
             vals, label = {'key': s('key'), 'secret': s('secret')}, '...' + s('key')[-4:]
         enc = lock.encrypt(json.dumps({'u': uid, 'b': n, 'v': vals}).encode('utf-8')).decode('ascii')
     st.x('DELETE FROM kv WHERE k=?', ('bal:%s:%s' % (uid, n),))          # a new key may be a different account: forget the old balance
-    for pre in ('bot', 'why'): st.x('DELETE FROM kv WHERE k=?', ('%s:%s:%s' % (pre, uid, n),))          # a new key starts with the bot off again (switch forgotten)
+    for pre in ('bot', 'why', 'mode'): st.x('DELETE FROM kv WHERE k=?', ('%s:%s:%s' % (pre, uid, n),))          # a new key starts with the bot off again (switch forgotten)
     mine = {r['broker'] for r in st.q('SELECT broker FROM broker_links WHERE uid=?', (uid,))}
     if n not in mine and len(mine) >= MAX_PER_USER: raise ValueError('Too many connections. Remove one first.')
     now = int(time.time())
@@ -84,14 +84,31 @@ def _why(uid, name):
     except ValueError: return {}
     return {'why': REASONS.get(j.get('r'), 'Not trading: %s' % j.get('r')), 'why_code': j.get('r'), 'why_t': j.get('t')} if isinstance(j, dict) else {}
 
+def mode_flag(uid, name):
+    """'demo' / 'real' once the person has used the switch on that broker's card, None if never used."""
+    v = st.get('mode:%s:%s' % (uid, name)); return v if v in ('demo', 'real') else None
+def mode(uid, name, dflt='demo'):
+    """Demo or real for one broker connection. The switch wins once used; for Deriv, until then the old MT5-link mode still counts (nothing that worked before changes)."""
+    f = mode_flag(uid, name)
+    if f: return f
+    if name == 'Deriv':
+        from . import links
+        return links.mode(uid)
+    return dflt or 'demo'
+def set_mode(uid, name, m):
+    """Any switch stops that broker's bot and forgets the old balance (it belonged to the other account type)."""
+    if m not in ('demo', 'real'): raise ValueError('mode must be demo or real')
+    st.put('mode:%s:%s' % (uid, name), m); set_bot(uid, name, False)
+    st.x('DELETE FROM kv WHERE k=?', ('bal:%s:%s' % (uid, name),))
+
 def view(uid):
     """What the app may see: name, kind, a short tail of the key, mode, status. Never the secret."""
     b = _bals(uid)
-    return [dict({'name': r['broker'], 'kind': r['kind'], 'label': r['label'], 'mode': r['mode'] or 'demo', 'status': r['status'] or 'saved', 'bot': bot_flag(uid, r['broker']) is True, **_why(uid, r['broker'])},
+    return [dict({'name': r['broker'], 'kind': r['kind'], 'label': r['label'], 'mode': mode(uid, r['broker'], r['mode']), 'status': r['status'] or 'saved', 'bot': bot_flag(uid, r['broker']) is True, **_why(uid, r['broker'])},
                  **({'balance': b[r['broker']].get('balance'), 'currency': b[r['broker']].get('currency'), 'acct_demo': b[r['broker']].get('demo'), 'bal_t': b[r['broker']].get('t')} if r['broker'] in b else {}))
             for r in st.q('SELECT broker,kind,label,mode,status FROM broker_links WHERE uid=? ORDER BY created', (uid,))]
 def drop(uid, name):
-    for pre in ('bal', 'bot', 'why'): st.x('DELETE FROM kv WHERE k=?', ('%s:%s:%s' % (pre, uid, name),))
+    for pre in ('bal', 'bot', 'why', 'mode'): st.x('DELETE FROM kv WHERE k=?', ('%s:%s:%s' % (pre, uid, name),))
     return st.x('DELETE FROM broker_links WHERE uid=? AND broker=?', (uid, name), True)
 
 def secret(uid, name):
