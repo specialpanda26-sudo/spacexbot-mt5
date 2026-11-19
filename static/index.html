@@ -932,6 +932,7 @@ function genSeries(p,n){var rr=rng(p.s.charCodeAt(0)*31+p.s.charCodeAt(3)),a=ana
 PAIRS.forEach(function(p){p.series=genSeries(p,40)});
 var NEWS=[{m:95,c:"USD",e:"Core PCE Price Index",i:"high"},{m:240,c:"EUR",e:"ECB President speaks",i:"high"},{m:420,c:"GBP",e:"Retail Sales m/m",i:"med"},{m:1500,c:"JPY",e:"BoJ Summary of Opinions",i:"med"},{m:1800,c:"USD",e:"Unemployment Claims",i:"low"}];
 var SXJ={rows:[],total:0,stats:null,pairs:[],brokers:[],broker:"",state:"idle"};/* the person's REAL closed trades, filled by the S6 block from GET /api/journal. state: idle | out (signed out) | load | ok | err. There is no sample data any more. */
+window.SXJ=SXJ;window.jmsg=jmsg;window.renderTrades=renderTrades;/* S2: share with the other script blocks (Journal, Stats, S6 loader) */
 function jmsg(){return SXJ.state==="out"?"Sign in to see your trades.":SXJ.state==="err"?"Cannot load your trades right now. Check your internet and try again.":SXJ.state==="ok"?"No trades yet. Your closed trades show up here after your broker closes some. Nothing on this screen is invented.":"Loading your trades..."}
 function jtime(t){return new Date(t*1000).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}
 var nextHigh=function(){var h=NEWS.filter(function(n){return n.i==="high"});return h.length?h[0].m:null};
@@ -1782,6 +1783,7 @@ function tf(t){var d=new Date(t),h=d.getHours()+":"+("0"+d.getMinutes()).slice(-
 function ja(k,m,t){X.j.unshift({t:t||Date.now(),k:k,m:m});X.j.sort(function(a,b){return b.t-a.t});if(X.j.length>300)X.j.length=300;sv();if($("#jList"))jr()}
 var n0=X.j.length;X.j=X.j.filter(function(e){return e.k!=="trade"});if(X.j.length!==n0)sv();/* older builds saved 3 made-up trade lines here: drop them */
 if(!X.j.length){X.j.push({t:NOW,k:"note",m:"Journal started. Bot activity, rule changes and your notes are saved here."});X.j.sort(function(a,b){return b.t-a.t});sv()}
+window.jr=jr;window.sr=sr;/* S2: so the S6 loader can repaint these */
 function jall(){var T=SXJ.state==="ok"?SXJ.rows.map(function(r){return{t:r.t*1000,k:"trade",m:r.symbol+" "+(r.side==="buy"?"Buy":"Sell")+" closed "+m2(r.pnl)+" ("+r.broker+")"}}):[];return X.j.concat(T).sort(function(a,b){return b.t-a.t})}
 function jr(){var f=X.jf,A=jall(),L=A.filter(function(e){return f==="all"||e.k===f});
  $$("#jF button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.f===f)});
