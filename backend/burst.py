@@ -15,7 +15,7 @@ The idea, in plain words:
 Settings are saved per person in kv 'burst:<uid>' (uid '' = the owner's own bot). Group facts are kept in kv 'bg:<group id>'.
 Nothing here claims it makes more money. Only a demo run or tools/backtest.py can say that."""
 import json, time
-from . import store as st, links, risk, limits, multi
+from . import store as st, links, risk, limits, multi, groupcap
 
 HI = 30
 DEF = {'on': False, 'idle_min': 5, 'quick_n': 5, 'big_n': 15, 'quick_usd': 0.5, 'big_usd': 1.0, 'giveback': 40}
@@ -129,7 +129,8 @@ def meta(grp):
 def active(uid=''):
     """Is a burst of this person still waiting or open?"""
     for r in st.q("SELECT DISTINCT grp FROM signals WHERE grp IS NOT NULL AND status IN('pending','sent','open') AND COALESCE(uid,'')=?", (uid or '',)):
-        if meta(r['grp']): return True
+        m = meta(r['grp'])
+        if m and m.get('k') != 'multi': return True          # a normal multi-entry group is not a burst: it must not hold the next burst back
     return False
 
 
@@ -178,7 +179,10 @@ def create(uid, sym, s, pl, reason='', now=None):
     ids = [first]
     for _ in range(n - 1):
         ids.append(st.x(sql, (sym, s['side'], s['entry'], s['sl'], s['tp'], rp, s['strategy'], s['score'], 'pending', now, uid or None, first, reason)))
-    st.put('bg:%d' % first, json.dumps({'k': pl['kind'], 'n': n, 'each': pl['each'], 'gb': pl['giveback'], 't': now}))
+    gm = {'k': pl['kind'], 'n': n, 'each': pl['each'], 'gb': pl['giveback'], 't': now}
+    gr = groupcap.rules(uid, n)          # the person's group target / loss limit, when they switched it on
+    if gr: gm.update(tgt=gr['tgt'], loss=gr['loss'])
+    st.put('bg:%d' % first, json.dumps(gm))
     return ids
 
 
@@ -192,7 +196,8 @@ def basket(s, uid=''):
     ids = [r['id'] for r in st.q("SELECT id FROM signals WHERE grp=? AND status='pending' AND COALESCE(uid,'')=? ORDER BY id", (g, uid or ''))]
     if not ids: return None
     return {'gid': int(g), 'symbol': s['symbol'], 'side': s['side'], 'sl': s['sl'], 'tp': s['tp'], 'risk_pct': s['risk_pct'],
-            'each': m.get('each'), 'gb': m.get('gb', 0), 'ids': ','.join(str(i) for i in ids)}
+            'each': groupcap.each_for(m, len(ids)) if m.get('tgt') or m.get('k') == 'multi' else m.get('each'), 'gb': m.get('gb', 0),
+            'tgt': float(m.get('tgt') or 0), 'loss': float(m.get('loss') or 0), 'kind': m.get('k'), 'ids': ','.join(str(i) for i in ids)}
 
 
 # ---------------- what the app shows ----------------

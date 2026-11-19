@@ -11,7 +11,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped. Please try again.'), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import lag, multi, automarkets, prefs, scale, burst
+from . import lag, multi, automarkets, prefs, scale, burst, groupcap
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -109,6 +109,7 @@ def _scan_tf(sym, uid, tf, hi):
                        (sym, s['side'], s['entry'], s['sl'], s['tp'], multi.share(base, n), s['strategy'], s['score'], 'pending', int(time.time()), uid or None, sid, rz))
             lag.created(sib, m15[-1]['t'], uid)
         print('multi-entry', sym, s['side'], n, 'entries sharing', base, 'percent')
+        groupcap.mark(sid, uid, n)          # group target / loss limit on: this setup goes to the EA as ONE basket
     botstate.note(uid, sym, 'signal')
     learn.log(uid, 'signal', s['strategy'], sym, s['side'], data={'score': s['score'], 'adx': s['adx'], 'entry': s['entry']})
     if not uid: assist.announce(sid)          # phone-mode people get the signal with their own lot size
@@ -204,6 +205,7 @@ def ea_report():
             except (TypeError, ValueError): gp = s['pnl']
             title = f"{s['symbol']} {'burst ' if bg else ''}{'opened' if stt == 'open' else 'closed'}"
             body = f"{s['side'].upper()} lots {s['lots']}" if stt == 'open' else f"{'Burst ' if bg else ''}P/L {gp}"
+            if bg and (burst.meta(bg) or {}).get('k') == 'multi': title = title.replace(' burst ', ' group '); body = body.replace('Burst ', 'Group ', 1)          # a normal group is not a burst
             sbauth.notify(title, body, key=kk, only=only)
             if stt == 'open': push.notify(1, kk, sym=s['symbol'], side=s['side'], entry=s['fill'] or s['entry'], sl=s['sl'], tp=s['tp'], risk=s['risk_pct'], strategy=s['strategy'], **aud)
             else: push.notify({'tp': 2, 'sl': 3}.get(str(d.get('reason')), 4), kk, sym=s['symbol'], pnl=gp, **aud)
@@ -642,6 +644,19 @@ def burst_set(u):
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in burst.KEYS}})
     return jsonify(burst.view(_mine(u)))
+
+@app.get('/api/groupcap')
+@need(verified=True)
+def gcap_get(u): return jsonify(groupcap.view(_mine(u)))
+
+@app.post('/api/groupcap')
+@need(verified=True)
+def gcap_set(u):
+    j = _j()
+    try: groupcap.save(_mine(u), j)
+    except ValueError as e: return jsonify(error=str(e)), 400
+    learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in groupcap.KEYS}})
+    return jsonify(groupcap.view(_mine(u)))
 
 @app.post('/api/admin/testprice')
 @need(admin=True)
