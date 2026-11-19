@@ -1112,7 +1112,7 @@ document.addEventListener("click",function(e){
   if(t.dataset.strat){S.strategy=t.dataset.strat;save();renderBotSettings();return}
   if(t.dataset.gate){S.gates[t.dataset.gate]=!S.gates[t.dataset.gate];save();renderBotSettings();renderBot();renderGoals();return}
   if(t.dataset.mode){if(t.dataset.mode==="live"){toast("Live mode needs a connected broker first");return}S.mode="demo";save();renderBotSettings();return}
-  if(t.dataset.f){S.filter=t.dataset.f;save();renderTrades();return}
+  if(t.dataset.f&&!t.closest("#jF")){S.filter=t.dataset.f;save();renderTrades();return}
   if(t.dataset.broker){S.broker=t.dataset.broker;save();renderConnect();return}
   if(t.id==="testBtn"){var sv2=$("#server").value.trim();S.server=sv2;save();
     if(window.sxBridgeCheck){window.sxBridgeCheck();return}
@@ -1816,7 +1816,7 @@ function runBt(){var rows=[],all=[];P.forEach(function(p,i){var tr=bt1(series(p[
  $("#btGo").textContent="Run again on new sample";rc()}
 
 /* ---------- run check ---------- */
-function rc(){var m=main(),g=m.gates||{},s=stx(H),on=["loss","circuit","checklist"].filter(function(k){return g[k]}).length,b=X.bt,h="";
+function rc(){var m=main(),g=m.gates||{},sj=SXJ.stats,s=(SXJ.state==="ok"&&sj)?{n:sj.trades,wr:sj.win_rate,be:sj.break_even,band:sj.band}:{n:0,wr:0,be:50,band:0},on=["loss","circuit","checklist"].filter(function(k){return g[k]}).length,b=X.bt,h="";
  var c1=(m.mode||"demo")==="demo",c2=on===3,c3=(m.risk||1)<=2&&(m.dayLoss||3)<=5,c4=b?b.pf>1:null,c5=s.n<30?null:s.wr>s.be+s.band;
  h+=rw(c1,"Account type",c1?"Demo account. No real money is at risk.":"Live mode needs a connected broker.");
  h+=rw(c2,"Core safety gates",on+" of 3 on: daily loss, drawdown breaker, checklist.");
@@ -1827,9 +1827,12 @@ function rc(){var m=main(),g=m.gates||{},s=stx(H),on=["loss","circuit","checklis
  $("#rcOut").innerHTML=h+'<li class="row"><span class="t '+k+'" style="grid-column:1/4">'+v+'</span></li>'}
 
 /* ---------- bot memory ---------- */
-function mem(){var L=H.filter(function(t){return+t.d>X.memCut}),s=stx(H),g=grp(L);
- $("#mmOut").innerHTML=(g.map(function(o){var wr=o.w/o.n*100,st=o.n<4?"Learning":wr<s.be-5?"Skipped":"Trusted",cl=st==="Skipped"?"stop":st==="Trusted"?"ok":"info";return'<li class="row"><span class="ic '+(o.pl>=0?"up":"dn")+'">'+(o.pl>=0?ICK:ICX)+'</span><span class="t">'+o.k+'</span><span class="r"><span class="chip '+cl+'">'+st+'</span></span><span class="s">'+o.n+' trades · '+Math.round(wr)+'% won</span></li>'}).join("")||'<li class="row"><span class="s">Memory is empty. The bot is learning from scratch.</span></li>')}
+function mem(){var ok=SXJ.state==="ok"&&SXJ.stats,s={be:ok?SXJ.stats.break_even:50},cut=X.memCut||0,q={},g,L=ok?SXJ.rows.filter(function(t){return t.t*1000>cut}):[];
+ L.forEach(function(t){var k=t.strategy_name||t.strategy||"Unknown",o=q[k]||(q[k]={k:k,n:0,w:0,pl:0});o.n++;if(t.pnl>0)o.w++;o.pl+=t.pnl});
+ g=Object.keys(q).map(function(k){return q[k]}).sort(function(a,b){return b.n-a.n});
+ $("#mmOut").innerHTML=(g.map(function(o){var wr=o.w/o.n*100,st=o.n<4?"Learning":wr<s.be-5?"Skipped":"Trusted",cl=st==="Skipped"?"stop":st==="Trusted"?"ok":"info";return'<li class="row"><span class="ic '+(o.pl>=0?"up":"dn")+'">'+(o.pl>=0?ICK:ICX)+'</span><span class="t">'+esc(o.k)+'</span><span class="r"><span class="chip '+cl+'">'+st+'</span></span><span class="s">'+o.n+' trades · '+Math.round(wr)+'% won</span></li>'}).join("")||'<li class="row"><span class="s">Memory is empty. The bot is learning from scratch.</span></li>')}
 
+window.sxBotCards=function(){try{rc();mem()}catch(e){}};
 /* ---------- weekly brief ---------- */
 function brief(){var rows=P.map(function(p,i){var c=series(p[1],7,p[0].charCodeAt(1)*53+i*11+7),o=c.map(function(v,k){return v*(1+Math.abs(Math.sin(k*2.3+i))*.004)}),rg=0;c.forEach(function(v,k){rg+=Math.abs(o[k]-v)/v*100+Math.abs(c[k]-(c[k-1]||v))/v*100});return{n:p[0],chg:(c[6]-c[0])/c[0]*100,act:rg/7}}),
  by=rows.slice().sort(function(a,b){return b.act-a.act}),t1=by[2].act,t2=by[5].act,ga=rows.slice().sort(function(a,b){return b.chg-a.chg}),lab=function(a){return a>=t1?"Active":a>=t2?"Normal":"Calm"};
@@ -2679,7 +2682,7 @@ build()})();
   if (!vt || !window.SXA || typeof SXJ === "undefined") return;
   var WANT = "", BUSY = false, AGAIN = false, SIG = "", TK = 0;
   function me() { try { return SXA.user(); } catch (e) { return null; } }
-  function paint() { try { renderTrades(); jr(); sr(); } catch (e) {} }
+  function paint() { try { renderTrades(); jr(); sr(); } catch (e) {} try { if (window.sxBotCards) window.sxBotCards(); } catch (e) {} }
   function reset(state) { SXJ.rows = []; SXJ.total = 0; SXJ.stats = null; SXJ.pairs = []; SXJ.brokers = []; SXJ.broker = ""; SXJ.state = state; }
   function poll() {
     var u = me(); if (!u || !u.verified) return;
