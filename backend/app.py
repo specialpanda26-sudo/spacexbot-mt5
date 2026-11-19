@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard
+from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard, tradeview
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -443,6 +443,13 @@ def journal_api(u):
 def pnl_api(u):
     """Section 9A: the person's own profit and loss (today, 7 days, all time, win rate, profit curve) from their closed trades. ?broker=Deriv|MT5 (default all)."""
     return jsonify(pnlcard.snapshot(u['uid'], bool(u['admin']), request.args.get('broker', '')))
+
+@app.get('/api/trade/<int:tid>')
+@need(verified=True)
+def trade_api(u, tid):
+    """Section 9B: one of the person's own closed trades with the prices the server really stored and the candles it still holds (the pop-up chart)."""
+    d = tradeview.detail(u['uid'], bool(u['admin']), tid)
+    return (jsonify(d), 200) if d else (jsonify(error='trade not found'), 404)
 
 @app.get('/api/stats')
 @need(active=True)

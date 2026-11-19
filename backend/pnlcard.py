@@ -32,7 +32,7 @@ def snapshot(uid, admin=False, broker='', now=None):
     rows = [r for r in allr if r['broker'] == want] if want else allr          # newest first
     num = jn.numbers(rows); run = 0.0; pts = []
     for r in reversed(rows):                                                   # oldest first
-        run += r['pnl']; pts.append({'t': r['t'], 'v': round(run, 2)})
+        run += r['pnl']; pts.append({'t': r['t'], 'v': round(run, 2), 'id': r['id']})
     return {'today': _part(rows, now - now % 86400), 'week': _part(rows, now - WEEK),
             'total': {'pnl': pts[-1]['v'] if pts else 0.0, 'n': len(rows)},
             'stats': {k: num[k] for k in ('trades', 'wins', 'losses', 'win_rate', 'max_drawdown', 'best', 'worst')},
