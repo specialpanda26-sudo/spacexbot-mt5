@@ -3,7 +3,7 @@ Uses Deriv's new API: REST with the token + the Deriv-App-ID header (DERIV_APP_I
 Reply shapes are read loosely on purpose (not yet confirmed with deriv_probe.py), and nothing here ever puts a token in a message."""
 import os, re, json, time
 import threading
-from . import store as st, brokers as bk, bars, links, push, sbauth, learn
+from . import store as st, brokers as bk, bars, links, push, sbauth, learn, lag
 
 BASE = lambda: os.getenv('DERIV_BASE', 'https://api.derivws.com').rstrip('/')
 APP = lambda: os.getenv('DERIV_APP_ID', '').strip()
@@ -177,6 +177,7 @@ def _run_once(uid, scan, paid, connect, http, now):
                 for tf in ('M15', 'H1'):
                     rows = candles(sess, sym, tf, 300 if tf == 'M15' else 200, now)
                     if rows: bars.merge(sym, tf, rows, uid=uid)
+                lag.got(uid, 'deriv')
                 scan(sym, uid)
             except ConnectionError: raise
             except Exception as e: print('[deriv] symbol failed', sym, repr(e)[:100])
@@ -279,10 +280,12 @@ def _trade(sess, uid, acct, bal, now):
     s = st.q("SELECT * FROM signals WHERE uid=? AND status='pending' AND created>=? ORDER BY id LIMIT 1", (uid, int(now) - 120), True)
     if not s or not _bot(uid): return
     if not st.x("UPDATE signals SET status='sent' WHERE id=? AND status='pending'", (s['id'],), True): return      # claimed: nobody else can buy this signal
+    lag.stamp(s['id'], 'sent')
     try: kind, r = _place(sess, s, bal, acct['currency'])
     except Exception as e:
         st.x("UPDATE signals SET note=? WHERE id=?", ('buy not confirmed, check Deriv', s['id'])); print('[deriv] buy unconfirmed', repr(e)[:100]); return
     if kind == 'open':
+        lag.stamp(s['id'], 'opened')
         st.x("UPDATE signals SET status='open',ticket=?,lots=?,fill=?,note=?,broker='Deriv' WHERE id=?", (str(r['contract_id']), r['stake'], s['entry'], 'x%s' % r['mult'], s['id']))
         _report(uid, s['id'], 'open')
     else:

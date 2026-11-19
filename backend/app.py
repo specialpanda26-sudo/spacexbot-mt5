@@ -11,6 +11,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped. Please try again.'), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
+from . import lag
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -87,6 +88,7 @@ def _scan(sym, uid=''):
     sid = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
          (sym, s['side'], s['entry'], s['sl'], s['tp'], links.risk(uid) if uid else st.fget('risk_pct'), s['strategy'], s['score'], 'pending', int(time.time()), uid or None))
     sbauth.notify(f"{s['side'].upper()} {sym}", si.alert_body(s['strategy'], s['entry'], s['sl'], s['tp']), key=f'sig{sid}-new', only=uid or None)
+    lag.created(sid, m15[-1]['t'], uid)
     botstate.note(uid, sym, 'signal')
     learn.log(uid, 'signal', s['strategy'], sym, s['side'], data={'score': s['score'], 'adx': s['adx'], 'entry': s['entry']})
     if not uid: assist.announce(sid)          # phone-mode people get the signal with their own lot size
@@ -107,6 +109,7 @@ def ea_sync():
             if who and (tf not in ('M15', 'H1') or not isinstance(rows, list)): continue
             try: bars.merge(sym, tf, rows[:500] if who else rows, uid=who)
             except (TypeError, ValueError, IndexError) as e: print('bad bars from EA', sym, tf, e)
+    if bz: lag.got(who, 'ea')
     for sym in bz:
         try: _scan(sym, who)
         except Exception as e: print('scan failed', sym, str(e)[:120])
@@ -114,7 +117,7 @@ def ea_sync():
     st.x("UPDATE signals SET status='expired' WHERE status IN('pending','sent') AND created<? AND COALESCE(uid,'')=?", (now - 180, who))
     s = st.q("SELECT id,symbol,side,sl,tp,risk_pct FROM signals WHERE status='pending' AND COALESCE(uid,'')=? ORDER BY id LIMIT 1", (who,), one=True)
     if s and who and risk.bot_on(who) and not links.bot_on(who): s = None          # R7: the bot is on only for Deriv, so this signal is for Deriv; the MT5 bridge never sees it (the MT5 bridge itself ignores the bot flag)
-    if s: st.x("UPDATE signals SET status='sent' WHERE id=?", (s['id'],))
+    if s: st.x("UPDATE signals SET status='sent' WHERE id=?", (s['id'],)); lag.stamp(s['id'], 'sent')
     return jsonify(signal=s, bot=links.bot_on(who), symbols=st.get('symbols'))
 
 @app.post('/api/ea/report')
@@ -126,6 +129,7 @@ def ea_report():
     try: sid = int(d.get('id'))
     except (TypeError, ValueError): return jsonify(ok=True)
     if not st.q("SELECT 1 FROM signals WHERE id=? AND COALESCE(uid,'')=?", (sid, who), True): return jsonify(ok=True)      # not this caller's trade: change nothing, reveal nothing
+    if stt == 'open': lag.stamp(sid, 'opened')
     if stt == 'open': st.x("UPDATE signals SET status='open',ticket=?,lots=?,fill=?,broker='MT5' WHERE id=?", (str(d.get('ticket')), d.get('lots'), d.get('price'), sid))
     elif stt == 'rejected': st.x("UPDATE signals SET status='rejected',note=? WHERE id=?", (str(d.get('reason'))[:120], sid))
     elif stt == 'closed':
@@ -580,6 +584,10 @@ def admin_health(u):
     try: beat = int(st.get('deriv:beat') or 0)
     except ValueError: beat = 0
     return jsonify(dict(h, ok=not bad, problems=bad, deriv_loop_last=beat or None, deriv_loop_ago=int(time.time()) - beat if beat else None))
+
+@app.get('/api/admin/lag')
+@need(admin=True)
+def admin_lag(u): return jsonify(lag.report())
 
 @app.get('/api/plans')
 def plans(): return jsonify(pay.plans())
