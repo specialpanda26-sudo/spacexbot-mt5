@@ -46,9 +46,13 @@ def explain(uid, admin, paid=True, now=None):
     ok, why = risk.global_gate(now, uid=sc)
     if not ok: out.update(state='waiting', why=_words(why), code=why); return out
     n = _last(sc)
-    if n:
-        out['checked'] = n['t']
-        if n.get('c') == 'gate' or n.get('c') == 'skip': out.update(state='waiting', why=_words(n.get('w') or ''), code=n.get('w'))
-        else: out.update(state='watching', why=SCAN.get(n.get('c'), SCAN['nosetup']), code=n.get('c'))
+    if n and n.get('c') == 'skip':
+        out.update(checked=n['t'], state='waiting', why=_words(n.get('w') or ''), code=n.get('w'))
+    elif n and n.get('c') in SCAN:
+        out.update(checked=n['t'], state='watching', why=SCAN[n['c']], code=n['c'])
+    elif n:
+        # an old 'gate' note (for example 'bot off' left while it was stopped): the live gates above just passed, so it is stale.
+        # No market was looked at then, so it is not shown as a market check either.
+        out.update(state='watching', why='Connected and watching. It checks the market each time a new 15-minute candle closes.', code='watching')
     else: out.update(state='watching', why='Connected and watching. It checks the market each time a new 15-minute candle closes.', code='watching')
     return out
