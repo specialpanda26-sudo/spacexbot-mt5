@@ -772,7 +772,6 @@ body.scrolled .top::before{border-bottom-color:var(--line)}
   </section>
 </div>
 
-<button id="botPill" aria-label="Toggle bot"><span class="dot"></span><span id="pillTxt"></span></button>
 <style id="v2">
 /* v2: Linear UI, Muji calm, Notion dashboards, Airbnb cards, Framer press, Apple easing, Duolingo CTA */
 :root{--ink:#1E2330;--ring:color-mix(in srgb,var(--sky) 55%,transparent)}
@@ -989,7 +988,7 @@ function renderBot(){
   var best=PAIRS.map(function(p){return{p:p,a:analyse(p)}}).filter(function(x){return x.a.setup!=="Wait"}).sort(function(a,b){return Math.abs(b.a.score-50)-Math.abs(a.a.score-50)})[0];
   $("#bubble").textContent=state==="paused"?"I'm taking a break. Tap start when you're ready.":state==="halted"?"A safety gate stopped me. Check the limits on the Bot tab.":state==="news"?"Big news is close, so I'm waiting it out.":"I'm watching "+PAIRS.length+" pairs. "+(best?best.p.s+" looks the most interesting right now.":"Nothing worth trading yet.")+" Demo mode, so no real orders.";
   var b=$("#botToggle");b.textContent=S.running?"Pause bot":"Start bot";b.className="btn "+(S.running?"":"primary");
-  $("#pillTxt").textContent=S.running?"Bot running":"Bot paused";$("#botPill .dot").className="dot"+(S.running?" run":"");
+  
   var gates=[];
   if(S.gates.loss)gates.push({n:"Daily loss limit",pct:lossUsed/S.dayLoss,t:lossUsed.toFixed(1)+"% used of "+S.dayLoss+"%",st:"ok"});
   if(S.gates.circuit)gates.push({n:"Drawdown breaker",pct:dd/S.maxDD,t:dd.toFixed(1)+"% of "+S.maxDD+"% allowed",st:dd/S.maxDD>.7?"watch":"ok"});
