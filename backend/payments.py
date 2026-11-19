@@ -54,8 +54,14 @@ def _channel():
     except ValueError: return 0
 def _head():
     t = base64.b64encode(f"{_env('PAYHERO_API_KEY', 'PAYHERO_USER')}:{_env('PAYHERO_API_SECRET', 'PAYHERO_PASS')}".encode()).decode()
-    return {'Authorization': 'Basic ' + t, 'Content-Type': 'application/json'}
+    return {'Authorization': 'Basic ' + t, 'Content-Type': 'application/json', 'Accept-Encoding': 'identity'}
 def cb_secret(): return _env('PAYHERO_CALLBACK_SECRET', 'CALLBACK_SECRET')
+def _post(url, body):
+    """POST to FinoQ -> (response, dict). A non-JSON answer is kept as {'raw': first 150 chars} so the admin log shows it."""
+    r = requests.post(url, json=body, headers=_head(), timeout=25)
+    try: j = r.json() if r.content else {}
+    except ValueError: j = {'raw': r.text[:150]}
+    return r, (j if isinstance(j, dict) else {'raw': str(j)[:150]})
 def _provider():
     """SasaPay is the real prompt. Plain 'm-pesa' is used ONLY when PAYHERO_PROVIDER=m-pesa-direct (a channel that is a Paybill/Till)."""
     return 'm-pesa' if _env('PAYHERO_PROVIDER').lower() in ('m-pesa-direct', 'mpesa-direct') else 'sasapay'
@@ -90,8 +96,7 @@ def stk_push(uid, pid, phone_raw):
     # account_id is for payouts only: the channel already names the account, so the prompt does not send it
     body['callback_url'] = _cb_url()
     try:
-        r = requests.post(base() + '/api/v2/payments', json=body, headers=_head(), timeout=25)
-        j = r.json() if r.content else {}
+        r, j = _post(base() + '/api/v2/payments', body)
     except Exception as e:
         note(ref, 'no answer from gateway: %s | provider=%s network=%s' % (str(e)[:150], prov, body.get('network_code', '-')))
         _mark(ref, 'failed', 'not_sent'); raise RuntimeError('Could not reach the payment gateway') from e
