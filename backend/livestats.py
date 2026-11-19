@@ -51,12 +51,12 @@ def snapshot(uid, admin=False, now=None):
     t = st.q("SELECT COALESCE(SUM(pnl),0) p, COUNT(*) n FROM signals WHERE closed>=? AND pnl IS NOT NULL AND COALESCE(uid,'') IN (?,?)", (st.day_start(), sc[0], sc[1]), True) or {}
     today = round(_f(t.get('p')) or 0.0, 2)
     n_sig = (st.q("SELECT COUNT(*) n FROM signals WHERE status='open' AND COALESCE(uid,'') IN (?,?)", sc, True) or {}).get('n') or 0
-    rows = st.q("SELECT symbol,side,fill,entry,strategy FROM signals WHERE status='open' AND COALESCE(uid,'') IN (?,?) ORDER BY id DESC LIMIT %d" % MAX_TRADES, sc) or []
+    rows = st.q("SELECT id,symbol,side,fill,entry,strategy FROM signals WHERE status='open' AND COALESCE(uid,'') IN (?,?) ORDER BY id DESC LIMIT %d" % MAX_TRADES, sc) or []
     bal = round(sum(s['balance'] for s in src), 2); eq = round(sum(s['equity'] for s in src), 2)
     state = 'none' if not src else 'live' if any(s['online'] for s in src) else 'stale'
     base = bal - today
     return {'state': state, 'mode': 'real' if any(s['mode'] == 'real' for s in src) else 'demo', 'balance': bal, 'equity': eq, 'floating': round(eq - bal, 2),
             'today': today, 'today_pct': round(today / base * 100, 2) if base > 0 else 0.0, 'today_n': int(t.get('n') or 0),
             'open': max(int(n_sig), sum(s['open'] or 0 for s in src)),
-            'trades': [{'symbol': r['symbol'], 'side': str(r['side']).lower(), 'price': r.get('fill') or r.get('entry'), 'strategy_name': si.label(r['strategy'])} for r in rows],
+            'trades': [{'id': r['id'], 'symbol': r['symbol'], 'side': str(r['side']).lower(), 'price': r.get('fill') or r.get('entry'), 'strategy_name': si.label(r['strategy'])} for r in rows],
             'sources': src, 'ts': int(now)}

@@ -2318,7 +2318,7 @@ build()})();
     h += '<div class="stats">' + stat("Balance", money(D.balance)) + stat("Equity", money(D.equity)) + stat("Today", money(t, true), cls(t)) + stat("Open trades", String(D.open || 0)) + "</div>";
     h += '<ul class="list">' + (D.trades || []).map(function (x) {
       var up = x.side === "buy";
-      return '<li class="row"><span class="ic ' + (up ? "up" : "dn") + '">' + (up ? "\u25B2" : "\u25BC") + '</span><span class="t">' + esc(x.symbol) + " " + (up ? "Buy" : "Sell") + '</span><span class="r num">' + (x.price ? "at " + esc(x.price) : "") + '</span><span class="r2">' + esc(x.strategy_name || "") + "</span></li>";
+      return '<li class="row"' + (x.id > 0 ? ' data-tid="' + Number(x.id) + '" role="button" tabindex="0"' : "") + '><span class="ic ' + (up ? "up" : "dn") + '">' + (up ? "\u25B2" : "\u25BC") + '</span><span class="t">' + esc(x.symbol) + " " + (up ? "Buy" : "Sell") + '</span><span class="r num">' + (x.price ? "at " + esc(x.price) : "") + '</span><span class="r2">' + esc(x.strategy_name || "") + "</span></li>";
     }).join("") + "</ul>";
     h += warn(k) + '<p class="note">' + (D.floating ? "Floating " + esc(money(D.floating, true)) + " | " : "") + (D.sources || []).map(function (s) { return esc(s.name) + " " + esc(s.mode) + (s.online ? "" : " offline"); }).join(" | ") + " | updated " + esc(ago()) + "</p>";
     return h;
@@ -2526,8 +2526,11 @@ build()})();
     var buy = d.side === "buy", win = Number(d.pnl) > 0, lv = d.levels || {}, cn = d.candles || {}, dec = Number(d.dec) || 2, rows = [];
     [["tp", "Take profit"], ["entry", "Planned entry"], ["fill", "Filled at"], ["sl", "Stop loss"]].forEach(function (x) { var p = num(lv[x[0]]); if (p > 0) rows.push("<dt>" + x[1] + '</dt><dd class="num">' + esc(price(p, dec)) + "</dd>"); });
     if (num(d.lots) > 0) rows.push('<dt>Lots</dt><dd class="num">' + esc(String(d.lots)) + "</dd>");
-    rows.push("<dt>Opened</dt><dd>" + esc(when(d.opened)) + "</dd><dt>Closed</dt><dd>" + esc(when(d.closed)) + "</dd><dt>Held for</dt><dd>" + esc(span(d.closed - d.opened)) + "</dd>");
+    var isOpen = d.status === "open";
+    rows.push("<dt>Opened</dt><dd>" + esc(when(d.opened)) + "</dd>" + (isOpen ? "<dt>Open for</dt><dd>" + esc(span(Date.now() / 1000 - d.opened)) + "</dd>" : "<dt>Closed</dt><dd>" + esc(when(d.closed)) + "</dd><dt>Held for</dt><dd>" + esc(span(d.closed - d.opened)) + "</dd>"));
     if (d.strategy_name) rows.push("<dt>Strategy</dt><dd>" + esc(d.strategy_name) + "</dd>");
+    rows.push("<dt>Opened by</dt><dd>" + (d.opened_by === "manual" ? "You, by hand (manual)" : "The bot (automatic)") + "</dd>");
+    if (!isOpen) rows.push("<dt>Closed by</dt><dd>" + esc({ tp: "Take profit hit (automatic)", sl: "Stop loss hit (automatic)", bot: "The bot (automatic)", manual: "You, by hand (manual)", other: "Something else (by hand, your broker or the system)" }[d.closed_by] || "Not recorded") + "</dd>");
     rows.push("<dt>Broker</dt><dd>" + esc(d.broker || "-") + "</dd>");
     var notes = [], ch = chart(d);
     notes.push((d.exit && d.exit.note) || "The exit price and the reason this trade closed are not recorded.");
@@ -2535,7 +2538,7 @@ build()})();
     else if (!cn.covers_open || !cn.covers_close) notes.push("The server holds only some of the candles around this trade.");
     if (!(num(lv.fill) > 0)) notes.push("No fill price was recorded, so Entry is the planned price.");
     return '<div class="grab"></div><div class="card-head"><h2 id="shTitle" style="font-size:26px">' + esc(d.symbol) + '</h2><span class="chip ' + (buy ? "ok" : "stop") + '">' + (buy ? "Buy" : "Sell") + "</span></div>" +
-      '<div class="pmeta"><b class="num ' + (win ? "good" : "bad") + '" style="font-size:30px">' + esc(money(d.pnl)) + '</b><span class="note">closed ' + esc(when(d.closed)) + "</span></div>" +
+      (isOpen ? '<div class="pmeta"><b class="num" style="font-size:30px">Open now</b><span class="note">opened ' + esc(when(d.opened)) + "</span></div>" : '<div class="pmeta"><b class="num ' + (win ? "good" : "bad") + '" style="font-size:30px">' + esc(money(d.pnl)) + '</b><span class="note">closed ' + esc(when(d.closed)) + "</span></div>") +
       (ch ? '<div class="chart" style="min-height:0">' + ch + "</div>" : "") + '<dl class="kv">' + rows.join("") + "</dl>" +
       notes.map(function (t) { return '<p class="note">' + esc(t) + "</p>"; }).join("") + '<button class="btn block" data-close="1">Close</button>';
   }

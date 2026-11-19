@@ -127,7 +127,9 @@ def ea_report():
     if not st.q("SELECT 1 FROM signals WHERE id=? AND COALESCE(uid,'')=?", (sid, who), True): return jsonify(ok=True)      # not this caller's trade: change nothing, reveal nothing
     if stt == 'open': st.x("UPDATE signals SET status='open',ticket=?,lots=?,fill=?,broker='MT5' WHERE id=?", (str(d.get('ticket')), d.get('lots'), d.get('price'), sid))
     elif stt == 'rejected': st.x("UPDATE signals SET status='rejected',note=? WHERE id=?", (str(d.get('reason'))[:120], sid))
-    elif stt == 'closed': st.x("UPDATE signals SET status='closed',pnl=?,closed=? WHERE id=?", (d.get('pnl'), int(time.time()), sid))
+    elif stt == 'closed':
+        st.x("UPDATE signals SET status='closed',pnl=?,closed=? WHERE id=?", (d.get('pnl'), int(time.time()), sid))
+        if str(d.get('reason')) in ('tp', 'sl', 'manual', 'bot', 'other'): st.put('closedby:%d' % sid, str(d.get('reason')))      # only what the bridge really reported
     if stt in ('open', 'closed'):
         s = st.q('SELECT * FROM signals WHERE id=?', (sid,), True)
         if s:

@@ -9,11 +9,13 @@ Nothing is invented:
 Scope = the same as the Journal (backend/journal.py): a person sees only their own trades; the owner sees their own EA ('' scope) and their own Deriv trades.
 ASSUMPTIONS (tunable): the chart uses M15 candles, PRE bars before the trade opened and POST bars after it closed; more than MAXC candles are merged into
 bigger ones (open of the first, high, low, close of the last) so the picture stays small; fewer than MINC candles counts as no candles."""
-import math
+import math, time
 from . import store as st, bars, journal as jn, strategy_info as si
 
 TF = 'M15'; TFS = 900
 PRE = 24; POST = 8; MAXC = 90; MINC = 5
+OPEN_NOTE = 'This trade is still open. The numbers and the chart update when you open it again.'
+PRICE_NOTE = 'The exit price is not recorded: when a trade closes your broker reports only its profit. The line on the chart marks the time it closed, not a price.'
 EXIT_NOTE = ('The exit price and the reason this trade closed (stop loss, take profit or closed by hand) are not recorded: when a trade closes your broker '
              'reports only its profit. The line on the chart marks the time it closed, not a price.')
 
@@ -58,20 +60,23 @@ def _candles(scopes, symbol, t0, t1):
 
 
 def detail(uid, admin, tid):
-    """One closed trade of this person, or None (not theirs, not closed, no real profit figure, or no such trade)."""
+    """One trade of this person (closed, or still open), or None (not theirs, no real profit figure on a closed one, or no such trade)."""
     try: tid = int(tid)
     except (TypeError, ValueError): return None
     a, b = jn.scope(uid, admin)
-    r = st.q("SELECT id,symbol,side,strategy,entry,sl,tp,fill,lots,pnl,closed,created,note,broker FROM signals "
-             "WHERE id=? AND status='closed' AND pnl IS NOT NULL AND COALESCE(uid,'') IN (?,?)", (tid, a, b), True)
+    r = st.q("SELECT id,symbol,side,strategy,entry,sl,tp,fill,lots,pnl,closed,created,note,broker,status FROM signals "
+             "WHERE id=? AND status IN ('open','closed') AND COALESCE(uid,'') IN (?,?)", (tid, a, b), True)
     if not r: return None
+    is_open = r.get('status') == 'open'
     p = jn._num(r.get('pnl'))
-    if p is None: return None
-    opened = int(r.get('created') or 0); closed = int(r.get('closed') or r.get('created') or 0)
+    if p is None and not is_open: return None
+    opened = int(r.get('created') or 0); closed = None if is_open else int(r.get('closed') or r.get('created') or 0)
+    why = None if is_open else (st.get('closedby:%d' % r['id']) or None)
     lv = {'entry': _px(r.get('entry')), 'fill': _px(r.get('fill')), 'sl': _px(r.get('sl')), 'tp': _px(r.get('tp'))}
     lots = jn._num(r.get('lots'))
     return {'id': r['id'], 'symbol': r['symbol'], 'side': str(r['side'] or '').lower(), 'strategy': r['strategy'], 'strategy_name': si.label(r['strategy']),
-            'broker': jn.broker_of(r), 'lots': lots if lots and lots > 0 else None, 'pnl': round(p, 2), 'result': 'win' if p > 0 else 'loss',
+            'broker': jn.broker_of(r), 'lots': lots if lots and lots > 0 else None, 'pnl': round(p, 2) if p is not None else None, 'result': None if p is None else 'win' if p > 0 else 'loss',
+            'status': 'open' if is_open else 'closed', 'opened_by': 'bot', 'closed_by': why,
             'opened': opened, 'closed': closed, 'levels': lv, 'dec': _dec([x for x in lv.values() if x]),
-            'exit': {'recorded': False, 'price': None, 'reason': None, 'note': EXIT_NOTE},
-            'candles': _candles((a, b), r['symbol'], opened, closed)}
+            'exit': {'recorded': False, 'price': None, 'reason': why, 'note': OPEN_NOTE if is_open else PRICE_NOTE if why else EXIT_NOTE},
+            'candles': _candles((a, b), r['symbol'], opened, closed or int(time.time()))}
