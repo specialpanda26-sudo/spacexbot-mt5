@@ -23,7 +23,7 @@ SCAN = {
 
 def note(uid, sym, code, why=''):
     """Called by the scanner after each candle. code: nosetup | signal | gate | skip."""
-    try: st.put('scan:%s:%s' % (uid or '', sym), json.dumps({'t': int(time.time()), 'c': code, 'w': str(why)[:240]}))
+    try: st.put('scan:%s:%s' % (uid or '', sym), json.dumps({'t': int(time.time()), 'c': code, 'w': str(why)[:300]}))
     except Exception as e: print('scan note failed', str(e)[:80])
 
 def _last(uid):

@@ -47,8 +47,8 @@ A.bars.merge('XAUUSD', 'M15', [[BAR - 900 * k, 2000, 2001, 1999, 2000, 1] for k 
 A.bars.merge('XAUUSD', 'H1', [[BAR - 3600 * k, 2000, 2001, 1999, 2000, 1] for k in range(10)], uid='')
 brain.ALL = [nothing]; A._scan('XAUUSD', ''); brain.ALL = real_all
 n = botstate._last('')
-T('after a candle with no setup the note has the reason', n and n['c'] == 'nosetup' and n['w'] == 'None of the 1 strategies saw a setup on this candle.')
-botstate.note('', 'XAUUSD', 'nosetup', 'x' * 400); T('a long reason is cut, never an error', len(botstate._last('')['w']) == 240)
+T('after a candle with no setup the note has the reason', n and n['c'] == 'nosetup' and n['w'].startswith('None of the 1 strategies saw a setup on this candle.'))
+botstate.note('', 'XAUUSD', 'nosetup', 'x' * 400); T('a long reason is cut, never an error', len(botstate._last('')['w']) == 300)
 
 # ---- 3. the Bot status words ----
 T('an older note (no reason) keeps the standard sentence', botstate._scan_words({'c': 'nosetup', 't': 1}, '', 1000) == botstate.SCAN['nosetup'])

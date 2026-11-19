@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, reason as rsn, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard, tradeview, pnlreset, connwhy
+from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, reason as rsn, regime as rgm, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard, tradeview, pnlreset, connwhy
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -81,8 +81,9 @@ def _scan(sym, uid=''):
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
     if st.get('auto_disable') == '1': off |= stats.losers(int(st.fget('auto_disable_min_trades')), uid)
     solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
-    info = {}; s = brain.evaluate(m15, h1, int(st.fget('min_confluence')), st.fget('rr'), off, solo=solo, info=info)
-    if not s: botstate.note(uid, sym, 'nosetup', info.get('text', '')); return
+    orf = stats.regime_off(uid) if st.get('regime_switch') == '1' else None          # R3: strategies that keep losing in this kind of market (off unless the owner switches it on)
+    info = {}; s = brain.evaluate(m15, h1, int(st.fget('min_confluence')), st.fget('rr'), off, solo=solo, info=info, off_reg=orf)
+    if not s: botstate.note(uid, sym, 'nosetup', rgm.note_text(info)); return
     ok, why = risk.symbol_gate(sym, s['side'], uid=uid)
     if not ok: print('skip', sym, s['side'], why); botstate.note(uid, sym, 'skip', why); return
     n = multi.entries(uid, s['score']); base = links.risk(uid) if uid else st.fget('risk_pct')          # R8: 1 unless the owner allows more and the setup is strong
@@ -515,6 +516,15 @@ def admin_strategies(u):
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
     solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
     return jsonify(si.listing([f.__name__ for f in S.ALL], S.TREND, S.REVERSION, off, learn.by_strategy(), solo))
+
+@app.get('/api/admin/regimes')
+@need(admin=True)
+def admin_regimes(u):
+    """R3: how each strategy did in each market regime (the owner's closed trades that saved their regime), and which ones the learned switch has turned off."""
+    mt = max(stats.MIN_FLOOR, int(st.fget('regime_min_trades'))); off = stats.regime_off(_mine(u), mt); rows = []
+    for n, cells in sorted(stats.by_regime(_mine(u)).items()):
+        for rg, c in sorted(cells.items()): rows.append(dict(c, strategy=n, name=si.name(n), regime=rg, off=rg in off.get(n, ())))
+    return jsonify(switch=st.get('regime_switch') == '1', min_trades=mt, rows=rows)
 
 @app.post('/api/admin/plans')
 @need(admin=True)

@@ -2,7 +2,7 @@
 reversion setups are skipped when ADX says strong trend, trend setups when ADX says dead range."""
 from .strategies import ALL, REVERSION, TREND
 from .indicators import atr, adx
-from . import strategy_info as si
+from . import strategy_info as si, regime as rgm
 
 def _say(info, code, text, **kw):
     """Tell the caller WHY there is no setup. `info` is an optional dict the caller passes in; it never changes what evaluate returns."""
@@ -11,17 +11,16 @@ def _say(info, code, text, **kw):
 def _names(xs):
     xs = list(xs); return ', '.join(si.name(x) for x in xs[:3]) + (' and %d more' % (len(xs) - 3) if len(xs) > 3 else '')
 
-def _filt_text(filt, ax, rev_max, trend_min):
-    n = len(filt)
-    kinds = {k for _, k in filt}
-    why = ('ADX %.0f is a strong trend, so reversal setups are skipped above %g' % (ax, rev_max)) if kinds == {'rev'} else \
-          ('ADX %.0f is a quiet market, so trend setups are skipped below %g' % (ax, trend_min)) if kinds == {'trend'} else \
-          ('ADX %.0f: reversal setups are skipped in strong trends and trend setups in quiet markets' % ax)
-    return '%d setup%s seen (%s) but skipped: %s.' % (n, '' if n == 1 else 's', _names([x for x, _ in filt]), why)
+def _filt_text(filt, ax, rev_max, trend_min, rg=''):
+    n = len(filt); kinds = {k for _, k in filt}; why = []
+    if 'rev' in kinds: why.append('ADX %.0f is a strong trend, so reversal setups are skipped above %g' % (ax, rev_max))
+    if 'trend' in kinds: why.append('ADX %.0f is a quiet market, so trend setups are skipped below %g' % (ax, trend_min))
+    if 'learned' in kinds: why.append('in a %s market their own results were losing, so they are switched off there' % (rg or 'this'))
+    return '%d setup%s seen (%s) but skipped: %s.' % (n, '' if n == 1 else 's', _names([x for x, _ in filt]), '; '.join(why))
 
-def evaluate(m15, h1, min_conf=2, rr=2.0, off=(), adx_trend_min=18.0, adx_rev_max=28.0, solo=(), info=None):
+def evaluate(m15, h1, min_conf=2, rr=2.0, off=(), adx_trend_min=18.0, adx_rev_max=28.0, solo=(), info=None, off_reg=None):
     if len(m15) < 120: _say(info, 'history', 'Not enough candle history yet (%d of 120 candles).' % len(m15)); return None
-    ax = adx(m15)[-1]; hits = []; ran = 0; filt = []
+    ax = adx(m15)[-1]; hits = []; ran = 0; filt = []; rg = rgm.of(ax, adx_trend_min, adx_rev_max)
     for fn in ALL:
         if fn.__name__ in off: continue
         ran += 1
@@ -31,10 +30,11 @@ def evaluate(m15, h1, min_conf=2, rr=2.0, off=(), adx_trend_min=18.0, adx_rev_ma
         if r['name'] in solo and not r.get('solo'): r = {**r, 'solo': True}          # admin switch 'may trade alone' (A3)
         if ax and r['name'] in REVERSION and ax > adx_rev_max: filt.append((r['name'], 'rev')); continue
         if ax and r['name'] in TREND and ax < adx_trend_min: filt.append((r['name'], 'trend')); continue
+        if off_reg and rg in off_reg.get(r['name'], ()): filt.append((r['name'], 'learned')); continue          # R3: lost money in this regime before
         hits.append(r)
     buys = [x for x in hits if x['side'] == 'buy']; sells = [x for x in hits if x['side'] == 'sell']
     if len(buys) == len(sells):
-        if not hits and filt: _say(info, 'adx', _filt_text(filt, ax, adx_rev_max, adx_trend_min), ran=ran, adx=round(ax, 1), filtered=[n for n, _ in filt])
+        if not hits and filt: _say(info, 'adx', _filt_text(filt, ax, adx_rev_max, adx_trend_min, rg), ran=ran, adx=round(ax, 1), filtered=[n for n, _ in filt])
         elif not hits: _say(info, 'none', ('None of the %d strategies saw a setup on this candle.' % ran) if ran else 'All strategies are switched off.', ran=ran, adx=round(ax, 1))
         else: _say(info, 'split', 'The strategies disagreed: %s said buy, %s said sell, so it stayed out.' % (_names([x['name'] for x in buys]), _names([x['name'] for x in sells])), ran=ran, adx=round(ax, 1))
         return None
@@ -51,7 +51,7 @@ def evaluate(m15, h1, min_conf=2, rr=2.0, off=(), adx_trend_min=18.0, adx_rev_ma
         t = grp[0]['tp']
         if (side == 'buy' and t > entry) or (side == 'sell' and t < entry): tp = t
     why = {'agree': [x['name'] for x in grp], 'against': len(sells if side == 'buy' else buys), 'adx': round(ax, 1),
-           'regime': 'strong trend' if ax > adx_rev_max else 'quiet' if ax < adx_trend_min else 'moderate',
+           'regime': rg,
            'atr': round(a, 5), 'sl_atr': round(dist / a, 2) if a else None, 'rr': round(abs(tp - entry) / dist, 2) if dist else None,
            'own_tp': bool(len(grp) == 1 and grp[0].get('tp') and tp == grp[0]['tp']), 'solo': len(grp) < min_conf, 'min_conf': min_conf}
     return {'side': side, 'entry': round(entry, 5), 'sl': round(sl, 5), 'tp': round(tp, 5),
