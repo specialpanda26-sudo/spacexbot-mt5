@@ -1,6 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats
+from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, feed, alerts, brokers as bk, deriv, livestats, limits
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 st.init(); assist.init()
@@ -461,6 +461,19 @@ def admin_feed_set(u):
         st.put('feed_on', '1' if j['on'] else '0')
         if j['on']: threading.Thread(target=lambda: feed.tick(_scan), daemon=True).start()       # first round now, not in a minute
     return jsonify(feed.status())
+
+@app.get('/api/limits')
+@need(verified=True)
+def limits_get(u): return jsonify(limits.view(_mine(u)))
+
+@app.post('/api/limits')
+@need(verified=True)
+def limits_set(u):
+    j = _j()
+    try: out = limits.save(_mine(u), j.get('max_trades'), j.get('streak'))
+    except ValueError as e: return jsonify(error=str(e)), 400
+    learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in ('max_trades', 'streak')}})
+    return jsonify(out)
 
 @app.post('/api/admin/testprice')
 @need(admin=True)

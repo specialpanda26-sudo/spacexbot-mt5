@@ -1,7 +1,7 @@
 """Pre-trade gates (ideas from claude-trading-skills: drawdown-circuit-breaker, pre-trade-discipline-gate,
 exposure-coach). global_gate() runs before analysis, symbol_gate() after a side is known."""
 import time, datetime as dt
-from . import store as st, news, links
+from . import store as st, news, links, limits
 
 def _week_start(now):
     d = dt.datetime.utcfromtimestamp(now); m = d - dt.timedelta(days=d.weekday())
@@ -19,14 +19,14 @@ def global_gate(now=None, uid=''):
     if d.weekday() >= 5 or (d.weekday() == 4 and d.hour >= 20): return False, 'weekend/Friday-night risk'
     if int(a.get('open', 0)) >= int(st.fget('max_open')): return False, 'max open positions'
     since = int(now - now % 86400)
-    mt = int(st.fget('max_trades_day') or 0)      # 0 = no daily trade limit (the stop loss and the loss limits protect the account)
+    mt = limits.trades(uid)      # 0 = no daily trade limit (the stop loss and the loss limits protect the account)
     if mt > 0:
         n = st.q("SELECT COUNT(*) n FROM signals WHERE created>=? AND status IN('pending','sent','open','closed') AND COALESCE(uid,'')=?", (since, uid), True)['n']
         if n >= mt: return False, 'max trades today'
     bal = float(a.get('balance') or 0)
     if bal and _pnl_since(since, uid) <= -bal * st.fget('max_daily_loss_pct') / 100: return False, 'daily loss limit hit'
     if bal and _pnl_since(_week_start(now), uid) <= -bal * st.fget('max_weekly_loss_pct') / 100: return False, 'weekly loss limit hit'
-    k = int(st.fget('max_losing_streak'))
+    k = limits.streak(uid)
     last = st.q("SELECT pnl,closed FROM signals WHERE status='closed' AND pnl IS NOT NULL AND COALESCE(uid,'')=? ORDER BY closed DESC LIMIT ?", (uid, k))
     if k > 0 and len(last) == k and all(x['pnl'] < 0 for x in last) and now - last[0]['closed'] < st.fget('streak_cooldown_h') * 3600:
         return False, f'{k} losses in a row: cooling down'

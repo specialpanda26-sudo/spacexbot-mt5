@@ -21,6 +21,8 @@ Rules for every new section (same as sections already done):
 
 - Phone-only price feed (Nov 18 plan, section 2): backend/feed.py (Yahoo candles -> same candle store -> same scan; off by default; pauses when an EA is online) + GET/POST /api/admin/feed + Price feed card in the admin panel + store default feed_on + tests/test_feed.py. Next: section 3 (my MT5 price box + Cent/Standard account setting), section 4 (test_assist.py + demo run).
 
+- Limits on the server (Nov 19 plan, leftover of section 4): backend/limits.py + GET/POST /api/limits + risk.global_gate reads limits.trades(uid) / limits.streak(uid) + the Session limits card saves Max trades a day and Loss streak stop to the server (tests/test_limits.py). A subscriber can only be stricter than the owner. Daily profit target and Profit lock are still page-only.
+
 ## REMAINING (do in this order, one section per session)
 ### Video 3 (Data Trader - moving average strategy)  [3A, 3B, 3C, 3D done]
 - 3B  DONE (backend/ma_bounce.py). Original spec: the 20 or 50 MA as dynamic support/resistance + STOCHASTIC. Needs a new `stoch(b, k=14, d=3)` in a NEW helper file (do not edit indicators.py). Rule: price has touched the MA several times and bounced (the MA acts as support/resistance); when price is back at the MA AND stochastic is oversold (<20) in an uptrend -> buy; overbought (>80) at the MA in a downtrend -> sell. Add to REVERSION or TREND as fits (it trades pullbacks WITH the trend -> TREND).

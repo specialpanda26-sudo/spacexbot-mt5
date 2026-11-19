@@ -1887,8 +1887,10 @@ if(vb){
  var us=function(){$("#uSw").innerHTML=sw("lock","Profit lock","After 60% of the profit target, stop if the day gives back half its best gain.")+sw("auto","Auto-switch pairs","Move to the pair with the cleanest setup instead of staying on one.")+sw("mon","Monitor mode","Practice only. The bot logs what it would do and places nothing.");
   var f=focus();$("#uFocus").textContent=X.auto?(f?"Focus pair now: "+f.p[0]+" ("+f.a.s+" setup, score "+f.a.sc+").":"No clean setup right now, so the bot stays put."):"Auto-switch is off. The bot stays on the pair you chose.";
   $("#uPr").textContent=X.mon?"Practice trades: "+X.practice:"Live-demo"};
- $("#uTp").value=X.tp;$("#uMax").value=X.maxT;$("#uStr").value=X.streak;us();
- [["uTp","tp","Daily profit target"],["uMax","maxT","Max trades a day"],["uStr","streak","Loss streak stop"]].forEach(function(a){$("#"+a[0]).addEventListener("change",function(){var n=parseFloat(this.value);if(n>=0){X[a[1]]=n;sv();ja("rule",a[2]+" set to "+n);bn()}})});
+ function limLoad(){if(!window.SXA)return;SXA.api("/api/limits").then(function(r){X.maxT=r.max_trades||0;X.streak=r.streak||0;$("#uMax").value=X.maxT||"";$("#uStr").value=X.streak||"";$("#uMax").placeholder=r.cap_trades?"Owner limit "+r.cap_trades:"No limit";$("#uStr").placeholder=r.cap_streak?"Owner limit "+r.cap_streak:"Off";sv()}).catch(function(){})}
+ function limSave(k,n,el,nm){var b={};b[k==="maxT"?"max_trades":"streak"]=Math.round(n);SXA.api("/api/limits",{method:"POST",body:b}).then(function(r){X.maxT=r.max_trades||0;X.streak=r.streak||0;el.value=(k==="maxT"?X.maxT:X.streak)||"";sv();ja("rule",nm+" saved on the server: "+(el.value||"default"));bn();toast(nm+" saved on the server")}).catch(function(e){el.value=(k==="maxT"?X.maxT:X.streak)||"";toast(e.message||"Not saved. Sign in first")})}
+ $("#uTp").value=X.tp;$("#uMax").value=X.maxT;$("#uStr").value=X.streak;us();limLoad();
+ [["uTp","tp","Daily profit target"],["uMax","maxT","Max trades a day"],["uStr","streak","Loss streak stop"]].forEach(function(a){$("#"+a[0]).addEventListener("change",function(){var sv2=a[1]==="maxT"||a[1]==="streak",n=sv2&&this.value===""?0:parseFloat(this.value);if(n>=0){if(sv2){if(window.SXA)limSave(a[1],n,this,a[2]);else toast("Sign in first");return}X[a[1]]=n;sv();ja("rule",a[2]+" set to "+n);bn()}})});
  vb.addEventListener("click",function(e){var b=e.target.closest("[data-u]");if(!b)return;var k=b.dataset.u;X[k]=!X[k];sv();us();bn();ja("rule",b.querySelector("b").textContent+" turned "+(X[k]?"on":"off"));if(k==="mon")toast(X.mon?"Monitor mode on. Nothing will be placed":"Monitor mode off")});
  $("#btGo").onclick=function(){var b=this;b.disabled=true;b.textContent="Replaying…";setTimeout(function(){b.disabled=false;runBt();ja("note","Backtest ran: profit factor "+X.bt.pf.toFixed(2)+", "+X.bt.pos+" of "+X.bt.tot+" pairs positive")},450)};
  $("#rcGo").onclick=rc;$("#mmClr").onclick=function(){X.memCut=Date.now();sv();mem();ja("note","Bot memory reset");toast("Memory reset")};
@@ -1908,7 +1910,7 @@ function bn(){var m=main(),c=$("#botChip");sb.hidden=!X.banner;
  $("#sbM").className="chip "+((m.mode||"demo")==="demo"?"demo":"stop");$("#sbM").textContent=(m.mode||"demo")==="demo"?"DEMO account":"LIVE";
  if(c){$("#sbB").className=c.className;$("#sbB").innerHTML=c.innerHTML}
  $("#sbX").hidden=!X.mon;
- $("#sbT").textContent="Loss cap "+(m.dayLoss||3)+"% · Profit target $"+X.tp+" · Max "+X.maxT+" trades · Stop after "+X.streak+" losses"}
+ $("#sbT").textContent="Loss cap "+(m.dayLoss||3)+"% · Profit target $"+X.tp+" · "+(X.maxT?"Max "+X.maxT+" trades":"No trade limit")+" · "+(X.streak?"Stop after "+X.streak+" losses":"No loss-streak stop")}
 var ov=document.createElement("div");ov.className="up-ov";ov.hidden=true;document.body.appendChild(ov);
 function closeSet(){ov.hidden=true;ov.innerHTML=""}
 function openSet(){var th=main().theme||"dark";
