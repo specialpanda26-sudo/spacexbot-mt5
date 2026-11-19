@@ -1,7 +1,7 @@
 """M-Pesa via FinoQ (= PayHero v2) and PayPal Orders v2.
 Hardened the way Comrade Connect does it: only a webhook (or a verified status check) marks a payment paid,
 every state change is conditional so repeats are harmless, a success must name an amount >= the price and
-(if it names a payer) the same phone, and a late success after 'expired' still credits."""
+(the payer phone is only logged) and a late success after 'expired' still credits."""
 import os, time, json, base64, secrets, threading, datetime as dt, requests
 from . import store as st
 
@@ -56,6 +56,9 @@ def _head():
     t = base64.b64encode(f"{_env('PAYHERO_API_KEY', 'PAYHERO_USER')}:{_env('PAYHERO_API_SECRET', 'PAYHERO_PASS')}".encode()).decode()
     return {'Authorization': 'Basic ' + t, 'Content-Type': 'application/json'}
 def cb_secret(): return _env('PAYHERO_CALLBACK_SECRET', 'CALLBACK_SECRET')
+def _provider():
+    """SasaPay is the real prompt. Plain 'm-pesa' is used ONLY when PAYHERO_PROVIDER=m-pesa-direct (a channel that is a Paybill/Till)."""
+    return 'm-pesa' if _env('PAYHERO_PROVIDER').lower() in ('m-pesa-direct', 'mpesa-direct') else 'sasapay'
 
 def norm_phone(p):
     """-> local '07XXXXXXXX' / '01XXXXXXXX' or None."""
@@ -87,7 +90,7 @@ def stk_push(uid, pid, phone_raw):
     if not (bump('aid:' + uid, int(_env('STK_DAILY_PER_ACCOUNT', d='30'))) and bump('phone:' + ph, int(_env('STK_DAILY_PER_PHONE', d='10')))):
         raise PermissionError('Too many payment attempts today. Try again tomorrow.')
     ref = _new(uid, 'finoq', pid, p['kes'], 'KES', ph)
-    prov = _env('PAYHERO_PROVIDER').lower(); prov = 'sasapay' if prov == 'sasapay' else 'm-pesa'
+    prov = _provider()
     body = {'amount': int(p['kes']), 'phone_number': ph, 'channel_id': _channel(), 'provider': prov, 'external_reference': ref}
     if prov == 'sasapay': body['network_code'] = '63902'
     acc = _env('PAYHERO_ACCOUNT_ID')
@@ -151,7 +154,7 @@ def settle_deposit(cb):
         if p['status'] not in ('pending', 'expired'): return 'duplicate'
         if not cb['amount'] > 0: print('finoq: success without amount, not credited', p['ref']); return 'no_amount'
         if cb['phone'] and p['phone'] and cb['phone'][-9:] != ''.join(c for c in p['phone'] if c.isdigit())[-9:]:
-            print('finoq: phone mismatch, not credited', p['ref']); return 'phone_mismatch'
+            print('finoq: callback phone differs from the typed one, crediting anyway', p['ref'])    # gateway field can be the merchant's
         if cb['amount'] < p['amount']:
             st.x("UPDATE payments SET status='underpaid',receipt=? WHERE ref=? AND status IN('pending','expired')", (cb['receipt'] or None, p['ref'])); return 'underpaid'
         n = st.x("UPDATE payments SET status='paid',receipt=?,paid_at=? WHERE ref=? AND status IN('pending','expired')", (cb['receipt'] or None, int(time.time()), p['ref']), count=True)
@@ -318,8 +321,8 @@ def health():
     if not cb_secret(): bad.append('PAYHERO_CALLBACK_SECRET is missing. M-Pesa is off, because confirmations would be refused.')
     cu = _env('CALLBACK_URL', 'PAYHERO_CALLBACK_URL').strip('"\'')
     if cu and base and urlparse(cu).netloc != urlparse(base).netloc: bad.append('CALLBACK_URL points to a different site than BASE_URL, so payment confirmations would go there. Delete CALLBACK_URL.')
-    if _env('PAYHERO_PROVIDER').lower() not in ('', 'm-pesa', 'sasapay'): bad.append('PAYHERO_PROVIDER should be m-pesa or sasapay.')
+    if _env('PAYHERO_PROVIDER').lower() not in ('', 'm-pesa', 'sasapay', 'm-pesa-direct', 'mpesa-direct'): bad.append('PAYHERO_PROVIDER should be empty or sasapay.')
     if not (_env('PAYPAL_CLIENT_ID') and _env('PAYPAL_SECRET')): bad.append('PAYPAL_CLIENT_ID or PAYPAL_SECRET is missing. PayPal is off.')
     if os.getenv('DEV_AUTH') == '1': bad.append('DEV_AUTH is on. Anyone can sign in as anyone. Remove it.')
     return {'ok': not bad, 'problems': bad, 'database': 'postgres' if st.PG else 'temporary sqlite', 'mpesa_ready': ready(), 'paypal_ready': paypal_ready(),
-            'paypal_env': (_env('PAYPAL_ENV') or 'live').lower(), 'mpesa_provider': 'sasapay' if _env('PAYHERO_PROVIDER').lower() == 'sasapay' else 'm-pesa'}
+            'paypal_env': (_env('PAYPAL_ENV') or 'live').lower(), 'mpesa_provider': _provider()}

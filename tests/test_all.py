@@ -140,8 +140,13 @@ def hook(ref, **o):
 def _():
     ref = newpay(); url, body = SENT[0]
     assert url.endswith('/api/v2/payments') and body['phone_number'] == '0712345678' and body['amount'] == 500 and body['channel_id'] == 7
-    assert body['external_reference'] == ref and body['provider'] == 'm-pesa' and body['callback_url'].endswith('?s=sec')
+    assert body['external_reference'] == ref and body['provider'] == 'sasapay' and body['network_code'] == '63902' and body['callback_url'].endswith('?s=sec')
     assert st.q('SELECT checkout_id FROM payments WHERE ref=?', (ref,), True)['checkout_id'] == 'PH-REF-1'
+@T('pay: provider is SasaPay unless m-pesa-direct is asked for')
+def _():
+    for v, want in (('', 'sasapay'), ('m-pesa', 'sasapay'), ('sasapay', 'sasapay'), ('m-pesa-direct', 'm-pesa')):
+        os.environ['PAYHERO_PROVIDER'] = v; SENT.clear(); n = str(['', 'm-pesa', 'sasapay', 'm-pesa-direct'].index(v)); assert C.post('/api/pay/mpesa', json={'plan': 'p1', 'phone': '071100000' + n}, headers=U).status_code == 200; b = SENT[0][1]; assert b['provider'] == want and (('network_code' in b) == (want == 'sasapay')), v
+    os.environ.pop('PAYHERO_PROVIDER', None)
 @T('pay: webhook needs the secret')
 def _():
     ref = newpay(); assert C.post('/api/webhooks/payhero?s=bad', json={}).status_code == 403 and C.post('/api/webhooks/payhero', json={}).status_code == 403
@@ -151,13 +156,13 @@ def _():
     until = C.get('/api/me', headers=U).json['plan_until']; assert hook(ref).json['result'] == 'duplicate'
     assert C.get('/api/me', headers=U).json['plan_until'] == until
     assert C.get('/api/pay/status?ref=' + ref, headers=U).json['status'] == 'paid'
-@T('pay: underpaid, missing amount, wrong phone are NOT credited')
+@T('pay: underpaid and missing amount are NOT credited')
 def _():
     st.x('UPDATE users SET plan_until=0'); 
     r1 = newpay(); assert hook(r1, Amount=100).json['result'] == 'underpaid'
     r2 = newpay(); assert hook(r2, Amount=0).json['result'] == 'no_amount'
-    r3 = newpay(); assert hook(r3, Phone='254799999999').json['result'] == 'phone_mismatch'
     assert not active()
+    r3 = newpay(); assert hook(r3, Phone='254799999999').json['result'] == 'paid' and active()
 @T('pay: failed callback marks failed; late success after expiry still credits')
 def _():
     st.x('UPDATE users SET plan_until=0'); r = newpay(); assert hook(r, Status='Failed', ResultCode=1032).json['result'] == 'failed'
