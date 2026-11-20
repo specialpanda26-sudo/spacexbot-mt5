@@ -548,6 +548,29 @@ def pnl_reset_api(u):
     else: pnlreset.reset(u['uid'])
     return jsonify(pnlcard.snapshot(u['uid'], bool(u['admin']), str(j.get('broker') or '')[:20]))
 
+@app.post('/api/admin/clear-trades')
+@need(admin=True)
+def clear_trades_api(u):
+    """Owner only: delete this owner's FINISHED trades (closed / cancelled / expired) so the Journal and Stats restart from zero. Open and waiting trades are
+    kept. Rows another person's phone-mode log still points at are kept too. Body must be {"confirm": "CLEAR"}. Not undoable."""
+    j = _j()
+    if str(j.get('confirm') or '') != 'CLEAR': return jsonify(error='send {"confirm": "CLEAR"}'), 400
+    uid = u['uid'] or ''
+    base = "FROM signals WHERE COALESCE(uid,'') IN (?,?) AND COALESCE(status,'') NOT IN (?,?,?)"
+    args = ('', uid, 'open', 'pending', 'sent')
+    try: ids = [r['id'] for r in st.q('SELECT id ' + base + ' AND id NOT IN (SELECT sid FROM assist_log WHERE uid<>?)', args + (uid,))]
+    except Exception: ids = [r['id'] for r in st.q('SELECT id ' + base, args)]
+    n = 0
+    for i in range(0, len(ids), 200):
+        part = ids[i:i + 200]; ph = ','.join('?' * len(part))
+        n += st.x('DELETE FROM signals WHERE id IN (%s)' % ph, tuple(part), count=True) or 0
+        st.x('DELETE FROM kv WHERE k IN (%s)' % ph, tuple('closedby:%s' % x for x in part))
+    if uid:
+        try: st.x('DELETE FROM assist_log WHERE uid=?', (uid,))
+        except Exception: pass
+    st.x('DELETE FROM kv WHERE k=?', ('pnlreset:%s' % uid,))
+    return jsonify(ok=True, trades=n)
+
 @app.get('/api/trade/<int:tid>')
 @need(verified=True)
 def trade_api(u, tid):

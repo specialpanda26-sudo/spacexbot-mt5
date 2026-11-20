@@ -89,7 +89,7 @@ def numbers(rows):
         run = run + 1 if p <= 0 else 0; mx = max(mx, run)
         eq += p; peak = max(peak, eq); dd = max(dd, peak - eq)
     return {'trades': n, 'wins': len(w), 'losses': len(l), 'win_rate': round(len(w) / n * 100, 1) if n else 0.0, 'break_even': round(be, 1), 'band': round(band, 1),
-            'net': round(gp - gl, 2), 'per_trade': round((gp - gl) / n, 2) if n else 0.0, 'profit_factor': round(gp / gl, 2) if gl > 0 else None,
+            'won': round(gp, 2), 'lost': round(gl, 2), 'net': round(gp - gl, 2), 'per_trade': round((gp - gl) / n, 2) if n else 0.0, 'profit_factor': round(gp / gl, 2) if gl > 0 else None,
             'loss_streak': mx, 'best': round(max(pn), 2) if n else 0.0, 'worst': round(min(pn), 2) if n else 0.0, 'max_drawdown': round(dd, 2)}
 
 
