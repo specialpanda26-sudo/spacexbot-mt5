@@ -3,7 +3,7 @@ Settings (owner, /api/admin/settings): multi_entries = most entries per setup, 1
 The entries SHARE the normal risk of one trade (each gets base / n), so a setup that fails loses what one trade would have lost, not n times that.
 Always held back by the person's max positions at once, the owner's ceiling and the max trades a day: the count never goes above the room left.
 Nothing here claims it makes more money. Only tools/backtest.py on real data can say that."""
-from . import store as st, limits, risk, prefs, scale
+from . import store as st, limits, risk, prefs, scale, automode
 
 HI = 10
 
@@ -19,6 +19,7 @@ def min_score():
     return max(1, _g('multi_min_score', 3))
 
 def entries(uid, score, strategy=''):
+    if automode.on(): return 1
     c = cap(uid); p = prefs.get(uid)
     try: sc = int(score or 0)
     except (TypeError, ValueError): sc = 0

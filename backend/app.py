@@ -1,5 +1,6 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
+from . import automode
 from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, reason as rsn, regime as rgm, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard, tradeview, pnlreset, connwhy
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
@@ -69,7 +70,7 @@ def cfgjs():
 # ---------------- EA bridge ----------------
 def _scan(sym, uid=''):
     _scan_tf(sym, uid, 'M15', 'H1')
-    if prefs.get(uid)['fast']: _scan_tf(sym, uid, 'M5', 'M15')          # fast scan: the same strategies on 5-minute candles, 15-minute candles as the higher chart
+    if prefs.get(uid)['fast'] and not automode.on(): _scan_tf(sym, uid, 'M5', 'M15')          # fast scan: the same strategies on 5-minute candles, 15-minute candles as the higher chart
     try: _burst_scan(sym, uid)
     except Exception as e: print('burst scan failed', sym, str(e)[:120])
 
@@ -91,7 +92,9 @@ def _scan_tf(sym, uid, tf, hi):
     solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
     orf = stats.regime_off(uid) if st.get('regime_switch') == '1' else None          # R3: strategies that keep losing in this kind of market (off unless the owner switches it on)
     off, solo, mc = prefs.apply(uid, off, solo, int(st.fget('min_confluence')))
-    info = {}; s = brain.evaluate(m15, h1, mc, st.fget('rr'), off, solo=solo, info=info, off_reg=orf)
+    off, solo, mc = automode.lock(off, solo, mc)          # auto mode: the tested setup, whatever else is saved
+    if automode.on(): orf = None
+    info = {}; s = brain.evaluate(m15, h1, mc, automode.rr(), off, solo=solo, info=info, off_reg=orf, max_stop=automode.max_stop())
     if not s: botstate.note(uid, sym, 'nosetup', rgm.note_text(info)); return
     if tf != 'M15': s.setdefault('why', {})['tf'] = tf
     ok, why = risk.symbol_gate(sym, s['side'], uid=uid)
@@ -117,7 +120,7 @@ def _scan_tf(sym, uid, tf, hi):
 def _burst_scan(sym, uid=''):
     """Burst mode: after the quiet minutes, take a quick chance. One strategy is enough (min_conf 1); the ADX regime filter, the stop-distance check,
     the news lock, currency exposure and every loss limit still apply. 5-minute candles when the EA sends them, else 15-minute."""
-    if not burst.get(uid)['on']: return
+    if automode.on() or not burst.get(uid)['on']: return
     k = (uid, sym, 'burst')
     if time.time() - _last_scan.get(k, 0) < 20: return
     _last_scan[k] = time.time()
