@@ -450,7 +450,13 @@ def admin_pass():
 @app.post('/api/admin/settings')
 @need(admin=True)
 def admin_set(u):
-    for k, v in _j().items():
+    j = _j()
+    for k, lo, hi in (('risk_pct', 0.1, 2.0), ('rr', 1.0, 4.0), ('max_stop_atr', 0.8, 5.0)):          # the three auto-mode numbers: checked before anything is saved
+        if k in j:
+            try: v = float(j[k])
+            except (TypeError, ValueError): return jsonify(error='%s must be a number' % k), 400
+            if not lo <= v <= hi: return jsonify(error='%s must be between %g and %g' % (k, lo, hi)), 400
+    for k, v in j.items():
         if k in st.DEFAULTS and k != 'plans': st.put(k, v)          # plans have their own checked route (/api/admin/plans)
     return jsonify({k: st.get(k) for k in st.DEFAULTS})
 
