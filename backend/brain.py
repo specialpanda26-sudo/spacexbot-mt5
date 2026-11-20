@@ -18,7 +18,7 @@ def _filt_text(filt, ax, rev_max, trend_min, rg=''):
     if 'learned' in kinds: why.append('in a %s market their own results were losing, so they are switched off there' % (rg or 'this'))
     return '%d setup%s seen (%s) but skipped: %s.' % (n, '' if n == 1 else 's', _names([x for x, _ in filt]), '; '.join(why))
 
-def evaluate(m15, h1, min_conf=2, rr=2.0, off=(), adx_trend_min=18.0, adx_rev_max=28.0, solo=(), info=None, off_reg=None):
+def evaluate(m15, h1, min_conf=2, rr=2.0, off=(), adx_trend_min=18.0, adx_rev_max=28.0, solo=(), info=None, off_reg=None, max_stop=3.5):
     if len(m15) < 120: _say(info, 'history', 'Not enough candle history yet (%d of 120 candles).' % len(m15)); return None
     ax = adx(m15)[-1]; hits = []; ran = 0; filt = []; rg = rgm.of(ax, adx_trend_min, adx_rev_max)
     for fn in ALL:
@@ -44,8 +44,8 @@ def evaluate(m15, h1, min_conf=2, rr=2.0, off=(), adx_trend_min=18.0, adx_rev_ma
     entry = m15[-1]['c']; a = atr(m15)[-1]
     sl = min(x['sl'] for x in grp) if side == 'buy' else max(x['sl'] for x in grp)   # widest = safest
     dist = abs(entry - sl)
-    if not (0.5 * a <= dist <= 3.5 * a):
-        _say(info, 'stop', 'A %s setup (%s) was found, but its stop loss was %.1f ATR away and the bot only allows 0.5 to 3.5.' % (side, _names([x['name'] for x in grp]), dist / a if a else 0.0), ran=ran, adx=round(ax, 1)); return None
+    if not (0.5 * a <= dist <= max_stop * a):
+        _say(info, 'stop', 'A %s setup (%s) was found, but its stop loss was %.1f ATR away and the bot only allows 0.5 to %g.' % (side, _names([x['name'] for x in grp]), dist / a if a else 0.0, max_stop), ran=ran, adx=round(ax, 1)); return None
     tp = entry + rr * dist if side == 'buy' else entry - rr * dist
     if len(grp) == 1 and grp[0].get('tp'):      # a lone strategy that brings its own target (video-1 setup)
         t = grp[0]['tp']
