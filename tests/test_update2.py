@@ -30,7 +30,7 @@ const wait = () => new Promise(r => setTimeout(r, 20));
   const ref = { tag: 'app-1000' }; p = phone({ viaPlugin: true, ref }); p.timers[0](); await wait(); out.first = [p.body.kids.length, /up to date/.test(p.U.why())];
   ref.tag = 'app-1001'; p.ev.visibilitychange(); await wait(); out.soon = [p.fetches, p.body.kids.length];
   p.tick(61); p.ev.visibilitychange(); await wait(); out.later = [p.fetches, p.body.kids.length, p.U.why()];
-  p = phone({ viaPlugin: true, ref: { tag: 'app-1001' } }); p.timers[0](); await wait(); p.button('Later').onclick(); p.tick(61); p.ev.visibilitychange(); await wait(); out.afterLater = [p.body.kids.length, p.fetches];
+  p = phone({ viaPlugin: true, ref: { tag: 'app-1001' } }); p.timers[0](); await wait(); p.button('Maybe later').onclick(); p.tick(61); p.ev.visibilitychange(); await wait(); out.afterLater = [p.body.kids.length, p.fetches];
   p = phone({ viaPlugin: true, openFails: true, ref: { tag: 'app-1001' } }); p.timers[0](); await wait(); p.button('Update now').onclick(); out.fallback = [p.loc.href === p.U.APK, p.body.kids.length];
   console.log(JSON.stringify(out));
 })();
