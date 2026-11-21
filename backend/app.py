@@ -180,8 +180,10 @@ def ea_sync():
     bk = burst.basket(s, who) if s else None          # a burst group goes out ALL AT ONCE as one basket (the old way would send one entry per poll)
     if bk:
         for i in bk['ids'].split(','): st.x("UPDATE signals SET status='sent' WHERE id=?", (int(i),)); lag.stamp(int(i), 'sent')
+        bk['stake_pct'] = 0.0          # Section 2: a burst basket is many small entries, it never gets a big stake
         return jsonify(signal=None, basket=bk, bot=links.bot_on(who), symbols=st.get('symbols'))
     if s: st.x("UPDATE signals SET status='sent' WHERE id=?", (s['id'],)); lag.stamp(s['id'], 'sent')
+    if s: s = dict(s); s['stake_pct'] = stake.pct(s['id']); s['stake_max_risk_pct'] = stake.max_risk()          # Section 2: the EA sizes a strong setup by margin share (0 = normal sizing)
     return jsonify(signal=s, bot=links.bot_on(who), symbols=st.get('symbols'))
 
 @app.post('/api/ea/report')

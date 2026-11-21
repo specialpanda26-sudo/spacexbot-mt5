@@ -27,6 +27,10 @@ def mark(sid, uid, score, adx):
         if 0 < p <= 50: st.put('stake:%s' % sid, p)
     except Exception as e: print('[stake] mark failed', repr(e)[:80])
 
+def max_risk():
+    """The loss cap (percent of balance) the EA must respect for a big-stake trade. Same limits as the admin setting."""
+    return max(0.5, min(25.0, _f('stake_max_risk_pct', 10.0)))
+
 def pct(sid):
     try: return max(0.0, min(50.0, float(st.get('stake:%s' % sid) or 0)))
     except (TypeError, ValueError): return 0.0

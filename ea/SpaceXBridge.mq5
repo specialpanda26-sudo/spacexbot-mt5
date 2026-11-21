@@ -4,7 +4,7 @@
 //| and add your Render URL to the list. Attach to ANY chart.        |
 //+------------------------------------------------------------------+
 #property strict
-#property version "1.10"
+#property version "1.20"
 #include <Trade\Trade.mqh>
 
 input string ServerUrl      = "https://your-service.onrender.com"; // no trailing slash
@@ -15,7 +15,9 @@ input int    PollSeconds    = 5;
 input int    BarsPushSeconds= 60;
 input bool   AllowLive      = false;   // SAFETY: false = refuses to trade on a real-money account
 input int    MaxSpreadPoints= 60;      // skip if spread wider than this (points)
-input double MaxLots        = 1.0;
+input double MaxLots        = 1.0;     // cap for a NORMAL trade (sized by risk %)
+input bool   StakeOn        = true;    // STAKE: strong setups use a bigger share of the balance as margin (the server sends the share)
+input double MaxStakeLots   = 100.0;   // STAKE: cap for a big-stake trade (replaces MaxLots for those trades only)
 input int    Deviation      = 20;
 input long   Magic          = 5150150;
 input int    BasketArmPct   = 30;      // BURST: the give-back guard only starts once the group profit reached this % of its target
@@ -87,7 +89,36 @@ void Report(long id, string status, string extra)
 }
 void Reject(long id, string why){ Print("Signal ", id, " rejected: ", why); Report(id, "rejected", ",\"reason\":\"" + why + "\""); }
 
-void Execute(long id, string canon, string side, double sl, double tp, double riskPct)
+// STAKE (Section 2): a big-stake position carries the comment SXB<id>S, so it is found again after a restart. Only ONE may be open at a time.
+bool BigStakeOpen()
+{
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong t = PositionGetTicket(i); if(!PositionSelectByTicket(t)) continue;
+      if(PositionGetInteger(POSITION_MAGIC) != Magic) continue;
+      string cm = PositionGetString(POSITION_COMMENT); int n = StringLen(cm);
+      if(StringFind(cm, "SXB") == 0 && n > 3 && StringGetCharacter(cm, n - 1) == 'S') return true;
+   }
+   return false;
+}
+// lots so that the MARGIN is about stakePct of the balance, then cut so the loss at the stop is at most maxRiskPct of the balance,
+// then cut to the free margin, the broker max/step and MaxStakeLots. Returns 0 when it cannot be done (the caller then uses normal sizing).
+double StakeLots(const string sym, bool buy, double price, double sl, double stakePct, double maxRiskPct, double tv, double ts, double step, double mn, double mx)
+{
+   if(stakePct <= 0 || step <= 0) return 0;
+   double bal = AccountInfoDouble(ACCOUNT_BALANCE), m1 = 0;
+   if(!OrderCalcMargin(buy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, sym, 1.0, price, m1) || m1 <= 0) return 0;
+   double byMargin = bal * stakePct / 100.0 / m1;
+   double lossPerLot = (MathAbs(price - sl) / ts) * tv; if(lossPerLot <= 0) return 0;
+   double byRisk = bal * maxRiskPct / 100.0 / lossPerLot;
+   double byFree = AccountInfoDouble(ACCOUNT_MARGIN_FREE) * 0.95 / m1;
+   double lots = MathMin(MathMin(byMargin, byRisk), byFree);
+   lots = MathMin(lots, MathMin(mx, MaxStakeLots));
+   lots = MathFloor(lots / step + 1e-9) * step;
+   return (lots >= mn) ? lots : 0;
+}
+
+void Execute(long id, string canon, string side, double sl, double tp, double riskPct, double stakePct = 0, double stakeMaxRisk = 10)
 {
    if(!IsDemo() && !AllowLive){ Reject(id, "live account blocked (AllowLive=false)"); return; }
    string sym = canon + SymbolSuffix;
@@ -109,8 +140,20 @@ void Execute(long id, string canon, string side, double sl, double tp, double ri
    lots = MathFloor(lots / step) * step;
    if(lots < mn){ Reject(id, "min lot would risk more than allowed"); return; }
    lots = MathMin(lots, MathMin(mx, MaxLots));
+   string cm = "SXB" + (string)id;
+   if(StakeOn && stakePct > 0)
+   {
+      stakePct = MathMin(stakePct, 50.0); stakeMaxRisk = MathMax(0.5, MathMin(stakeMaxRisk, 25.0));
+      if(BigStakeOpen()) Print("Signal ", id, ": a big-stake trade is already open, this one uses normal sizing");
+      else
+      {
+         double sl2 = StakeLots(sym, buy, price, sl, stakePct, stakeMaxRisk, tv, ts, step, mn, mx);
+         if(sl2 > 0 && sl2 > lots){ lots = sl2; cm += "S"; Print("Signal ", id, ": big stake, ", DoubleToString(lots, 2), " lots (about ", DoubleToString(stakePct, 1), "% of the balance as margin, loss at the stop capped at ", DoubleToString(stakeMaxRisk, 1), "%)"); }
+         else Print("Signal ", id, ": big stake not possible (lot size, margin or loss cap), normal sizing");
+      }
+   }
    trade.SetExpertMagicNumber(Magic); trade.SetDeviationInPoints(Deviation); trade.SetTypeFillingBySymbol(sym);
-   bool ok = buy ? trade.Buy(lots, sym, 0, sl, tp, "SXB" + (string)id) : trade.Sell(lots, sym, 0, sl, tp, "SXB" + (string)id);
+   bool ok = buy ? trade.Buy(lots, sym, 0, sl, tp, cm) : trade.Sell(lots, sym, 0, sl, tp, cm);
    if(ok && (trade.ResultRetcode() == TRADE_RETCODE_DONE || trade.ResultRetcode() == TRADE_RETCODE_PLACED))
       Report(id, "open", ",\"ticket\":" + (string)trade.ResultOrder() + ",\"lots\":" + DoubleToString(lots, 2) + ",\"price\":" + DoubleToString(trade.ResultPrice(), dg));
    else Reject(id, "order failed " + (string)trade.ResultRetcode());
@@ -292,7 +335,8 @@ void PollServer()
    }
    long id = (long)StringToInteger(JStr(res, "id"));
    if(id > 0 && StringFind(res, "\"signal\":null") < 0)
-      Execute(id, JStr(res, "symbol"), JStr(res, "side"), StringToDouble(JStr(res, "sl")), StringToDouble(JStr(res, "tp")), StringToDouble(JStr(res, "risk_pct")));
+      Execute(id, JStr(res, "symbol"), JStr(res, "side"), StringToDouble(JStr(res, "sl")), StringToDouble(JStr(res, "tp")), StringToDouble(JStr(res, "risk_pct")),
+               StringToDouble(JStr(res, "stake_pct")), StringToDouble(JStr(res, "stake_max_risk_pct")));
 }
 
 //--- report closes (SL/TP/manual) back to the backend
