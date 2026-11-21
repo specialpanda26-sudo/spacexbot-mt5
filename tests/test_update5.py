@@ -37,6 +37,8 @@ async function run(body) { const p = phone({ body }); p.timers[0](); await wait(
   const cart = all(ov).find(n => n.className === 'ucart');
   out.art = { svg: cart.innerHTML.indexOf('class="ill2 upd"') > -1, arrow: /class="ua"/.test(cart.innerHTML), flame: /class="uf"/.test(cart.innerHTML), sparks: (cart.innerHTML.match(/class="us us\d"/g) || []).length, char: cart.innerHTML.indexOf(CH2) > -1 && CH2.length > 200, arm: cart.innerHTML.indexOf('M114 146c-14 4-26 2-38-4') > -1 };
   out.title = (all(ov).find(n => n.tag === 'h2') || {}).textContent;
+  out.fix = all(ov).filter(n => n.className !== 'unote' && /fix/i.test(n.textContent)).length;
+  out.said = all(ov).some(n => n.textContent === 'A new update is available for spaceXBot. Update now to get the latest features.');
   const lines = all(ov).filter(n => n.tag === 'p').map(n => n.textContent);
   out.build = lines.some(t => /New build 1001/.test(t) && /you have 1000/.test(t));
   out.note = lines.some(t => t === "What's new: Faster start, fixed chart") || lines;
@@ -73,6 +75,7 @@ T('pop-up is the site overlay: .ov with .bd and .panel (dialog), opened after th
 T('the "update" cartoon is there: phone, download arrow, flame, 4 sparkles, arm', o['art']['svg'] and o['art']['arrow'] and o['art']['flame'] and o['art']['sparks'] == 4 and o['art']['arm'])
 T('the dark-haired site character is in the cartoon and is exactly CH2 from index.html', o['art']['char'] and ("var CH = '" + CH2 + "';") in src)
 T('title is Update available', o['title'] == 'Update available')
+T('the card text says a new update is available and never mentions fixes (the release note line is separate)', o['said'] is True and o['fix'] == 0)
 T('new build and installed build are shown', o['build'] is True)
 T('release note line is shown with a What\'s new label, markdown heading dropped', o['note'] is True)
 T('Update now is .btn primary big block, Maybe later is a quiet .btn without primary', o['btn'] == ['btn primary big block', 'btn block q', True])

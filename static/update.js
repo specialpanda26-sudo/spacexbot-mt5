@@ -87,7 +87,7 @@
     var c = el("div", "panel"); attr(c, "role", "dialog"); attr(c, "aria-modal", "true"); attr(c, "aria-labelledby", "sxbUpdT");
     var cart = el("div", "ucart"); cart.innerHTML = art();
     var t = el("h2", "", "Update available"); t.id = "sxbUpdT";
-    var p = el("p", "muted", "A new version of spaceXBot is ready. Update now to get the latest fixes and features.");
+    var p = el("p", "muted", "A new update is available for spaceXBot. Update now to get the latest features.");
     var go = el("button", "btn primary big block", "Update now"); attr(go, "type", "button");
     var no = el("button", "btn block q", "Maybe later"); attr(no, "type", "button");
     c.appendChild(cart); c.appendChild(t); c.appendChild(p);

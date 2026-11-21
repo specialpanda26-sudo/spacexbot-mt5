@@ -169,3 +169,4 @@ Start now: tell me in one short line what you found in docs/HANDOFF.md, then giv
 - tests/test_update5.py (19 checks), mutation-checked (16 deliberate breaks, each went red). Checked in a real Chromium on the real index.html: dark, light, desktop, reduced motion (animation none), animation frames. NOT tested: a real phone / the APK WebView.
 - Section 6 note: when the calm block is replaced, nothing here depends on it; the pop-up keeps working.
 - Next: Section 6 (motion for ALL site cartoons).
+- Section 5b (owner): the update card text is "A new update is available for spaceXBot. Update now to get the latest features." It must never say "fixes" (the owner does not want to show that updates are frequent). apply_upd5b.py + a check in tests/test_update5.py (20 checks). The build line and the What's new line stay.
