@@ -243,3 +243,8 @@ Start now: tell me in one short line what you found in docs/HANDOFF.md, then giv
 - OPEN BUGS / NOTES: the Home speech bubble (#bubble) is still written by older code and can contradict the Section 7 picture (fix in 8b or 8c). Motion is on for everybody except reduce-motion phones: the owner must say if it feels too busy.
 - PARKED (do not touch unless asked): alerts N3-N6, the live "Bot running" notification panel, strategy 4C, the backtest.
 - HOW TO CHECK PICTURES WITHOUT A SERVER: load static/index.html in Playwright with a route handler that serves files from the repo for http://app.test/ (so /static/live.js loads) and aborts everything else; file:// does not work because live.js is loaded by absolute path.
+
+## Section 5c (update card picture, simple) DONE (Nov 21)
+- apply_upd5c.py edits static/update.js and tests/test_update5.py. The update card picture is now only a phone, a green download arrow dropping in, and a line under the arrow that loads (.pt track, .pf fill). The flame, sparkles and character were removed. Text, buttons and the rest of the pop-up are unchanged.
+- Motion only inside @media (prefers-reduced-motion:no-preference); reduce-motion phones see the still pose. tests/test_update5.py 19/19. Rendered in Chromium (dark). NOT tested: a real phone / the APK WebView.
+- Next: Section 9 (more emails / notifications, only where the server has a trigger).
