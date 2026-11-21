@@ -24,7 +24,7 @@ def mark(sid, uid, score, adx):
         if uid and st.acct(uid).get('demo') is not True: return
         t = tier(score, adx)
         p = _f('stake_very_pct', 40.0) if t == 'very' else _f('stake_strong_pct', 15.0) if t == 'strong' else 0.0
-        if 0 < p <= 50: st.put('stake:%s' % sid, p)
+        if 0 < p <= 50: st.put('stake:%s' % sid, p); st.put('staketier:%s' % sid, t)
     except Exception as e: print('[stake] mark failed', repr(e)[:80])
 
 def max_risk():
@@ -34,6 +34,13 @@ def max_risk():
 def pct(sid):
     try: return max(0.0, min(50.0, float(st.get('stake:%s' % sid) or 0)))
     except (TypeError, ValueError): return 0.0
+
+def info(sid):
+    """{'pct': 40.0, 'tier': 'very'} for a signal that was given a bigger stake, else None. Shown in the trade detail."""
+    p = pct(sid)
+    if p <= 0: return None
+    t = str(st.get('staketier:%s' % sid) or '')
+    return {'pct': p, 'tier': t if t in ('very', 'strong') else ''}
 
 def size(entry, sl, tp, bal, stake_pct, mult):
     """(stake, stop_loss_money, take_profit_money) or None. Same multiplier maths as deriv._size: loss at the stop = stake x multiplier x stop distance."""

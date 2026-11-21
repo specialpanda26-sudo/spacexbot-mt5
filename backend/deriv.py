@@ -305,10 +305,22 @@ def _trade(sess, uid, acct, bal, now):
         _trade_one(sess, uid, acct, bal, now)
         if pend() >= before or st.q("SELECT COUNT(*) n FROM signals WHERE uid=? AND status='sent'", (uid,), True)['n']: return
 
+def _closed_by(r, pnl):
+    """'sl' or 'tp' only when the profit is within 5% of the loss/gain the stop or target should give (stake x multiplier x distance);
+    anything else, or anything it cannot work out, is 'other'. Deriv reports only the profit, so this is an inference, never a guess from the sign alone."""
+    try:
+        stake = float(r['lots']); mult = float(str(r['note']).lstrip('x')); e = float(r['entry']); sl = float(r['sl']); tp = float(r['tp'])
+        if min(stake, mult, e) <= 0 or e == sl: return 'other'
+        risk = stake * mult * abs(e - sl) / e; gain = risk * abs(tp - e) / abs(e - sl)
+    except (KeyError, TypeError, ValueError): return 'other'
+    if pnl < 0 and abs(-pnl - risk) <= max(0.05 * risk, 0.02): return 'sl'
+    if pnl > 0 and abs(pnl - gain) <= max(0.05 * gain, 0.02): return 'tp'
+    return 'other'
+
 def _track(sess, uid, acct):
     """Ask Deriv about every open trade of this customer; when one has been sold (stop, target or by hand) record the result."""
     done = False
-    for r in st.q("SELECT id,ticket FROM signals WHERE uid=? AND status='open' AND ticket IS NOT NULL ORDER BY id LIMIT 20", (uid,)):
+    for r in st.q("SELECT id,ticket,lots,note,entry,sl,tp FROM signals WHERE uid=? AND status='open' AND ticket IS NOT NULL ORDER BY id LIMIT 20", (uid,)):
         try: cid = int(r['ticket'])
         except (TypeError, ValueError): continue
         p = sess.ask({'proposal_open_contract': 1, 'contract_id': cid}).get('proposal_open_contract')
@@ -316,5 +328,6 @@ def _track(sess, uid, acct):
         try: pnl = round(float(p.get('profit')), 2)
         except (TypeError, ValueError): continue
         if st.x("UPDATE signals SET status='closed',pnl=?,closed=? WHERE id=? AND status='open'", (pnl, int(time.time()), r['id']), True):
+            st.put('closedby:%d' % r['id'], _closed_by(r, pnl))          # Section 3: shown as "Closed by" in the trade detail
             _report(uid, r['id'], 'closed', 'tp' if pnl > 0 else 'sl' if pnl < 0 else 'other'); done = True
     if done: _resnap(sess, uid, acct)
