@@ -1,0 +1,5 @@
+Exit: fixed 2R target   max stop: 3.5 ATR   off: bb_reversion, dual_thrust, ema_pullback, fvg_retrace, gold_scalp, gold_scalp_c, jg_pullback, london_breakout, ma_bounce, ma_cross, orb_entry, pa_bos, pa_candle, pa_level, pa_pattern, pa_trendline, psar_e200, sr_retest, star_reversal
+min_confluence 1       trades   85  win%  31.8  avgR -0.05
+min_confluence 2       trades   47  win%  38.3  avgR +0.15
+min_confluence 3       trades   11  win%  27.3  avgR -0.18
+Note: this ignores the news lock, currency-exposure cap and loss limits, so live results will differ.

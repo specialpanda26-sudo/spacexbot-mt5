@@ -40,7 +40,7 @@ def mt5_row(uid, admin, paid, site, now):
              else ('problem' if (saved or not admin) else 'none') if s == 'never' else 'problem')
     head = d['message'] if s != 'never' or not saved else 'Your MT5 broker is saved, but the bridge has not reported yet.'
     if saved and s != 'online': head += ' Saving a broker only records its server name; the connection comes from the bridge.'
-    return {'id': 'MT5', 'name': 'MT5 bridge', 'state': state, 'headline': head, 'checks': checks, 'fix': f['d'] if f else '', 'saved': saved,
+    return {'id': 'MT5', 'name': 'MT5 app (FBS, Exness...)', 'state': state, 'headline': head, 'checks': checks, 'fix': f['d'] if f else '', 'saved': saved,
             'mode': d.get('mode'), 'login': d.get('login'), 'age': d.get('age'), 'balance': d.get('balance')}
 
 

@@ -32,7 +32,8 @@ from backend import sbauth as fb
 orig = fb.verify
 fb.verify = lambda t: {'uid': 'u9', 'email': 'boss@x.com', 'name': '', 'verified': False}
 T('unverified admin email is not admin', c.get('/api/me', headers={'Authorization': 'Bearer z'}).json['admin'] is False)
-T('unverified cannot start a payment', c.post('/api/pay/mpesa', json={'plan': 'p1', 'phone': '0712345678'}, headers={'Authorization': 'Bearer z'}).status_code == 403)
+T('unverified can still get the M-Pesa prompt (pay4: not blocked by the email check)', c.post('/api/pay/mpesa', json={'plan': 'p1', 'phone': '0712345678'}, headers={'Authorization': 'Bearer z'}).status_code not in (401, 403))
+T('unverified cannot start a PayPal payment', c.post('/api/pay/paypal', json={'plan': 'p1'}, headers={'Authorization': 'Bearer z'}).status_code == 403)
 T('unverified cannot use admin api', c.post('/api/admin/grant', json={}, headers={'Authorization': 'Bearer z'}).status_code == 403)
 fb.verify = orig
 j = c.get('/api/me', headers=H('newbie@x.com')).json

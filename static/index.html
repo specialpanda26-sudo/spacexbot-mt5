@@ -1516,16 +1516,16 @@ if(vb){var ac=document.createElement("div");ac.className="card";ac.id="autobotc"
 /* ---- Platforms (Connect tab) ---- */
 var vc=$("#view-connect"),PL=[["FBS","MT5 bridge"],["Exness","MT5 bridge"],["HFM","MT5 bridge"],["Deriv","API token"],["XM","MT5 bridge"],["IC Markets","MT5 bridge"],["Pepperstone","MT5 bridge"],["Binance","API key"]],CN={};
 function plB(b){var c=b.currency||"USD",n=Number(b.balance).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});return'<span class="bal '+(b.acct_demo?"d":"r")+'">'+(c==="USD"?"$":c+" ")+n+" \u00b7 "+(b.acct_demo?"Demo":"Real")+"</span>"}
-function plT(b){if(b.status==="rejected")return'<span class="bal x">Token rejected</span>';if(b.balance!=null&&b.status==="verified")return plB(b)+(b.bot?'<span class="bal d"> \u00b7 Bot on</span>':'');if(b.kind==="mt5")return"Saved";return b.status==="verified"?"Connected":"Saved, not checked"}
-function plR(){var g=$("#plat");if(g)g.innerHTML=PL.map(function(p){return'<button class="pt'+(CN[p[0]]&&CN[p[0]].status!=="rejected"?" on":"")+'" data-p="'+p[0]+'">'+(window.sxLogo&&window.sxLogo(p[0],30)||('<span class="lg">'+p[0].charAt(0)+'</span><b>'+p[0]+'</b>'))+'<small>'+(CN[p[0]]?plT(CN[p[0]]):p[1])+'</small></button>'}).join("")}
+function plT(b){if(b.status==="rejected")return'<span class="bal x">Token rejected</span>';if(b.balance!=null&&b.status==="verified")return plB(b)+(b.bot?'<span class="bal d"> \u00b7 Bot on</span>':'');if(b.kind==="mt5")return"Server name saved";return b.status==="verified"?"Connected":"Saved, not checked"}
+function plR(){var g=$("#plat");if(g)g.innerHTML=PL.map(function(p){return'<button class="pt'+(CN[p[0]]&&CN[p[0]].status!=="rejected"&&CN[p[0]].kind!=="mt5"?" on":"")+'" data-p="'+p[0]+'">'+(window.sxLogo&&window.sxLogo(p[0],30)||('<span class="lg">'+p[0].charAt(0)+'</span><b>'+p[0]+'</b>'))+'<small>'+(CN[p[0]]?plT(CN[p[0]]):p[1]==="MT5 bridge"?"Via your MT5 app":p[1])+'</small></button>'}).join("")}
 if(vc){var pc=document.createElement("div");pc.className="card";pc.innerHTML='<div class="card-head"><h2>Platforms</h2><span class="chip info">Demo accounts first</span></div><div class="plat" id="plat"></div><p class="note">Tap a platform to link it. Keys are stored encrypted and are never shown again. Start on a demo or virtual account.</p>';vc.insertBefore(pc,vc.firstChild);plR();function ldB(){if(!window.SXA)return;window.SXA.api("/api/brokers").then(function(j){CN={};(j.brokers||[]).forEach(function(b){CN[b.name]=b});plR()}).catch(function(){})}ldB();setTimeout(ldB,3000);setInterval(function(){if(!document.hidden)ldB()},60000);
  $("#plat").onclick=function(e){var b=e.target.closest("[data-p]");if(!b)return;ldB();var n=b.dataset.p,m=PL.filter(function(p){return p[0]===n})[0][1],mt=m==="MT5 bridge",bn=n==="Binance",cur=CN[n];
-  var f1=mt?"MT5 server name":bn?"API key":"API token",tx=mt?"Tell us your broker's server name. Your MT5 password stays inside MT5, never type it here. Then make your key in the Connect MT5 card.":n==="Deriv"?"Create a token in your Deriv account settings with Read and Trade scopes. Start on a virtual account.":"Create an API key with trading only. Never enable withdrawals.";
+  var f1=mt?"MT5 server name":bn?"API key":"API token",tx=mt?"Step 1 of 3. Type your broker's server name (you see it when you log in to MT5), for example FBS-Demo. Never type your MT5 password here. Step 2: make your key in the Connect your MT5 card. Step 3: put the key into the SpaceXBridge EA and keep MT5 open. Connected shows only once your MT5 reports in.":n==="Deriv"?"1. In your Deriv account open Settings, then API token. 2. Make a token with the Read and Trade scopes. 3. Paste it below. We check it and show your demo balance. 4. Tap Start bot. Use a demo (virtual) account first.":"Create an API key with trading only. Never enable withdrawals.";
   ov(XB+'<h2>Connect '+n+'</h2><p class="muted">'+tx+'</p><div class="field"><label for="pF">'+f1+'</label><input class="inp" id="pF" '+(mt?'':'type="password" ')+'autocomplete="off" spellcheck="false" placeholder="'+(cur&&!mt?"Saved. Paste again to replace":mt?n+"-Demo":"Paste "+(bn?"key":"token"))+'"></div>'+(bn?'<div class="field"><label for="pS">API secret</label><input class="inp" id="pS" type="password" autocomplete="off" spellcheck="false" placeholder="Paste secret"></div>':'')+(n==="Deriv"&&cur&&cur.status==="verified"?'<div class="field"><p class="muted" id="pW"></p><button class="btn block" id="pB">'+(cur.bot?"Stop bot":"Start bot")+'</button></div>':'')+'<p class="err" id="pE"></p><button class="btn primary block" id="pG">'+(cur?"Update":"Save connection")+'</button>'+(cur?'<button class="btn block" id="pD">Remove</button>':''));
   var go=$("#pG"),bb=$("#pB"),pw=$("#pW");/*S1-start*/if(pw)pw.textContent=cur.why||"";
   if(bb)bb.onclick=function(){if(!window.SXA)return;bb.disabled=true;window.SXA.api("/api/brokers/Deriv/bot",{method:"POST",body:{on:!cur.bot}}).then(function(j){bb.disabled=false;(j.brokers||[]).forEach(function(x){if(x.name==="Deriv"){cur=x;CN.Deriv=x}});bb.textContent=cur.bot?"Stop bot":"Start bot";pw.textContent=cur.why||"";plR();tst(cur.bot?"Bot started":"Bot stopped")}).catch(function(x){bb.disabled=false;pw.textContent=x.status===402?"A plan is needed to start the bot.":x.message||"Could not change the bot."})};/*S1-end*/
   go.onclick=function(){var v=$("#pF").value.trim(),sv=bn?$("#pS").value.trim():"",er=$("#pE");if(!v||(bn&&!sv))return er.textContent="This field is needed.";if(!window.SXA)return er.textContent="Sign in first.";
-    go.disabled=true;er.textContent="";window.SXA.api("/api/brokers/"+encodeURIComponent(n),{method:"POST",body:mt?{server:v}:bn?{key:v,secret:sv}:{token:v}}).then(function(){if(n!=="Deriv"){closeOv();tst(n+(bn?" saved, not checked yet":" saved"));ldB();return}window.SXA.api("/api/brokers/Deriv/verify",{method:"POST",body:{}}).then(function(r){ldB();if(r&&r.ok){closeOv();tst(r.message||"Deriv connected")}else{go.disabled=false;er.textContent=(r&&r.message)||"Could not check this token."}}).catch(function(x){go.disabled=false;er.textContent="Saved, but we could not check it: "+(x.message||"try again");ldB()})}).catch(function(x){go.disabled=false;er.textContent=x.status===402?"A plan is needed to connect a broker.":x.status===401?"Sign in first.":x.message||"Could not save. Try again."})};
+    go.disabled=true;er.textContent="";window.SXA.api("/api/brokers/"+encodeURIComponent(n),{method:"POST",body:mt?{server:v}:bn?{key:v,secret:sv}:{token:v}}).then(function(){if(n!=="Deriv"){closeOv();tst(bn?n+" saved, not checked yet":n+" server name saved. Next: make your key in Connect your MT5.");ldB();return}window.SXA.api("/api/brokers/Deriv/verify",{method:"POST",body:{}}).then(function(r){ldB();if(r&&r.ok){closeOv();tst(r.message||"Deriv connected")}else{go.disabled=false;er.textContent=(r&&r.message)||"Could not check this token."}}).catch(function(x){go.disabled=false;er.textContent="Saved, but we could not check it: "+(x.message||"try again");ldB()})}).catch(function(x){go.disabled=false;er.textContent=x.status===402?"A plan is needed to connect a broker.":x.status===401?"Sign in first.":x.message||"Could not save. Try again."})};
   var dl=$("#pD");if(dl)dl.onclick=function(){if(!window.SXA)return;dl.disabled=true;window.SXA.api("/api/brokers/"+encodeURIComponent(n),{method:"DELETE"}).then(function(){closeOv();ldB()}).catch(function(){dl.disabled=false;$("#pE").textContent="Could not remove. Try again."})}}}
 
 /* ---- email verification, plans, payments, admin (demo, runs on this device) ---- */
@@ -2063,14 +2063,14 @@ build()})();
   }
   function statusText() {
     if (!L || !L.linked) return "";
-    if (!L.online) return L.bot ? "The bot is on, but your MT5 is offline. Open MT5 and check the EA is running." : "Your MT5 is not reporting yet. Put the key in the EA and keep MT5 open.";
+    if (!L.online) return L.bot ? "The bot is on, but your MT5 is offline. Open MT5 and check the EA is running." : "Your MT5 is not reporting yet. Put the key in the EA, turn Algo Trading on and keep MT5 open.";
     if (!L.bot) return "Your MT5 is connected. The bot is stopped.";
     if (ST && ST.can_trade) return "Bot running on your " + (L.mode === "real" ? "real" : "demo") + " account. Watching for setups.";
     return ST ? why(ST.why) : "Bot running. Checking the safety gates.";
   }
 
   /* ---------- the card ---------- */
-  function head(chip) { return '<div class="card-head"><h2>Connect your MT5</h2>' + (chip || "") + "</div>"; }
+  function head(chip) { return '<div class="card-head"><h2>Connect your MT5</h2>' + (chip || "") + '</div><p class="note">For MT5 brokers only (FBS, Exness, HFM, XM, IC Markets, Pepperstone). Using Deriv? You do not need this card.</p>'; }
   function paint(force) {
     var ae = document.activeElement;
     if (!force && ae && C.contains(ae) && ae.tagName === "INPUT") return;       /* never wipe what the person is typing */
@@ -2085,10 +2085,11 @@ build()})();
     C.innerHTML = h;
   }
   function steps() {
-    return '<ol class="steps"><li><div><b>Install the EA</b><span>Copy <code>SpaceXBridge.mq5</code> into <code>MQL5/Experts</code> in MT5 and compile it.</span></div></li>' +
-      '<li><div><b>Paste your key</b><span>Put the key in the EA input <code>EAKey</code>. Keep <code>AllowLive</code> off while you practise.</span></div></li>' +
-      '<li><div><b>Allow the address</b><span>In MT5, Tools, Options, Expert Advisors, allow WebRequest for <code>' + esc(location.origin) + "</code>.</span></div></li>" +
-      "<li><div><b>Keep MT5 open</b><span>MT5 must stay running on a PC or VPS. This page is the remote control.</span></div></li></ol>";
+    return '<ol class="steps"><li><div><b>Install the EA</b><span>Copy <code>SpaceXBridge.mq5</code> into <code>MQL5/Experts</code> in MT5, then compile it.</span></div></li>' +
+      '<li><div><b>Allow the address</b><span>In MT5 open Tools, Options, Expert Advisors, tick Allow WebRequest and add <code>' + esc(location.origin) + "</code> (no slash at the end).</span></div></li>" +
+      '<li><div><b>Attach it and paste your key</b><span>Drag SpaceXBridge onto the XAUUSD chart. Press F7 and set <code>ServerUrl</code> to <code>' + esc(location.origin) + '</code> and <code>EAKey</code> to your key. Keep <code>AllowLive</code> off while you practise.</span></div></li>' +
+      "<li><div><b>Turn Algo Trading on</b><span>The Algo Trading button at the top of MT5 must be green.</span></div></li>" +
+      "<li><div><b>Keep MT5 open</b><span>MT5 must stay running on a PC or VPS. This page is the remote control. It shows MT5 online within 2 minutes.</span></div></li></ol>";
   }
   function linked() {
     var real = L.mode === "real", st = statusText(), bits = [];
@@ -2699,8 +2700,9 @@ build()})();
   window.__sx2 = { chip: over, esc: esc };
   function row(r) {
     var h = '<div class="jrow"><b>' + esc(r.name) + '</b><span class="chip ' + (CLS[r.state] || "info") + '"><span class="dot"></span>' + (LAB[r.state] || "Unknown") + "</span></div>";
-    h += '<p class="note">' + esc(r.headline) + "</p>";
-    if (r.state !== "ok" && r.checks && r.checks.length) {
+    h += '<p class="note">' + esc(r.state === "none" && r.id === "MT5" ? "Only needed if you trade through an MT5 broker (FBS, Exness, HFM...). Skip it if you use Deriv." : r.headline) + "</p>";
+    if (r.state === "none") { if (r.id !== "MT5" && r.fix) h += '<p class="note">' + esc(r.fix) + "</p>"; }
+    else if (r.state !== "ok" && r.checks && r.checks.length) {
       h += '<ol class="steps">' + r.checks.map(function (c) { return "<li><div><b>" + esc(c.t) + (c.ok ? " - OK" : " - needs attention") + "</b>" + (c.ok ? "" : "<span>" + esc(c.d) + "</span>") + "</div></li>"; }).join("") + "</ol>";
     }
     if (r.state === "ok" && r.bot_why) h += '<p class="note">' + esc(r.bot_why) + "</p>";

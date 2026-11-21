@@ -52,7 +52,7 @@ for bad in ('--trail=abc', '--trail=0', '--trail=-1'):
 # backtest.run: a steady climb. Fixed target gives exactly +2R each; the trailing exit rides the trend, so it must differ and beat it.
 m15 = [bar(1000 + i, 1000 + i + 1.2, 1000 + i - 0.2, 1000 + i + 1) for i in range(700)]
 for x in m15: x['t'] = 1700000000 + 900 * m15.index(x)
-def fake_eval(w, h, mc, rr, off):
+def fake_eval(w, h, mc, rr, off, max_stop=3.5):
     e = w[-1]['c']; return {'side': 'buy', 'entry': e, 'sl': e - 3, 'tp': e + 3 * rr, 'strategy': 'fake', 'score': 2}
 real = bt.evaluate; bt.evaluate = fake_eval
 fixed = bt.run(m15); trailed = bt.run(m15, trail=2.0); bt.evaluate = real

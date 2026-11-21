@@ -349,11 +349,18 @@ def brokers_put(u, name):
     except RuntimeError as e: return jsonify(error=str(e)), 503
     return jsonify(brokers=bk.view(u['uid']))
 
+def _not_deriv(n, what):
+    """Plain words for 'this broker has no <what>' (what = check | switch | bot). MT5 brokers trade through the MT5 app; Binance does not trade yet."""
+    if bk.CATALOG.get(n) == 'mt5': t = {'check': 'MT5 brokers are checked by your MT5 app, not here. See the Connect your MT5 card.', 'switch': 'This broker trades through the MT5 app. Change its mode on the Connect your MT5 card.', 'bot': 'This broker trades through the MT5 app. Use the Connect your MT5 card.'}[what]
+    elif n == 'Binance': t = {'check': 'Checking Binance is not available yet.', 'switch': 'Binance does not trade yet, so it has no demo or real switch.', 'bot': 'Binance does not trade yet, so there is no bot to start.'}[what]
+    else: t = 'Unknown broker'
+    return jsonify(error=t), 400
+
 @app.post('/api/brokers/<name>/verify')
 @need(verified=True, active=True)
 def brokers_verify(u, name):
     n = bk.canon(name)
-    if n != 'Deriv': return jsonify(error='Checking this broker is not available yet.'), 400
+    if n != 'Deriv': return _not_deriv(n, 'check')
     ok, msg = deriv.verify(u['uid'])
     return jsonify(ok=ok, message=msg, brokers=bk.view(u['uid']))
 
@@ -362,7 +369,7 @@ def brokers_verify(u, name):
 def brokers_mode(u, name):
     """Demo / Real switch for ONE broker connection (Deriv). Real needs a plan and the word REAL. ANY switch stops that bot."""
     n = bk.canon(name)
-    if n != 'Deriv': return jsonify(error='This broker trades through the MT5 app. Change its mode on the Connect MT5 card.'), 400
+    if n != 'Deriv': return _not_deriv(n, 'switch')
     j = _j(); m = j.get('mode')
     if m not in ('demo', 'real'): return jsonify(error='mode must be demo or real'), 400
     if not st.q("SELECT 1 FROM broker_links WHERE uid=? AND broker='Deriv'", (u['uid'],), True): return jsonify(error='Save your Deriv token first.'), 400
@@ -380,7 +387,7 @@ def brokers_bot(u, name):
     """Start / stop the bot for ONE broker connection. Deriv only for now (the MT5 brokers trade through the MT5 app). Works for admins too:
     it needs no MT5 key. Starting needs an active plan, a checked token, and Phone mode off (so a signal is never traded twice)."""
     n = bk.canon(name)
-    if n != 'Deriv': return jsonify(error='This broker trades through the MT5 app. Use the Connect MT5 card.'), 400
+    if n != 'Deriv': return _not_deriv(n, 'bot')
     on = _j().get('on') is True; r = st.q("SELECT status FROM broker_links WHERE uid=? AND broker='Deriv'", (u['uid'],), True)
     if on:
         if not r: return jsonify(error='Save your Deriv token first.'), 400
