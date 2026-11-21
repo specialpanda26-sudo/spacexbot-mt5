@@ -10,8 +10,8 @@
   function build(s) { var m = /(\d+)\s*$/.exec(String(s == null ? "" : s)); return m ? parseInt(m[1], 10) : 0; }
   function newer(latestTag, installed) { var a = build(latestTag), b = build(installed); return a > 0 && b > 0 && a > b; }
   function native() { var c = window.Capacitor; return !!(c && c.isNativePlatform && c.isNativePlatform()); }
-  var WHY = "", LAST = 0;
-  function why(t) { WHY = t; try { localStorage.setItem("sxb_upd_why", t); } catch (e) {} }   /*U2*/
+  var WHY = "", LAST = 0, FOUND = false;
+  function why(t) { WHY = t; if (t) FOUND = false; try { localStorage.setItem("sxb_upd_why", t); } catch (e) {} }   /*U2*/
   function appPlug() {
     var c = window.Capacitor; if (!c) return null;
     if (c.Plugins && c.Plugins.App && c.Plugins.App.getInfo) return c.Plugins.App;
@@ -104,7 +104,7 @@
     try { if (sessionStorage.getItem(LATER)) return; } catch (e) {}
     if (typeof fetch !== "function") return;
     LAST = Date.now();
-    installed().then(function (have) {
+    return installed().then(function (have) {
       if (!build(have)) return;
       return fetch(API, { headers: { Accept: "application/vnd.github+json" } })
         .then(function (r) {
@@ -113,13 +113,34 @@
         })
         .then(function (j) {
           if (!j) return;
-          if (newer(j.tag_name, have)) { why(""); show({ build: build(j.tag_name), have: build(have), note: note(j.body) }); } else why("up to date (" + have + ", latest " + j.tag_name + ")");
+          if (newer(j.tag_name, have)) { why(""); FOUND = true; show({ build: build(j.tag_name), have: build(have), note: note(j.body) }); } else why("up to date (" + have + ", latest " + j.tag_name + ")");
         });
     }).catch(function () { why("the update check failed (offline?)"); });
   }
 
+  /*W10*/ /* Settings row: the reason the pop-up stayed silent, in plain words, and a button that checks right now. Only inside the Android app. */
+  function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function ago(t) { var n = Math.round((Date.now() - t) / 1000); return n < 60 ? "just now" : n < 3600 ? Math.round(n / 60) + " min ago" : Math.round(n / 3600) + " h ago"; }
+  function status() {
+    if (!native()) return "Update checks run inside the Android app.";
+    var w = WHY; if (!w) { try { w = localStorage.getItem("sxb_upd_why") || ""; } catch (e) {} }
+    if (FOUND) return "A newer app is out. Tap Check for updates now to open the update card.";
+    if (!LAST) return "Not checked yet. The app checks a few seconds after it opens." + (w ? " Last time: " + w + "." : "");
+    return (w ? "Last check: " + w + "." : "Last check finished.") + " Checked " + ago(LAST) + ".";
+  }
+  function row() {
+    if (!native()) return "";
+    return '<h3>App updates</h3><p class="note" id="sxbUpdWhy">' + esc(status()) + '</p><button class="btn block" type="button" data-upd="check">Check for updates now</button>';
+  }
+  if (document.addEventListener) document.addEventListener("click", function (e) {
+    var b = e && e.target && e.target.closest ? e.target.closest("[data-upd]") : null;
+    if (!b || b.getAttribute("data-upd") !== "check") return;
+    try { sessionStorage.removeItem(LATER); } catch (x) {}
+    LAST = 0; var n = document.getElementById("sxbUpdWhy"); if (n) n.textContent = "Checking...";
+    Promise.resolve(check()).then(function () { var m = document.getElementById("sxbUpdWhy"); if (m) m.textContent = status(); });
+  });
   function again() { if (Date.now() - LAST >= 60000) check(); }                      /* back in the app: look again, at most once a minute */
-  window.SXBUpdate = { build: build, newer: newer, show: show, art: art, note: note, check: check, again: again, why: function () { return WHY; }, APK: APK };
+  window.SXBUpdate = { build: build, newer: newer, show: show, art: art, row: row, status: status, note: note, check: check, again: again, why: function () { return WHY; }, APK: APK };
   if (native()) {
     var go = function () { setTimeout(check, 6500); };      // after the opening animation
     if (document.addEventListener) document.addEventListener("visibilitychange", function () { if (!document.hidden) again(); });

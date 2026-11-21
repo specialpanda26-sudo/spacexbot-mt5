@@ -1930,7 +1930,7 @@ function openSet(){var th=main().theme||"dark";
  ov.innerHTML='<div class="up-bd"></div><div class="up-panel" role="dialog" aria-modal="true" aria-label="Settings"><div class="hd"><h2>Settings</h2><button class="icon-btn" data-up="x" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>'+
  
  '<h3>Bot</h3><div class="mini-sw">'+sw("banner","Status banner","Show mode, bot state and limits under the header.")+sw("logBot","Log bot activity","Copy scans and rule changes into the Journal.")+sw("mon","Monitor mode","Practice only. Nothing is placed.")+'</div>'+
- '<h3>Data on this device</h3><button class="btn block" data-up="copy">Copy journal</button><button class="btn block" data-up="clr">Clear journal</button><button class="btn block" data-up="reset">Reset upgrade data</button><p class="note">Everything here is saved on this device only.</p></div>';
+ (window.SXBUpdate&&SXBUpdate.row?SXBUpdate.row():"")+'<h3>Data on this device</h3><button class="btn block" data-up="copy">Copy journal</button><button class="btn block" data-up="clr">Clear journal</button><button class="btn block" data-up="reset">Reset upgrade data</button><p class="note">Everything here is saved on this device only.</p></div>';
  ov.hidden=false}
 function copyJ(){var t=jall().map(function(e){return new Date(e.t).toISOString()+"\t"+KL[e.k]+"\t"+e.m}).join("\n");
  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(function(){toast("Journal copied")},function(){toast("Copy blocked by the browser")});else toast("Copy not available here")}
