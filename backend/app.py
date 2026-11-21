@@ -336,7 +336,9 @@ def link_mode(u):
     if m == 'real':
         if not u['active']: return jsonify(error='subscription required'), 402
         if j.get('confirm') != 'REAL': return jsonify(error='Type REAL to confirm. Real mode trades real money.'), 400
-    return _link_edit(u, lambda: links.set_mode(u['uid'], m))
+    was = links.view(u['uid']).get('mode'); r = _link_edit(u, lambda: links.set_mode(u['uid'], m))
+    if not isinstance(r, tuple): system_alerts.switched(u['uid'], was, m)          # N6b: kind 31
+    return r
 
 @app.post('/api/link/bot')
 @need(verified=True)
@@ -396,7 +398,7 @@ def brokers_mode(u, name):
     if m == 'real':
         if not u['active']: return jsonify(error='subscription required'), 402
         if j.get('confirm') != 'REAL': return jsonify(error='Type REAL to confirm. Real mode trades real money.'), 400
-    bk.set_mode(u['uid'], n, m); bk.set_why(u['uid'], n, 'bot off'); learn.log(u['uid'], 'setting', data={'path': request.path, 'mode': m})
+    was = bk.mode(u['uid'], n); bk.set_mode(u['uid'], n, m); bk.set_why(u['uid'], n, 'bot off'); system_alerts.switched(u['uid'], was, m)          # N6b: kind 31; learn.log(u['uid'], 'setting', data={'path': request.path, 'mode': m})
     try: deriv.refresh(u['uid'])
     except Exception: pass
     return jsonify(brokers=bk.view(u['uid']))
@@ -447,7 +449,9 @@ def _assist_do(u, fn):
 @need(verified=True, active=True)
 def assist_set(u):
     j = _j(); on = j.get('on') if isinstance(j.get('on'), bool) else None
-    return _assist_do(u, lambda: assist.save(u['uid'], on, j.get('balance'), j.get('risk')))
+    was = assist.is_on(u['uid']); r = _assist_do(u, lambda: assist.save(u['uid'], on, j.get('balance'), j.get('risk')))
+    if on is not None and on != was and not isinstance(r, tuple): system_alerts.monitor(u['uid'], on)          # N6b: kind 30
+    return r
 
 @app.post('/api/assist/take')
 @need(verified=True, active=True)

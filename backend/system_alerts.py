@@ -43,6 +43,15 @@ def boot_job(now=None):
     old = st.get('boot29'); st.put('boot29', ver)
     if old and old != ver: push.notify(29, 'u29-' + ver, admins=True)
 
+def switched(uid, old, new):
+    """31: the person switched Demo <-> Real. Goes to that person only. It confirms their own tap, so quiet hours do not hold it (push.BYPASS_KINDS)."""
+    old = old or 'demo'
+    if new in ('demo', 'real') and new != old: push.notify_user(uid, 31, 'a31-%s-%d' % (uid, int(time.time() * 1000)), acct=new.capitalize())
+
+def monitor(uid, on):
+    """30: the person turned Phone (monitor) mode on or off. Goes to that person only; also confirms their own tap."""
+    push.notify_user(uid, 30, 'm30-%s-%d' % (uid, int(time.time() * 1000)), on=bool(on))
+
 def register():
     """Put both jobs on the alerts loop. Safe to call twice."""
     from . import alerts

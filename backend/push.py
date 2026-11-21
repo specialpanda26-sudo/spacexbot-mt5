@@ -6,7 +6,7 @@ from . import store as st
 
 CAT = ('trade', 'risk', 'news', 'daily', 'tips', 'system', 'billing')
 BYPASS_CATS = {'risk', 'billing'}            # always get through quiet hours and the daily cap
-BYPASS_KINDS = {27}                          # EA offline too
+BYPASS_KINDS = {27, 30, 31}                          # EA offline too
 NUDGE_KINDS = set(range(45, 50))
 TRADE_TAG_KINDS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}         # the banner's tag carries the trade id, so two trades never replace each other
 _T = [

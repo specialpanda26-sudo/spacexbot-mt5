@@ -301,3 +301,9 @@ Start now: tell me in one short line what you found in docs/HANDOFF.md, then giv
 - Tunables at the top: FRESH 120 s, OFFLINE_MIN 5. NOTE: the first deploy sends 26 once to the owner and to each person who already linked an EA.
 - NOT DONE here: 30 (monitor mode) and 31 (account type) fire from a button press, they are Section N6b. Then N6c (daily/weekly/monthly reports 32-37), N6d (nudges 45-49), N6e (security 50).
 - NOT tested: a real phone, real FCM.
+
+## Section N6b (monitor mode and account type, kinds 30-31) DONE (Nov 22)
+- backend/system_alerts.py got switched(uid, old, new) = 31 and monitor(uid, on) = 30; app.py calls them AFTER the change succeeded: /api/link/mode (MT5 Demo/Real), /api/brokers/<name>/mode (Deriv Demo/Real) and /api/assist/settings (Phone mode on/off). The gates and the save functions were NOT edited.
+- 'Monitor mode' = Phone mode (the bot finds signals and waits for the person). Only a real change sends (on to on, or demo to demo, says nothing). Goes to that person only. push.BYPASS_KINDS is now {27, 30, 31}: they confirm the person's own tap, so quiet hours and the daily cap do not hold them; the person's own System switch still does.
+- tests/test_n6b.py (fake FCM, the real routes). NOT tested: a real phone.
+- Next: N6c (reports 32-37), N6d (nudges 45-49), N6e (security 50).
