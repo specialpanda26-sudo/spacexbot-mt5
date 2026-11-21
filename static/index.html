@@ -2775,7 +2775,7 @@ build()})();
   }
   function poll() {
     if (!ready() || BUSY) return Promise.resolve(); BUSY = true;
-    return SXA.api("/api/connections", { method: "GET" }).then(function (j) { D = j; FAIL = 0; }, function () { FAIL++; }).then(function () { BUSY = false; paint(); });
+    return SXA.api("/api/connections", { method: "GET" }).then(function (j) { D = j; FAIL = 0; window.SXCONN = { u: (me() || {}).uid, j: j, t: Date.now() }; }, function () { FAIL++; }).then(function () { BUSY = false; paint(); });
   }
   setInterval(function () {
     var u = me(), sg = u ? [u.uid, !!u.verified].join("|") : ""; TK++;
@@ -3029,6 +3029,82 @@ build()})();
   window.sxH8b = { check: check, kind: h8plan, words: h8words, close: close };
 })();
 /*H8b-end*/
+</script>
+<script>
+/*H8c-start*/
+/* Section 8c: "Something went wrong" and "<broker> is connected" in the site's own pop-up (.ov, .bd, .panel, .btn). IL2 pictures, site classes only. Facts only. */
+(function () {
+  var KEY = "sxb_bc", LASTERR = 0, UID = null, PREV = null, LAST = 0;
+  /*H8c-pure-start*/
+  function h8err(m) { return /something went wrong/i.test(String(m == null ? "" : m)); }
+  function h8errok(c) { return !c.open && (!c.last || c.now - c.last >= 30000); }
+  function h8map(rows) { var m = {}; (rows || []).forEach(function (r) { if (r && r.id) m[r.id] = r.state; }); return m; }
+  function h8conn(c) {
+    if (!c.prev) return [];
+    var out = [];
+    (c.rows || []).forEach(function (r) {
+      if (!r || r.state !== "ok") return;
+      var p = c.prev[r.id];
+      if ((p === "none" || p === "problem") && (c.seen || []).indexOf(r.id) < 0) out.push(r.id);
+    });
+    return out;
+  }
+  function h8words(k, id) {
+    if (k === "error") return { title: "Something went wrong", text: "Something did not work as expected. Reload the app and try again. Your account and saved settings are still here.", go: "Reload the app", no: "Close" };
+    return { title: id + " is connected", text: "spaceXBot can now see your account, so your balance and trades show in the app. The bot does not trade until you start it on the Bot tab.", go: "Go to Bot tab", no: "Not now" };
+  }
+  /*H8c-pure-end*/
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
+  function open() { return document.getElementById("h8cov"); }
+  function close() { var o = open(); if (o && o.remove) o.remove(); }
+  function busy() { try { return !!document.querySelector(".ov.open"); } catch (e) { return false; } }
+  function art(k) { var I = window.IL2 || {}; return (k === "error" ? I.cx : I.plug) || ""; }
+  function me() { try { return SXA.user(); } catch (e) { return null; } }
+  function seen(uid) { try { var s = JSON.parse(localStorage.getItem(KEY) || "null"); return s && s.u === uid && s.ids instanceof Array ? s.ids : []; } catch (e) { return []; } }
+  function mark(uid, ids) { try { localStorage.setItem(KEY, JSON.stringify({ u: uid, ids: seen(uid).concat(ids) })); } catch (e) {} }
+  function card(kind, w, go) {
+    close();
+    var o = el("div", "ov"); o.id = "h8cov"; o.setAttribute("data-kind", kind);
+    var bd = el("div", "bd"), c = el("div", "panel");
+    c.setAttribute("role", "dialog"); c.setAttribute("aria-modal", "true"); c.setAttribute("aria-labelledby", "h8ct");
+    var h = el("h2", "", w.title); h.id = "h8ct"; h.setAttribute("style", "text-align:center");
+    var p = el("p", "muted", w.text); p.setAttribute("style", "text-align:center");
+    var b1 = el("button", "btn primary big block", w.go), b2 = el("button", "btn block", w.no);
+    b1.setAttribute("type", "button"); b2.setAttribute("type", "button");
+    c.appendChild(h); c.appendChild(p); c.appendChild(b1); c.appendChild(b2);
+    var pic = art(kind); if (pic) c.insertAdjacentHTML("afterbegin", pic);
+    o.appendChild(bd); o.appendChild(c);
+    b1.onclick = function () { close(); try { go(); } catch (e) {} };
+    b2.onclick = close; bd.onclick = close;
+    document.body.appendChild(o);
+    try { void o.offsetWidth; } catch (e) {}
+    o.className = "ov open";
+    try { b1.focus(); } catch (e) {}
+    return o;
+  }
+  function reload() { window.location.reload(); }
+  function botTab() { var n = document.querySelector('[data-go="bot"]'); if (n) n.click(); }
+  /* a "Something went wrong" toast becomes a card; true = the card took it, false = show the toast as before */
+  function showErr() {
+    var now = Date.now();
+    if (!h8errok({ open: busy(), last: LASTERR, now: now })) return false;
+    LASTERR = now; card("error", h8words("error"), reload); return true;
+  }
+  function check() {
+    var u = me(), S = window.SXCONN;
+    if (!u || u.offline || !S || S.u !== u.uid || !S.j || Date.now() - S.t > 120000) return;
+    if (UID !== u.uid) { UID = u.uid; PREV = null; LAST = 0; }
+    if (S.t === LAST) return;
+    var rows = S.j.rows || [], hit = h8conn({ rows: rows, prev: PREV, seen: seen(u.uid) });
+    if (hit.length && busy()) return;          /* tried again at the next look; nothing was marked */
+    PREV = h8map(rows); LAST = S.t;
+    if (hit.length) { mark(u.uid, hit); card("connected", h8words("connected", hit[0]), botTab); }
+  }
+  try { var t1 = window.sxToast; if (typeof t1 === "function") window.sxToast = function (m) { if (h8err(m) && showErr()) return; return t1.apply(this, arguments); }; } catch (e) {}
+  setInterval(check, 1500);
+  window.sxH8c = { check: check, err: h8err, errok: h8errok, conn: h8conn, words: h8words, close: close };
+})();
+/*H8c-end*/
 </script>
 
 <script>
