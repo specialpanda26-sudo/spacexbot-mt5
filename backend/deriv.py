@@ -329,5 +329,9 @@ def _track(sess, uid, acct):
         except (TypeError, ValueError): continue
         if st.x("UPDATE signals SET status='closed',pnl=?,closed=? WHERE id=? AND status='open'", (pnl, int(time.time()), r['id']), True):
             st.put('closedby:%d' % r['id'], _closed_by(r, pnl))          # Section 3: shown as "Closed by" in the trade detail
+            for k in ('sell_spot', 'exit_tick'):          # Section 4: only a price Deriv really sent
+                try: x = float(p.get(k))
+                except (TypeError, ValueError): continue
+                if 0 < x < 1e9: st.put('exitpx:%d' % r['id'], x); break
             _report(uid, r['id'], 'closed', 'tp' if pnl > 0 else 'sl' if pnl < 0 else 'other'); done = True
     if done: _resnap(sess, uid, acct)

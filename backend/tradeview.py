@@ -20,6 +20,13 @@ EXIT_NOTE = ('The exit price and the reason this trade closed are not recorded f
              'The line on the chart marks the time it closed, not a price.')
 
 
+def _note(is_open, px, why):
+    if is_open: return OPEN_NOTE
+    if px and why: return None
+    if px: return 'The reason this trade closed is not recorded for this trade.'
+    return PRICE_NOTE if why else EXIT_NOTE
+
+
 def _px(v):
     x = jn._num(v)
     return round(x, 6) if x is not None and x > 0 else None
@@ -72,11 +79,12 @@ def detail(uid, admin, tid):
     if p is None and not is_open: return None
     opened = int(r.get('created') or 0); closed = None if is_open else int(r.get('closed') or r.get('created') or 0)
     why = None if is_open else (st.get('closedby:%d' % r['id']) or None)
+    px = None if is_open else _px(st.get('exitpx:%d' % r['id']))
     lv = {'entry': _px(r.get('entry')), 'fill': _px(r.get('fill')), 'sl': _px(r.get('sl')), 'tp': _px(r.get('tp'))}
     lots = jn._num(r.get('lots'))
     return {'id': r['id'], 'symbol': r['symbol'], 'side': str(r['side'] or '').lower(), 'strategy': r['strategy'], 'strategy_name': si.label(r['strategy']),
             'broker': jn.broker_of(r), 'lots': lots if lots and lots > 0 else None, 'pnl': round(p, 2) if p is not None else None, 'result': None if p is None else 'win' if p > 0 else 'loss',
             'status': 'open' if is_open else 'closed', 'why_taken': rsn.lines(r.get('reason'), r['strategy']), 'opened_by': 'bot', 'closed_by': why, 'stake': stk.info(r['id']),
             'opened': opened, 'closed': closed, 'levels': lv, 'dec': _dec([x for x in lv.values() if x]),
-            'exit': {'recorded': False, 'price': None, 'reason': why, 'note': OPEN_NOTE if is_open else PRICE_NOTE if why else EXIT_NOTE},
+            'exit': {'recorded': px is not None, 'price': px, 'reason': why, 'note': _note(is_open, px, why)},
             'candles': _candles((a, b), r['symbol'], opened, closed or int(time.time()))}

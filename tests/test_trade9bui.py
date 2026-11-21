@@ -12,7 +12,7 @@ T('the P9B block is in the page exactly once, right after the Profit and loss ca
 T('it reuses the page bottom sheet that already exists (#sheet, #sheetBody) and the Close button', 'id="sheet"' in html and 'id="sheetBody"' in html and 'data-close="1"' in C9B)
 T('no made-up numbers in the block (no random, no sample data, no stored copy)', not re.search(r'Math\.random|sample|HIST|localStorage|sessionStorage', C9B))
 T('only the site colours (CSS variables), no hard-coded colours', not re.search(r'#[0-9a-fA-F]{3,8}\b|rgba?\(|hsl', C9B) and '--good' in C9B and '--bad' in C9B and 'var(' in C9B)
-T('the only thing it reads from the "exit" part of the answer is the plain-words note (never a price or a reason)', re.findall(r'\.exit\.(\w+)', C9B) == ['note'] and not re.search(r'exit_price|close_price|\.reason', C9B))
+T('the only thing it reads from the "exit" part of the answer is its note, whether a price was recorded, and that price (the reason is read from closed_by)', set(re.findall(r'\bex\.(\w+)', C9B)) == {'note', 'price', 'recorded'} and not re.search(r'exit_price|close_price|\.reason', C9B))
 T('Trades rows carry the trade id and are real buttons for the keyboard (data-tid, role, tabindex)', 'data-tid="\'+(Number(t.id)||0)+\'" role="button" tabindex="0"' in html)
 T('the profit curve says it can be tapped and shows a pointer cursor (CSS), and its own markup is untouched', 'Tap a point on the curve to see that trade' in C9A and '#pnlc .chart svg{cursor:pointer}' in html and 'function tapCurve' in C9A and 'aria-label="Profit curve">' in C9A)
 scripts = re.findall(r'<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>', html, re.S)

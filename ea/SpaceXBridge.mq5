@@ -4,7 +4,7 @@
 //| and add your Render URL to the list. Attach to ANY chart.        |
 //+------------------------------------------------------------------+
 #property strict
-#property version "1.20"
+#property version "1.21"
 #include <Trade\Trade.mqh>
 
 input string ServerUrl      = "https://your-service.onrender.com"; // no trailing slash
@@ -347,6 +347,8 @@ void OnTradeTransaction(const MqlTradeTransaction &t, const MqlTradeRequest &rq,
    // no magic check here: a trade closed by hand (phone or terminal) has magic 0. Our trades are found below by their SXB comment.
    long en = HistoryDealGetInteger(t.deal, DEAL_ENTRY);
    long dr = HistoryDealGetInteger(t.deal, DEAL_REASON);
+   double exitPx = HistoryDealGetDouble(t.deal, DEAL_PRICE);                  // Section 4: the price this closing deal really got
+   int exitDg = (int)SymbolInfoInteger(HistoryDealGetString(t.deal, DEAL_SYMBOL), SYMBOL_DIGITS); if(exitDg < 0 || exitDg > 8) exitDg = 5;
    if(en != DEAL_ENTRY_OUT && en != DEAL_ENTRY_OUT_BY) return;
    ulong pid = (ulong)HistoryDealGetInteger(t.deal, DEAL_POSITION_ID);
    double pnl = 0; long sid = 0, gid = 0;
@@ -367,6 +369,7 @@ void OnTradeTransaction(const MqlTradeTransaction &t, const MqlTradeRequest &rq,
       else if(dr == DEAL_REASON_CLIENT || dr == DEAL_REASON_MOBILE || dr == DEAL_REASON_WEB) why = "manual";
       else if(dr == DEAL_REASON_EXPERT) why = "bot";
       string extra = ",\"pnl\":" + DoubleToString(pnl, 2) + ",\"reason\":\"" + why + "\"";
+      if(exitPx > 0) extra += ",\"price\":" + DoubleToString(exitPx, exitDg);
       if(why == "basket" && GlobalVariableCheck(GV("S", gid))) extra += ",\"gpnl\":" + DoubleToString(GlobalVariableGet(GV("S", gid)), 2);
       Report(sid, "closed", extra);
    }

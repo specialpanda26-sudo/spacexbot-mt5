@@ -201,6 +201,9 @@ def ea_report():
     elif stt == 'closed':
         st.x("UPDATE signals SET status='closed',pnl=?,closed=? WHERE id=?", (d.get('pnl'), int(time.time()), sid))
         if str(d.get('reason')) in ('tp', 'sl', 'manual', 'bot', 'basket', 'other'): st.put('closedby:%d' % sid, str(d.get('reason')))      # only what the bridge really reported
+        try: px = float(d.get('price'))
+        except (TypeError, ValueError): px = 0.0
+        if 0 < px < 1e9: st.put('exitpx:%d' % sid, px)          # Section 4: the closing price the EA read from the closing deal (an old EA sends none)
     if stt in ('open', 'closed'):
         s = st.q('SELECT * FROM signals WHERE id=?', (sid,), True)
         if s:

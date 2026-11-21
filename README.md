@@ -87,6 +87,8 @@ Copy `ea/SpaceXBridge.mq5` to `MQL5/Experts/`, compile, allow WebRequest for you
     python tests/test_sbauth.py                   # server-side token checks
     python tests/test_authjs.py                   # sign-up / code / reset flow in the browser code (needs node)
     python tests/test_admin.py                    # admin user list, grant, revoke
+    python tests/test_exit4.py                    # exit price from the EA, stored and shown; Deriv price only if Deriv sent one
+    python tests/test_net4.py                     # Offline banner checks the server first (needs node)
     python tests/test_stake.py                    # big stake on strong setups: levels, sizing, owner settings, trade detail, Deriv closed-by
     python tests/test_mail.py                     # Resend receipts and trade alerts (no network)
     python tests/test_locked.py                   # bot lock follows the server plan (needs node)
