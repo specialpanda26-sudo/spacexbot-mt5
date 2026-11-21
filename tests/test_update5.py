@@ -35,7 +35,7 @@ async function run(body) { const p = phone({ body }); p.timers[0](); await wait(
   const ov = p.body.kids[0], panel = ov.kids.find(k => k.className === 'panel'), bd = ov.kids.find(k => k.className === 'bd'), css = ov.kids.find(k => k.tag === 'style');
   out.shell = [p.body.kids.length, ov.id, p.seen, ov.className, !!panel, !!bd, panel && panel.attrs.role, panel && panel.attrs['aria-modal']];
   const cart = all(ov).find(n => n.className === 'ucart');
-  out.art = { svg: cart.innerHTML.indexOf('class="ill2 upd"') > -1, arrow: /class="ua"/.test(cart.innerHTML), flame: /class="uf"/.test(cart.innerHTML), sparks: (cart.innerHTML.match(/class="us us\d"/g) || []).length, char: cart.innerHTML.indexOf(CH2) > -1 && CH2.length > 200, arm: cart.innerHTML.indexOf('M114 146c-14 4-26 2-38-4') > -1 };
+  out.art = { svg: cart.innerHTML.indexOf('class="ill2 upd"') > -1, arrow: /class="ua"/.test(cart.innerHTML), track: /class="pt"/.test(cart.innerHTML), bar: /class="pf"/.test(cart.innerHTML), extra: /class="(uf|ug|us|ux|uc|uk|pl|st)[ "]/.test(cart.innerHTML), char: cart.innerHTML.indexOf('#1d1d20') > -1 };
   out.title = (all(ov).find(n => n.tag === 'h2') || {}).textContent;
   out.fix = all(ov).filter(n => n.className !== 'unote' && /fix/i.test(n.textContent)).length;
   out.said = all(ov).some(n => n.textContent === 'A new update is available for spaceXBot. Update now to get the latest features.');
@@ -72,8 +72,7 @@ vars_used = set(re.findall(r'var\((--[a-z0-9-]+)', css))
 vars_site = set(re.findall(r'(--[a-z0-9-]+)\s*:', page.split('*{box-sizing')[0]))
 names = re.findall(r'animation:\s*(sxu\w+)', css)
 T('pop-up is the site overlay: .ov with .bd and .panel (dialog), opened after the first paint', o['shell'] == [1, 'sxbUpd', 'ov', 'ov open', True, True, 'dialog', 'true'])
-T('the "update" cartoon is there: phone, download arrow, flame, 4 sparkles, arm', o['art']['svg'] and o['art']['arrow'] and o['art']['flame'] and o['art']['sparks'] == 4 and o['art']['arm'])
-T('the dark-haired site character is in the cartoon and is exactly CH2 from index.html', o['art']['char'] and ("var CH = '" + CH2 + "';") in src)
+T('the "update" cartoon is only a phone, a download arrow and a loading line (no flame, sparkles, character or extras)', o['art']['svg'] and o['art']['arrow'] and o['art']['track'] and o['art']['bar'] and not o['art']['extra'] and not o['art']['char'])
 T('title is Update available', o['title'] == 'Update available')
 T('the card text says a new update is available and never mentions fixes (the release note line is separate)', o['said'] is True and o['fix'] == 0)
 T('new build and installed build are shown', o['build'] is True)
