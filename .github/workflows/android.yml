@@ -8,6 +8,8 @@ on:
     branches: [main]
     paths:
       - 'android-wrapper/**'
+      - 'static/**'
+      - 'backend/**'
       - '.github/workflows/android.yml'
 
 concurrency:
