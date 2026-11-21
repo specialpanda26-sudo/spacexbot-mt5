@@ -10,10 +10,18 @@
   function build(s) { var m = /(\d+)\s*$/.exec(String(s == null ? "" : s)); return m ? parseInt(m[1], 10) : 0; }
   function newer(latestTag, installed) { var a = build(latestTag), b = build(installed); return a > 0 && b > 0 && a > b; }
   function native() { var c = window.Capacitor; return !!(c && c.isNativePlatform && c.isNativePlatform()); }
+  var WHY = "", LAST = 0;
+  function why(t) { WHY = t; try { localStorage.setItem("sxb_upd_why", t); } catch (e) {} }   /*U2*/
+  function appPlug() {
+    var c = window.Capacitor; if (!c) return null;
+    if (c.Plugins && c.Plugins.App && c.Plugins.App.getInfo) return c.Plugins.App;
+    if (c.nativePromise) return { getInfo: function () { return c.nativePromise("App", "getInfo", {}); } };
+    return null;
+  }
   function installed() {
-    var c = window.Capacitor, A = c && c.Plugins && c.Plugins.App;
-    if (!A || !A.getInfo) return Promise.resolve("");
-    return A.getInfo().then(function (i) { return (i && (i.build || i.version)) || ""; }, function () { return ""; });
+    var A = appPlug();
+    if (!A) { why("the app version cannot be read (no App plugin)"); return Promise.resolve(""); }
+    return A.getInfo().then(function (i) { return (i && (i.build || i.version)) || ""; }, function () { why("the app version cannot be read"); return ""; });
   }
   function box(tag, css, text) { var e = document.createElement(tag); e.style.cssText = css; if (text) e.textContent = text; return e; }
 
@@ -26,7 +34,7 @@
     var p = box("div", "font-size:15px;line-height:1.5;color:rgba(255,255,255,.78);margin:0 0 20px;", "A new version of spaceXBot is ready. Update now to get the latest fixes and features.");
     var go = box("button", "display:block;width:100%;border:0;border-radius:14px;padding:14px;font-size:16px;font-weight:800;background:#1B9A47;color:#fff;margin:0 0 10px;", "Update now");
     var no = box("button", "display:block;width:100%;border:1px solid rgba(255,255,255,.25);border-radius:14px;padding:13px;font-size:15px;font-weight:700;background:transparent;color:#fff;", "Later");
-    go.onclick = function () { try { window.open(APK, "_blank"); } catch (e) {} if (o.remove) o.remove(); };
+    go.onclick = function () { var w = null; try { w = window.open(APK, "_blank"); } catch (e) {} if (!w) { try { window.location.href = APK; } catch (e) {} } if (o.remove) o.remove(); };
     no.onclick = function () { try { sessionStorage.setItem(LATER, "1"); } catch (e) {} if (o.remove) o.remove(); };
     c.appendChild(t); c.appendChild(p); c.appendChild(go); c.appendChild(no); o.appendChild(c);
     document.body.appendChild(o);
@@ -35,17 +43,26 @@
   function check() {
     try { if (sessionStorage.getItem(LATER)) return; } catch (e) {}
     if (typeof fetch !== "function") return;
+    LAST = Date.now();
     installed().then(function (have) {
       if (!build(have)) return;
       return fetch(API, { headers: { Accept: "application/vnd.github+json" } })
-        .then(function (r) { return r && r.ok ? r.json() : null; })
-        .then(function (j) { if (j && newer(j.tag_name, have)) show(); });
-    }).catch(function () {});
+        .then(function (r) {
+          if (r && r.ok) return r.json();
+          why(r && r.status === 404 ? "no release found (the repo is private or its name is wrong)" : "GitHub answered with an error"); return null;
+        })
+        .then(function (j) {
+          if (!j) return;
+          if (newer(j.tag_name, have)) { why(""); show(); } else why("up to date (" + have + ", latest " + j.tag_name + ")");
+        });
+    }).catch(function () { why("the update check failed (offline?)"); });
   }
 
-  window.SXBUpdate = { build: build, newer: newer, show: show, check: check, APK: APK };
+  function again() { if (Date.now() - LAST >= 60000) check(); }                      /* back in the app: look again, at most once a minute */
+  window.SXBUpdate = { build: build, newer: newer, show: show, check: check, again: again, why: function () { return WHY; }, APK: APK };
   if (native()) {
     var go = function () { setTimeout(check, 6500); };      // after the opening animation
+    if (document.addEventListener) document.addEventListener("visibilitychange", function () { if (!document.hidden) again(); });
     if (document.readyState === "complete") go(); else window.addEventListener("load", go);
   }
 })();
