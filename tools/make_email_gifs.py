@@ -1,74 +1,70 @@
-"""Draws the three animated cartoons used in the sign-in emails: static/email/signin.gif, verify.gif, reset.gif (480x270, loops forever).
-Needs Pillow (already in requirements.txt). Run from the repo root: python tools/make_email_gifs.py"""
-import math, os
-from PIL import Image, ImageDraw
+"""Draws the five animated cartoons used in the emails: static/email/signin.gif, verify.gif, reset.gif, alert.gif, receipt.gif (480x240, loops forever).
+They use the SAME art as the website and the phone notifications: backend/notifart.py (dark card, thin outlines, the dark-haired character) and the same props
+(phone, envelope, lock, rocket, receipt, check badge). Needs Pillow. Run from the repo root: python tools/make_email_gifs.py"""
+import math, os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from PIL import Image
+from backend.notifart import Art, SURF2, GREEN, WHITE, HAIR_BODY, HAIR_MID, HAIR_TOP
 
-W, H, S, N, MS = 480, 270, 2, 16, 110
-BG, GLOW, GREEN, SKIN, HAIR = (16, 21, 30), (26, 35, 51), (27, 154, 71), (243, 201, 160), (29, 29, 32)
+N, MS, HOLD = 16, 110, 900                      # frames, ms per frame, ms the last frame stays
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'static', 'email')
+POP = {9: .45, 10: .85, 11: 1.15, 12: 1.0}      # check badge pops in from frame 9 and stays
 
-def ease(x): x = max(0.0, min(1.0, x)); return x * x * (3 - 2 * x)
+def pop(i): return POP.get(i, 1.0 if i > 12 else 0.0)
 
-def person(d, t, i, reach):
-    b = 5 * math.sin(2 * math.pi * i / N)
-    P = lambda *a: [v * S for v in a]
-    d.ellipse(P(88, 188 + b, 212, 330), fill=GREEN)                                     # body
-    d.line(P(196, 212 + b, 196 + reach * 62, 196 + b - reach * 18), fill=SKIN, width=15 * S, joint='curve')   # arm
-    d.ellipse(P(196 + reach * 62 - 9, 187 + b - reach * 18, 196 + reach * 62 + 9, 205 + b - reach * 18), fill=SKIN)
-    d.rectangle(P(138, 160 + b, 162, 192 + b), fill=SKIN)                               # neck
-    d.ellipse(P(108, 80 + b, 192, 168 + b), fill=SKIN)                                  # head
-    d.pieslice(P(104, 74 + b, 196, 166 + b), 180, 360, fill=HAIR)                       # hair
-    d.ellipse(P(100, 100 + b, 116, 124 + b), fill=HAIR); d.ellipse(P(184, 100 + b, 200, 124 + b), fill=HAIR)
-    if i == N - 3: d.line(P(130, 130 + b, 142, 130 + b), fill=HAIR, width=3 * S); d.line(P(158, 130 + b, 170, 130 + b), fill=HAIR, width=3 * S)
-    else: d.ellipse(P(130, 124 + b, 141, 137 + b), fill=HAIR); d.ellipse(P(159, 124 + b, 170, 137 + b), fill=HAIR)
-    d.arc(P(135, 132 + b, 165, 158 + b), 25, 155, fill=HAIR, width=3 * S)               # smile
+def character(a, b):
+    t = (112, 40 + b)
+    a.path('M114 146c-14 4-26 2-38-4', (0, b))
+    a.path('M30 118C26 90 36 66 62 58c26-8 46 12 50 42l4 18z', t, fill=HAIR_BODY)
+    a.path('M42 54C38 34 54 20 72 24c18 4 22 24 10 36-10 9-32 10-40-6z', t, fill=HAIR_MID)
+    a.path('M44 38c4-15 30-20 44-8l12 7c-2 4-10 4-14 2-12-4-30-2-42 8z', t, fill=HAIR_TOP)
+    a.path('M60 47q6 5 12 0', t)
 
-def check(d, cx, cy, r, k):
-    r = r * ease(k)
-    if r < 2: return
-    P = lambda *a: [v * S for v in a]
-    d.ellipse(P(cx - r, cy - r, cx + r, cy + r), fill=GREEN)
-    d.line(P(cx - r * .45, cy, cx - r * .1, cy + r * .35, cx + r * .5, cy - r * .35), fill=(255, 255, 255), width=max(2, int(r * .22 * S)), joint='curve')
+def spark(a, i, x, y, k):
+    if (i + k * 3) % 8 < 5: a.path('M%d %dv10M%d %dh10' % (x, y, x - 5, y + 5), stroke=GREEN)
+
+def badge(a, i, cx, cy, r=14):
+    k = pop(i)
+    if k <= 0: return
+    a.circ(cx, cy, r * k, fill=GREEN, stroke=None)
+    if k >= 1: a.path('M-6 .5l4.2 4.2 8.2-9.6', (cx, cy), stroke=WHITE, w=3.2)
 
 def scene(name, i):
-    t = i / (N - 1); img = Image.new('RGB', (W * S, H * S), BG); d = ImageDraw.Draw(img); P = lambda *a: [v * S for v in a]
-    d.ellipse(P(250, 20, 450, 250), fill=GLOW)
-    for n, (x, y) in enumerate([(40, 40), (90, 220), (455, 40), (230, 30), (440, 235), (20, 150)]):
-        r = 1.5 + (1 if (i + n * 3) % 8 < 2 else 0); d.ellipse(P(x - r, y - r, x + r, y + r), fill=(120, 140, 175))
-    person(d, t, i, ease(t * 3))
-    if name == 'signin':
-        d.rounded_rectangle(P(310, 50, 390, 230), radius=16 * S, fill=(30, 38, 56), outline=(95, 110, 145), width=3 * S)
-        d.rounded_rectangle(P(318, 64, 382, 216), radius=8 * S, fill=(14, 19, 29))
-        k = min(6, int(t * 9))
-        for n in range(6):
-            x = 327 + n * 11.2
-            if n < k: d.ellipse(P(x - 4, 136, x + 4, 144), fill=GREEN)
-            else: d.ellipse(P(x - 4, 136, x + 4, 144), outline=(95, 110, 145), width=S)
-        check(d, 350, 100, 20, (t - .7) * 4)
-    elif name == 'verify':
-        o = ease(t * 2)
-        d.rectangle(P(290, 112, 410, 200), fill=(205, 214, 235))
-        d.rectangle(P(304, 118 - o * 46, 396, 190 - o * 46), fill=(255, 255, 255))
-        for n in range(3): d.line(P(316, 134 - o * 46 + n * 14, 384 - n * 20, 134 - o * 46 + n * 14), fill=(190, 198, 220), width=3 * S)
-        d.polygon(P(290, 200, 350, 150, 410, 200), fill=(232, 238, 252)); d.polygon(P(290, 112, 290, 200, 350, 156), fill=(222, 229, 247)); d.polygon(P(410, 112, 410, 200, 350, 156), fill=(222, 229, 247))
-        d.polygon(P(290, 112, 350, 160 - o * 104, 410, 112), fill=(196, 206, 230) if o > .5 else (240, 244, 255))
-        check(d, 404, 104, 20, (t - .55) * 3)
-    else:
-        up = ease((t - .15) * 2) * 30
-        d.arc(P(324, 68 - up, 376, 160 - up), 180, 360, fill=(215, 222, 238), width=10 * S)
-        d.line(P(325, 114 - up, 325, 134), fill=(215, 222, 238), width=10 * S)
-        if up < 1: d.line(P(375, 114, 375, 134), fill=(215, 222, 238), width=10 * S)
-        d.rounded_rectangle(P(308, 130, 392, 214), radius=14 * S, fill=(255, 196, 60))
-        d.ellipse(P(342, 156, 358, 172), fill=(60, 45, 20)); d.polygon(P(347, 168, 353, 168, 356, 192, 344, 192), fill=(60, 45, 20))
-        check(d, 398, 126, 18, (t - .6) * 3)
-    return img.resize((W, H), Image.LANCZOS)
+    a = Art(2.62); s = math.sin(2 * math.pi * i / N); b, f = 2.4 * s, -2.4 * math.sin(2 * math.pi * i / N + .9)
+    if name == 'signin':                                            # phone (the app asks for the code)
+        t = (14, 22 + f); a.rect(0, 0, 58, 96, 11, t, fill=SURF2); a.path('M22 10h14', t); a.rect(9, 24, 40, 28, 7, t); a.path('m12 30 17 11 17-11', t)
+        badge(a, i, 66, 34 + f); spark(a, i, 92, 24, 0); spark(a, i, 12, 100, 1)
+    elif name == 'verify':                                          # envelope (confirm your email)
+        t = (14, 28 + f); a.rect(0, 0, 76, 52, 8, t, fill=SURF2); a.path('m4 10 34 24 34-24', t)
+        badge(a, i, 84, 28 + f); spark(a, i, 100, 80, 0); spark(a, i, 8, 14, 2)
+    elif name == 'reset':                                           # lock: the arm lifts, then clicks shut
+        up = 7 * max(0.0, math.sin(math.pi * min(1.0, i / 9.0))) if i < 10 else 0
+        t = (26, 24 + f); a.rect(0, 30, 60, 46, 9, t, fill=SURF2); a.path('M14 30v-9c0-9 7-16 16-16c9 0 16 7 16 16v9', (26, 24 + f - up))
+        a.circ(30, 52, 4, t=t); a.path('M30 56v8', t)
+        badge(a, i, 74, 34 + f); spark(a, i, 92, 30, 0); spark(a, i, 6, 96, 3)
+    elif name == 'alert':                                           # rocket lifts off, flame flickers
+        lift = 3 * s; t = (24, 16 + f * 1.5 - lift)
+        a.path('M30 0c14 10 18 30 12 52H18C12 30 16 10 30 0z', t, fill=SURF2); a.circ(30, 24, 7, t=t); a.path('M18 40l-10 14 12-4M42 40l10 14-12-4', t)
+        a.path('M24 56q6 %d 12 0z' % (12 + 5 * (i % 3)), t, fill=GREEN, stroke=None)
+        spark(a, i, 92, 24, 0); spark(a, i, 12, 100, 2); spark(a, i, 96, 90, 4)
+    elif name == 'receipt':                                         # receipt fills up, then the check pops
+        t = (20, 24 + f); a.rect(0, 0, 66, 88, 9, t, fill=SURF2)
+        for k, d in enumerate(('M14 24h38', 'M14 40h38', 'M14 56h24')):
+            if i >= 3 + k * 2: a.path(d, t)
+        k = pop(i)
+        if k > 0:
+            a.circ(48, 72, 10 * k, t=t, fill=GREEN, stroke=None)
+            if k >= 1: a.path('M43 72l3.5 3.5 6.5-7.5', t, stroke=WHITE, w=3)
+        spark(a, i, 96, 30, 1)
+    character(a, b)
+    return a.done(name).resize((480, 240), Image.LANCZOS)
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    for name in ('signin', 'verify', 'reset'):
-        fr = [scene(name, i).quantize(colors=48, method=Image.Quantize.MEDIANCUT) for i in range(N)]
+    for name in ('signin', 'verify', 'reset', 'alert', 'receipt'):
+        fr = [scene(name, i).quantize(colors=64, method=Image.Quantize.MEDIANCUT) for i in range(N)]
         p = os.path.join(OUT, name + '.gif')
-        fr[0].save(p, save_all=True, append_images=fr[1:], duration=MS, loop=0, optimize=True, disposal=1)
+        fr[0].save(p, save_all=True, append_images=fr[1:], duration=[MS] * (N - 1) + [HOLD], loop=0, optimize=True, disposal=1)
         print(name + '.gif', os.path.getsize(p) // 1024, 'KB')
 
 if __name__ == '__main__': main()
