@@ -86,6 +86,7 @@ def _scan_tf(sym, uid, tf, hi):
     if st.get(key) == str(m15[-1]['t']): return          # already evaluated this candle
     st.put(key, m15[-1]['t'])
     ok, why = risk.global_gate(uid=uid)
+    if ok and risk.crypto_open() and risk.weekend_skip(sym): ok, why = False, 'weekend/Friday-night risk'          # the gate passed only because a BTC market is listed: gold and forex still wait
     if not ok: botstate.note(uid, sym, 'gate', why); return
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
     if st.get('auto_disable') == '1': off |= stats.losers(int(st.fget('auto_disable_min_trades')), uid)
@@ -126,7 +127,7 @@ def _burst_scan(sym, uid=''):
     if time.time() - _last_scan.get(k, 0) < 20: return
     _last_scan[k] = time.time()
     ok, why = burst.look(uid)
-    if not ok: return
+    if not ok or (risk.crypto_open() and risk.weekend_skip(sym)): return
     m5 = bars.get(sym, 'M5', uid); tf, hi = ('M5', 'M15') if m5 else ('M15', 'H1')
     m = m5 or bars.get(sym, 'M15', uid); h = bars.get(sym, hi, uid)
     if not m: return

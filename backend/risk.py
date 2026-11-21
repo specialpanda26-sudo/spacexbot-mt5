@@ -27,6 +27,22 @@ def real_ok(uid, a):
     if not a.get('allow_live'): return False
     return (bk.mode(uid, 'Deriv') if a.get('src') == 'deriv' else links.mode(uid)) == 'real'
 
+CRYPTO = ('BTCUSD',)          # markets that never close (prefix match, so BTCUSDm, BTCUSD.a, BTCUSDT count too)
+
+def weekend_shut(now=None):
+    """Saturday, Sunday, or Friday from 20:00 UTC: gold and forex are closed or too risky."""
+    d = dt.datetime.utcfromtimestamp(now or time.time()); return d.weekday() >= 5 or (d.weekday() == 4 and d.hour >= 20)
+
+def is_crypto(sym): return str(sym or '').strip().upper().startswith(CRYPTO)
+
+def crypto_open():
+    """Weekend exemption: on unless the owner sets crypto_weekend to 0, and only while a crypto market is in the Symbols setting."""
+    return st.get('crypto_weekend') != '0' and any(is_crypto(x) for x in (st.get('symbols') or '').split(','))
+
+def weekend_skip(sym, now=None):
+    """True = do not trade this market now because of the weekend rule (every market except crypto when the exemption is on)."""
+    return weekend_shut(now) and not (st.get('crypto_weekend') != '0' and is_crypto(sym))
+
 def global_gate(now=None, uid='', burst=False):
     now = now or time.time(); a = st.acct(uid); d = dt.datetime.utcfromtimestamp(now)
     if not bot_on(uid): return False, 'bot off'
@@ -34,7 +50,7 @@ def global_gate(now=None, uid='', burst=False):
     if uid:      # a subscriber's EA: anything that is not a confirmed demo account needs Real mode ON and live trading allowed in the EA
         if a.get('demo') is not True and not real_ok(uid, a): return False, 'real account needs Real mode and live trading allowed'
     elif a.get('demo') is False and not a.get('allow_live'): return False, 'live account not allowed in EA'
-    if d.weekday() >= 5 or (d.weekday() == 4 and d.hour >= 20): return False, 'weekend/Friday-night risk'
+    if weekend_shut(now) and not crypto_open(): return False, 'weekend/Friday-night risk'          # a BTC market in Symbols keeps the bot looking; other markets are skipped per market (weekend_skip)
     if not burst and open_count(uid, a) >= limits.max_open(uid): return False, 'max open positions'          # burst mode has its own ceiling (burst.py)
     since = int(now - now % 86400)
     mt = limits.trades(uid)      # 0 = no daily trade limit (the stop loss and the loss limits protect the account)
