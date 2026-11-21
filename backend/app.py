@@ -65,7 +65,7 @@ def favicon(): return send_from_directory('../static/brand', 'favicon.ico')
 def hz(): return 'ok'
 @app.get('/config.js')
 def cfgjs():
-    return Response(f'window.SXB={{sb:{json.dumps(sbauth.public_config())},gid:{json.dumps(os.getenv("GOOGLE_WEB_CLIENT_ID", ""))},plans:{json.dumps(pay.plans())}}};', mimetype='application/javascript')
+    return Response(f'window.SXB={{sb:{json.dumps(sbauth.public_config())},mail:{json.dumps(authmail.mode())},gid:{json.dumps(os.getenv("GOOGLE_WEB_CLIENT_ID", ""))},plans:{json.dumps(pay.plans())}}};', mimetype='application/javascript')
 
 # ---------------- EA bridge ----------------
 def _scan(sym, uid=''):
@@ -781,6 +781,28 @@ def auth_send_email():
     if ok: return jsonify({}), 200
     print('auth email failed:', why)
     return jsonify(error={'http_code': 500, 'message': 'We could not send the email'}), 500
+
+def _ip(): return request.headers.get('X-Forwarded-For', '').split(',')[0].strip() or request.remote_addr or '?'
+
+@app.post('/api/auth/mail/code')
+def auth_mail_code():
+    """Resend mode: email a fresh sign-up or password-reset code. Open route, so it is slowed per email and per address."""
+    if authmail.mode() != 'resend': return jsonify(error='Not enabled.'), 404
+    j = _j(); kind = 'recovery' if j.get('type') == 'recovery' else 'signup'
+    c, m = authmail.deliver(j.get('email'), kind, _ip())
+    return (jsonify(ok=True), 200) if c == 200 else (jsonify(error=m), c)
+
+@app.post('/api/auth/mail/signup')
+def auth_mail_signup():
+    """Resend mode: create the account unconfirmed, then email the 6-digit code through Resend (Supabase sends nothing)."""
+    if authmail.mode() != 'resend': return jsonify(error='Not enabled.'), 404
+    j = _j(); em = str(j.get('email') or '').strip().lower(); pw = str(j.get('password') or '')
+    if '@' not in em or len(em) > 200: return jsonify(error='Enter a valid email address.'), 400
+    if len(pw) < 6 or len(pw) > 200: return jsonify(error='Choose a stronger password (at least 6 characters).'), 400
+    ok, m = authmail.create_user(j.get('name'), em, pw, j.get('dob'), j.get('gender'))
+    if not ok: return jsonify(error='That email already has an account. Log in instead.' if m == 'exists' else m, code='user_already_exists' if m == 'exists' else None), (409 if m == 'exists' else 400)
+    c, m = authmail.deliver(em, 'signup', _ip())
+    return (jsonify(ok=True), 200) if c == 200 else (jsonify(error=m), c)
 
 @app.post('/api/webhooks/payhero')
 @app.post('/api/pay/payhero/callback')

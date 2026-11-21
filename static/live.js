@@ -8,6 +8,8 @@
       plan_until: j.plan_until || 0, created: j.created || 0, onboarded: j.onboarded !== false, dob: j.dob || null, age: j.age || null, gender: j.gender || null, prof: j.prof || {}, raw: j };
   }
   function tok() { return S ? S.auth.getSession().then(function (r) { return r.data && r.data.session ? r.data.session.access_token : null; }) : Promise.resolve(null); }
+  function rm() { return !!(window.SXB && window.SXB.mail === "resend"); }   /* server emails the codes through Resend */
+  function mailCode(email, type) { return fetch("/api/auth/mail/code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email, type: type }) }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.error || "We could not send the email. Try again in a minute."); e.status = r.status; throw e; } return j; }); }); }
   function api(path, o) {
     o = o || {};
     return tok().then(function (t) {
@@ -120,6 +122,12 @@
     },
     signUp: function (name, email, pw, extra) {
       var n = need(); if (n) return n;
+      if (rm()) return fetch("/api/auth/mail/signup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name, email: email, password: pw, dob: extra && extra.dob, gender: extra && extra.gender }) }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) { var e = new Error(j.error || "We could not create the account."); if (j.code) e.code = j.code; throw e; }
+          PEND = { email: email, name: name, extra: extra || null }; return { pending: true, email: email, name: name };
+        });
+      });
       return S.auth.signUp({ email: email, password: pw, options: { data: { full_name: name, dob: extra && extra.dob, gender: extra && extra.gender } } }).then(chk).then(function (d) {
         if (d.user && d.user.identities && !d.user.identities.length) { var e = new Error("That email already has an account. Log in instead."); e.code = "user_already_exists"; throw e; }
         if (d.session) return extra ? api("/api/me/profile", { method: "POST", body: extra }).then(load) : load();
@@ -133,7 +141,8 @@
           if (r.error.code === "email_not_confirmed" || /not confirmed/i.test(r.error.message || "")) {
             PEND = { email: email, name: "" };
             /* A code was already sent at sign-up. If this resend is rate-limited (Supabase: 1 per 60 s per user) the code screen must still open. */
-            return S.auth.resend({ type: "signup", email: email }).then(function () { return { pending: true, email: email }; }, function () { return { pending: true, email: email }; });
+            var rs = rm() ? mailCode(email, "signup") : S.auth.resend({ type: "signup", email: email });
+            return rs.then(function () { return { pending: true, email: email }; }, function () { return { pending: true, email: email }; });
           }
           throw r.error;
         }
@@ -142,12 +151,15 @@
     },
     verifyCode: function (email, code) {
       var n = need(); if (n) return n;
-      return S.auth.verifyOtp({ email: email, token: code, type: "signup" }).then(chk).then(load).then(function (m) {
+      return S.auth.verifyOtp({ email: email, token: code, type: "signup" }).then(chk).catch(function (e) {
+        /* a code made by the server may be typed "email" by Supabase: try that once before giving up */
+        if (!rm()) throw e; return S.auth.verifyOtp({ email: email, token: code, type: "email" }).then(chk).catch(function () { throw e; });
+      }).then(load).then(function (m) {
         var nm = PEND && PEND.name, b = Object.assign({}, (PEND && PEND.extra) || {}); PEND = null; if (nm) b.name = nm;
         return Object.keys(b).length ? api("/api/me/profile", { method: "POST", body: b }).then(load) : m;
       });
     },
-    resendCode: function (email) { var n = need(); return n || S.auth.resend({ type: "signup", email: email }).then(chk); },
+    resendCode: function (email) { var n = need(); if (n) return n; return rm() ? mailCode(email, "signup") : S.auth.resend({ type: "signup", email: email }).then(chk); },
     google: function () {
       var n = need(); if (n) return n;
       var cap = window.Capacitor, gid = (window.SXB && window.SXB.gid) || "";
@@ -187,7 +199,7 @@
       try { localStorage.removeItem("sxb_pt"); } catch (x) {} PT.sent = null; PT.reg = null; PT.tok = ""; ME = null; lastUid = null;
       return p.then(function () { return S ? S.auth.signOut() : undefined; });
     },
-    resetPassword: function (email) { var n = need(); return n || S.auth.resetPasswordForEmail(email).then(chk); },
+    resetPassword: function (email) { var n = need(); if (n) return n; return rm() ? mailCode(email, "recovery") : S.auth.resetPasswordForEmail(email).then(chk); },
     /* Reset runs in two steps so the code squares and the new-password screen can be separate pages.
        Between the steps the page is "held": the recovery sign-in must not push the app behind the overlay to #home. */
     resetVerify: function (email, code) {
