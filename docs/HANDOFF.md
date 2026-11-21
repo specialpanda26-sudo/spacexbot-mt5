@@ -249,9 +249,15 @@ Start now: tell me in one short line what you found in docs/HANDOFF.md, then giv
 - Texts (b8eText, between /*B8e-pure-start*/ and /*B8e-pure-end*/): lock = 'The bot is locked. Choose a plan to switch it on.' (same as before); loss limit = the server sentence; stopped = the server sentence ('The bot is stopped. Tap Start bot.' or the plan-ended one); profit target and market closed = the same line the grey note shows under the buttons. Running = nothing held, so the older text shows as before.
 - tests/test_bub8e.py, mutation-checked. NOT tested: a real phone / the APK WebView. The bubble can lag the picture by up to ~2 s (700 ms and 1.5 s timers).
 
+## Section 10 (final check) DONE as far as code and docs go (Nov 21)
+- Already built earlier and still green: setup check backend/envcheck.py (admin Health, names only, tests/test_env10.py) and the update pop-up 'why' reason (SXBUpdate.status / localStorage sxb_upd_why, tests/test_why10.py).
+- New: docs/PHONE_CHECKLIST.md = the by-hand list for a real phone (Render env, the 5 GitHub secrets, APK install, push, update pop-up, every Home state with its bubble, demo trade path, payment with someone else's number, plan-ending cards). Nothing in it can be checked from code; the owner ticks it on the phone.
+- apply_fin10.py also fixes the stale check in tests/test_burst3.py (it re-ran a historical patch that now stops). The whole suite now ends N/N passed, test_push3 prints OK.
+- STILL OPEN (needs the owner or real hardware): the phone checklist itself, a real APK build with google-services.json, real Resend and real M-Pesa sends, the backtest on real data (6-12 months), then a demo account before real money.
+
 ## STATUS BOARD (Nov 21, newest; read this first)
 - DONE: Sections 1 (release), 2-2b-5-5b (update pop-up), 3 (email gifs), 4 (Home cartoon motion), 6 (motion for all cartoons), 7 (Home states), 8a (session ended / server waking), 8b (plan ends soon / plan ended), 8c (something went wrong / broker connected), 8d (lock, moon, shield, plug move; closing-band rocket back in its corner), W9 (weekend rule per market), 8e (Home speech bubble follows the picture). Files: apply_rel1/upd2/buddy4/upd5/upd5b/mot6/home7/sess8/plan8b/pop8c/pic8d/wknd9/bub8e.py and their tests.
-- NEXT in order: 9 (more emails / notifications, only where the server has a trigger), 10 (final check: Render env, 4 signing secrets, "why no update pop-up" screen, real-phone checklist).
+- NEXT in order: run docs/PHONE_CHECKLIST.md on a real phone and report failures; 9b only if a trigger is chosen; then parked work (alerts N3-N6, 4C, the backtest).
 - OPEN BUGS / NOTES: (the Home speech bubble bug is fixed in 8e). Motion is on for everybody except reduce-motion phones: the owner must say if it feels too busy.
 - PARKED (do not touch unless asked): alerts N3-N6, the live "Bot running" notification panel, strategy 4C, the backtest.
 - HOW TO CHECK PICTURES WITHOUT A SERVER: load static/index.html in Playwright with a route handler that serves files from the repo for http://app.test/ (so /static/live.js loads) and aborts everything else; file:// does not work because live.js is loaded by absolute path.

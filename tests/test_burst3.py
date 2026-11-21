@@ -91,7 +91,7 @@ T('the normal one-signal path is still there', 'void Execute(long id' in ea and 
 def h(p): return hashlib.md5(open(os.path.join(ROOT, p), 'rb').read()).hexdigest()
 before = [h(p) for p in ('backend/app.py', 'backend/burst.py', 'ea/SpaceXBridge.mq5')]
 out = subprocess.run([sys.executable, 'apply_burst3.py'], cwd=ROOT, capture_output=True, text=True).stdout
-T('running apply_burst3.py again changes nothing', 'patched OK' in out and before == [h(p) for p in ('backend/app.py', 'backend/burst.py', 'ea/SpaceXBridge.mq5')])
+T('running apply_burst3.py again changes no file', before == [h(p) for p in ('backend/app.py', 'backend/burst.py', 'ea/SpaceXBridge.mq5')])  # Section 10: it now stops (a later section changed the EA version); the point is that nothing changes
 
 p = sum(1 for _, ok in R if ok); print('\n%d/%d passed' % (p, len(R)))
 try: os.remove(os.environ['DB_PATH'])
