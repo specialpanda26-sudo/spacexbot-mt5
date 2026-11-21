@@ -12,7 +12,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped. Please try again.'), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import risk_alerts, system_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
+from . import risk_alerts, system_alerts, report_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -881,6 +881,6 @@ except Exception as e: print('[markets] loop not started', e)
 try: deriv.start(_scan, _paid)
 except Exception as e: print('deriv loop not started', e)
 try:
-    from . import live, market_alerts; market_alerts.register(); risk_alerts.register(); system_alerts.register(); alerts.start()
+    from . import live, market_alerts; market_alerts.register(); risk_alerts.register(); system_alerts.register(); report_alerts.register(); alerts.start()
     live.start()
 except Exception as e: print('[live] not started', e)

@@ -307,3 +307,11 @@ Start now: tell me in one short line what you found in docs/HANDOFF.md, then giv
 - 'Monitor mode' = Phone mode (the bot finds signals and waits for the person). Only a real change sends (on to on, or demo to demo, says nothing). Goes to that person only. push.BYPASS_KINDS is now {27, 30, 31}: they confirm the person's own tap, so quiet hours and the daily cap do not hold them; the person's own System switch still does.
 - tests/test_n6b.py (fake FCM, the real routes). NOT tested: a real phone.
 - Next: N6c (reports 32-37), N6d (nudges 45-49), N6e (security 50).
+
+## Section N6c (report alerts, kinds 32, 33, 34, 36, 37) DONE (Nov 22)
+- New backend/report_alerts.py + tests/test_n6c.py (29 checks, fake FCM, real closed trades, mutation-checked). Two jobs on the ONE loop (report_alerts.register(), called in app.py before alerts.start()). Numbers come from journal._closed (the same list the Journal uses); admins read the owner scope. Times are EAT.
+- 32 daily summary: in the first hour from 21:00 EAT, only when the person closed 1+ trades that day. 37 review your trades: sent with it only on a day with 2+ losses AND a net loss. 33 weekly report: Sunday 21:00 EAT, last 7 days, only with trades. 34 monthly report: the 1st at 09:00 EAT for the month that ended, only with trades. 36 winning streak: exactly 3, 5 or 10 wins in a row, newest win less than 2 h old (job every 10 min). Audience: every person with a phone and a plan, plus admins. Category 'daily' (quiet hours, daily cap and the person's Daily switch apply).
+- 35 (brain learned something) is NOT built: nothing in the code produces weekly lessons yet. Needs a decision on what to report.
+- Tunables are the constants at the top of report_alerts.py (DAILY_HOUR, WEEKLY_WEEKDAY, MONTHLY_*, WINDOW_H, STREAKS, STREAK_FRESH, REVIEW_MIN_LOSSES). They are assumptions. The report only goes out if the server is awake in its one-hour window (free Render sleeps: ping /healthz).
+- NOT tested: a real phone, real FCM.
+- Next: N6d (nudges 45-49), N6e (security 50), 35 once decided.
