@@ -8,7 +8,7 @@ CAT = ('trade', 'risk', 'news', 'daily', 'tips', 'system', 'billing')
 BYPASS_CATS = {'risk', 'billing'}            # always get through quiet hours and the daily cap
 BYPASS_KINDS = {27}                          # EA offline too
 NUDGE_KINDS = set(range(45, 50))
-TRADE_TAG_KINDS = {1, 2, 3, 4, 7, 8}         # the banner's tag carries the trade id, so two trades never replace each other
+TRADE_TAG_KINDS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}         # the banner's tag carries the trade id, so two trades never replace each other
 _T = [
  (1,'trade','hi','Trade opened'),(2,'trade','hi','Take-profit hit'),(3,'trade','hi','Stop-loss hit'),(4,'trade','hi','Trade closed'),
  (5,'trade','hi','Stop moved to breakeven'),(6,'trade','hi','Partial close'),(7,'trade','hi','Signal found'),(8,'trade','lo','Signal skipped'),

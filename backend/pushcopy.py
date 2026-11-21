@@ -56,7 +56,7 @@ T = {
  7: lambda f: ('Signal found on %s' % f['sym'], '%s at about %s, stop-loss %s, take-profit %s.%s%s Take or skip it in the app%s.' % (_side(f), f['entry'], f['sl'], f['tp'], _strat(f), (' About %.2f lots at your risk setting.' % f['lots']) if f.get('lots') else '', (' within %s min' % f['mins']) if f.get('mins') else ''), 'hi'),
  8: lambda f: ('Skipped %s' % f['sym'], 'Reason: %s.' % (f.get('reason') or 'it did not pass the rules'), 'even'),
  9: lambda f: ('%s pending order %s' % (f['sym'], f.get('state') or 'updated'), 'Open the app to see where it stands.', 'hi'),
- 10: lambda f: ('%s is still open' % f['sym'], 'Open for %s. Floating P/L: %s.' % (f.get('dur') or 'a while', money(f.get('pnl'), f.get('cur'))), 'even'),
+ 10: lambda f: ('%s is still open' % f['sym'], 'Open for %s.%s' % (f.get('dur') or 'a while', (' Floating P/L: %s.' % money(f.get('pnl'), f.get('cur'))) if f.get('pnl') not in (None, '') else ''), 'even'),
  11: lambda f: ('Daily loss limit reached', "Today's losses hit the %s%% limit. Trading is paused until tomorrow." % f.get('limit', '--'), 'risk'),
  12: lambda f: ('Weekly loss limit reached', "This week's losses hit the %s%% limit. Trading is paused until next week." % f.get('limit', '--'), 'risk'),
  13: lambda f: ('Losing-streak pause', '%s losses in a row. The bot is resting until %s.' % (f.get('n', '--'), f.get('until', 'later')), 'risk'),

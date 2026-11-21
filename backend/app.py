@@ -12,7 +12,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped. Please try again.'), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
+from . import risk_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -91,7 +91,8 @@ def _scan_tf(sym, uid, tf, hi):
     st.put(key, m15[-1]['t'])
     ok, why = risk.global_gate(uid=uid)
     if ok and risk.crypto_open() and risk.weekend_skip(sym): ok, why = False, 'weekend/Friday-night risk'          # the gate passed only because a BTC market is listed: gold and forex still wait
-    if not ok: botstate.note(uid, sym, 'gate', why); return
+    if not ok: botstate.note(uid, sym, 'gate', why); risk_alerts.gate(uid, why, sym); return
+    risk_alerts.watch(uid)
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
     if st.get('auto_disable') == '1': off |= stats.losers(int(st.fget('auto_disable_min_trades')), uid)
     solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
@@ -103,7 +104,7 @@ def _scan_tf(sym, uid, tf, hi):
     if not s: botstate.note(uid, sym, 'nosetup', rgm.note_text(info)); return
     if tf != 'M15': s.setdefault('why', {})['tf'] = tf
     ok, why = risk.symbol_gate(sym, s['side'], uid=uid)
-    if not ok: print('skip', sym, s['side'], why); botstate.note(uid, sym, 'skip', why); return
+    if not ok: print('skip', sym, s['side'], why); botstate.note(uid, sym, 'skip', why); risk_alerts.gate(uid, why, sym); return
     n = multi.entries(uid, s['score'], s['strategy']); base = links.risk(uid) if uid else st.fget('risk_pct')          # R8: 1 unless the owner allows more and the setup is strong
     rz = rsn.pack(s)
     sid = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
@@ -223,6 +224,11 @@ def ea_report():
             sbauth.notify(title, body, key=kk, only=only)
             if stt == 'open': push.notify(1, kk, sym=s['symbol'], side=s['side'], entry=s['fill'] or s['entry'], sl=s['sl'], tp=s['tp'], risk=s['risk_pct'], strategy=s['strategy'], **aud)
             else: push.notify({'tp': 2, 'sl': 3}.get(str(d.get('reason')), 4), kk, sym=s['symbol'], pnl=gp, **aud)
+    if stt in ('be', 'partial', 'pending'):          # N4: the EA reports these; the trade row itself is not changed
+        sy = (st.q('SELECT symbol FROM signals WHERE id=?', (sid,), True) or {}).get('symbol', '')
+        if stt == 'be': push.notify(5, f'sig{sid}-be', sym=sy, **aud)
+        elif stt == 'partial': push.notify(6, f'sig{sid}-partial-{int(time.time() // 60)}', sym=sy, pnl=d.get('pnl'), **aud)
+        else: push.notify(9, f'sig{sid}-pending-{str(d.get("state") or "")[:20]}', sym=sy, state=str(d.get('state') or '')[:20], **aud)
     if stt == 'rejected':
         rs = str(d.get('reason') or '')[:80]; sy = (st.q('SELECT symbol FROM signals WHERE id=?', (sid,), True) or {}).get('symbol', '')
         if rs == 'spread too wide': push.notify(25, f'spread-{sy}-{int(time.time() // 600)}', sym=sy, **aud)          # N5: the EA's exact phrase; one alert per market per 10 minutes (a burst rejects many ids at once)
@@ -871,6 +877,6 @@ except Exception as e: print('[markets] loop not started', e)
 try: deriv.start(_scan, _paid)
 except Exception as e: print('deriv loop not started', e)
 try:
-    from . import live, market_alerts; market_alerts.register(); alerts.start()
+    from . import live, market_alerts; market_alerts.register(); risk_alerts.register(); alerts.start()
     live.start()
 except Exception as e: print('[live] not started', e)
