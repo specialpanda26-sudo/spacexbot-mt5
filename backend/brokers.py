@@ -12,7 +12,14 @@ _TOK = re.compile(r'^[A-Za-z0-9_.\-]{8,128}$'); _BKEY = re.compile(r'^[A-Za-z0-9
 def canon(name):
     n = str(name or '').strip().lower()
     return next((k for k in CATALOG if k.lower() == n), None)
-def catalog(): return [{'name': k, 'kind': v} for k, v in CATALOG.items()]
+# What each broker really does today, in plain words (shown on its tile and in its Connect card). Change these when the code changes.
+ABOUT = {
+    'mt5': {'tile': 'Via your MT5 app', 'works': 'Trades through your MT5 app and the SpaceXBridge EA.', 'not': 'This site does not check your key or read your balance. Your MT5 app does that.'},
+    'Deriv': {'tile': 'Check, balance, demo bot', 'works': 'Token check, balance read, and the bot trading on your demo (virtual) account.', 'not': 'Real-money trading stays off unless the owner allows it and you switch to Real.'},
+    'Binance': {'tile': 'Balance only, no trading', 'works': 'Key check and Spot balance read (read-only).', 'not': 'No trading. The bot never places a Binance order. A key that can withdraw is refused.'},
+}
+def about(name): return ABOUT.get(name) or ABOUT.get('mt5' if CATALOG.get(name) == 'mt5' else '', {})
+def catalog(): return [dict({'name': k, 'kind': v}, **about(k)) for k, v in CATALOG.items()]
 def _lock():
     k = os.getenv('BROKER_KEY', '').strip()
     if len(k) < 16: return None
@@ -39,7 +46,7 @@ def save(uid, name, f):
             vals, label = {'key': s('key'), 'secret': s('secret')}, '...' + s('key')[-4:]
         enc = lock.encrypt(json.dumps({'u': uid, 'b': n, 'v': vals}).encode('utf-8')).decode('ascii')
     st.x('DELETE FROM kv WHERE k=?', ('bal:%s:%s' % (uid, n),))          # a new key may be a different account: forget the old balance
-    for pre in ('bot', 'why', 'mode'): st.x('DELETE FROM kv WHERE k=?', ('%s:%s:%s' % (pre, uid, n),))          # a new key starts with the bot off again (switch forgotten)
+    for pre in ('bot', 'why', 'mode', 'note'): st.x('DELETE FROM kv WHERE k=?', ('%s:%s:%s' % (pre, uid, n),))          # a new key starts with the bot off again (switch forgotten)
     mine = {r['broker'] for r in st.q('SELECT broker FROM broker_links WHERE uid=?', (uid,))}
     if n not in mine and len(mine) >= MAX_PER_USER: raise ValueError('Too many connections. Remove one first.')
     now = int(time.time())
@@ -84,6 +91,9 @@ def _why(uid, name):
     except ValueError: return {}
     return {'why': REASONS.get(j.get('r'), 'Not trading: %s' % j.get('r')), 'why_code': j.get('r'), 'why_t': j.get('t')} if isinstance(j, dict) else {}
 
+def set_note(uid, name, text): st.put('note:%s:%s' % (uid, name), str(text)[:300])
+def note(uid, name): return st.get('note:%s:%s' % (uid, name)) or ''
+
 def mode_flag(uid, name):
     """'demo' / 'real' once the person has used the switch on that broker's card, None if never used."""
     v = st.get('mode:%s:%s' % (uid, name)); return v if v in ('demo', 'real') else None
@@ -104,11 +114,11 @@ def set_mode(uid, name, m):
 def view(uid):
     """What the app may see: name, kind, a short tail of the key, mode, status. Never the secret."""
     b = _bals(uid)
-    return [dict({'name': r['broker'], 'kind': r['kind'], 'label': r['label'], 'mode': mode(uid, r['broker'], r['mode']), 'status': r['status'] or 'saved', 'bot': bot_flag(uid, r['broker']) is True, **_why(uid, r['broker'])},
+    return [dict({'name': r['broker'], 'kind': r['kind'], 'label': r['label'], 'mode': mode(uid, r['broker'], r['mode']), 'status': r['status'] or 'saved', 'bot': bot_flag(uid, r['broker']) is True, 'note': note(uid, r['broker']), 'trades': r['broker'] != 'Binance', **_why(uid, r['broker'])},
                  **({'balance': b[r['broker']].get('balance'), 'currency': b[r['broker']].get('currency'), 'acct_demo': b[r['broker']].get('demo'), 'bal_t': b[r['broker']].get('t')} if r['broker'] in b else {}))
             for r in st.q('SELECT broker,kind,label,mode,status FROM broker_links WHERE uid=? ORDER BY created', (uid,))]
 def drop(uid, name):
-    for pre in ('bal', 'bot', 'why', 'mode'): st.x('DELETE FROM kv WHERE k=?', ('%s:%s:%s' % (pre, uid, name),))
+    for pre in ('bal', 'bot', 'why', 'mode', 'note'): st.x('DELETE FROM kv WHERE k=?', ('%s:%s:%s' % (pre, uid, name),))
     return st.x('DELETE FROM broker_links WHERE uid=? AND broker=?', (uid, name), True)
 
 def secret(uid, name):

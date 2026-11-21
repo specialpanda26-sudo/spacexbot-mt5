@@ -12,7 +12,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped. Please try again.'), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import lag, multi, automarkets, prefs, scale, burst, groupcap, authmail
+from . import lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -352,7 +352,7 @@ def brokers_put(u, name):
 def _not_deriv(n, what):
     """Plain words for 'this broker has no <what>' (what = check | switch | bot). MT5 brokers trade through the MT5 app; Binance does not trade yet."""
     if bk.CATALOG.get(n) == 'mt5': t = {'check': 'MT5 brokers are checked by your MT5 app, not here. See the Connect your MT5 card.', 'switch': 'This broker trades through the MT5 app. Change its mode on the Connect your MT5 card.', 'bot': 'This broker trades through the MT5 app. Use the Connect your MT5 card.'}[what]
-    elif n == 'Binance': t = {'check': 'Checking Binance is not available yet.', 'switch': 'Binance does not trade yet, so it has no demo or real switch.', 'bot': 'Binance does not trade yet, so there is no bot to start.'}[what]
+    elif n == 'Binance': t = {'switch': 'Binance does not trade yet, so it has no demo or real switch.', 'bot': 'Binance does not trade yet, so there is no bot to start.'}[what]
     else: t = 'Unknown broker'
     return jsonify(error=t), 400
 
@@ -360,8 +360,8 @@ def _not_deriv(n, what):
 @need(verified=True, active=True)
 def brokers_verify(u, name):
     n = bk.canon(name)
-    if n != 'Deriv': return _not_deriv(n, 'check')
-    ok, msg = deriv.verify(u['uid'])
+    if n not in ('Deriv', 'Binance'): return _not_deriv(n, 'check')
+    ok, msg = deriv.verify(u['uid']) if n == 'Deriv' else binance.verify(u['uid'])
     return jsonify(ok=ok, message=msg, brokers=bk.view(u['uid']))
 
 @app.post('/api/brokers/<name>/mode')

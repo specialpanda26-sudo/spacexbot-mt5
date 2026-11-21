@@ -22,7 +22,7 @@ def mine(): return [b for b in c.get('/api/brokers', headers=H('amy@x.com')).jso
 T('saved, no balance yet', 'balance' not in mine())
 ok, m = deriv.verify(U, http, 100, FW)
 T('verify shows the balance right away', ok and mine().get('balance') == 250.75 and mine()['acct_demo'] is True and mine()['currency'] == 'USD')
-T('balance is private to its owner', 'balance' not in str(c.get('/api/brokers', headers=H('bob@x.com')).json))
+T('balance is private to its owner', all('balance' not in b for b in c.get('/api/brokers', headers=H('bob@x.com')).json['brokers']))
 T('balance failure never breaks verify', deriv.verify(U, http, 200, lambda u: 1 / 0)[0] is True)
 bk.set_bal(U, 'Deriv', 300, '<b>x</b>', False); b = mine()
 T('currency is sanitised, real flag kept', b['currency'] == 'USD' and b['acct_demo'] is False and b['balance'] == 300.0)
