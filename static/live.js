@@ -76,13 +76,17 @@
   function jget(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (x) { return null; } }
   function jput(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (x) {} }
   /* online: remember the answer. No network (not a server refusal): use the last saved account, but only for the person still signed in. */
+  var retry = 0, tries = 0;
   function load() {
-    return api("/api/me").then(function (j) { jput("sxb_me", j); ME = norm(j); lastUid = ME.uid; setTimeout(pushSync, 0); return ME; }).catch(function (e) {
-      var c = jget("sxb_me"); if ((e && e.status) || !c || !S) throw e;
+    return api("/api/me").then(function (j) { jput("sxb_me", j); tries = 0; ME = norm(j); lastUid = ME.uid; setTimeout(pushSync, 0); return ME; }).catch(function (e) {
+      var c = jget("sxb_me"), soft = !e || !e.status || e.status >= 500 || e.status === 401;          /* a waking server or a Supabase hiccup is not a sign-out */
+      if (!soft || !c || !S) throw e;
       return S.auth.getSession().then(function (r) {
         var u = r.data && r.data.session && r.data.session.user;
         if (!u || u.id !== c.uid) throw e;
-        ME = norm(c); ME.offline = true; lastUid = ME.uid; return ME;
+        ME = norm(c); ME.offline = true; lastUid = ME.uid;
+        if (tries++ < 5 && !retry) retry = setTimeout(function () { retry = 0; X.refresh().catch(function () {}); }, 8000);
+        return ME;
       });
     });
   }
