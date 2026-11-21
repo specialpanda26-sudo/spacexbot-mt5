@@ -2889,6 +2889,7 @@ build()})();
     var r = h7pick({ locked: locked(), bot: fresh(window.SXBOT), live: fresh(window.SXLIVE), tp: tpv() }), k = r.k, inner = k === "run" ? HOME : art(k);
     if (inner == null) { k = "run"; r = { k: k }; inner = HOME; }
     if (k !== cur) { cur = k; sv.innerHTML = inner; sv.setAttribute("data-h7", k); }
+    window.SXH7 = { k: r.k, say: r.say || "", why: (fresh(window.SXBOT) || {}).why || "" };
     var say = r.say || ""; if (say !== NOW) { NOW = say; note.textContent = say; note.hidden = !say; }
   }
   setInterval(paint, 1500); paint();
@@ -3114,6 +3115,35 @@ build()})();
   window.sxH8c = { check: check, err: h8err, errok: h8errok, conn: h8conn, words: h8words, close: close };
 })();
 /*H8c-end*/
+</script>
+<script>
+/*B8e-start*/
+/* Section 8e: the Home speech bubble says the same thing as the Home picture. Older code keeps writing #bubble (sample text, the locked line, statusText), so for the five non-running states this block holds the text and gives the last older text back when the bot runs again. Facts only. */
+(function () {
+  /*B8e-pure-start*/
+  function b8eText(h) {
+    if (!h) return "";
+    if (h.k === "lock") return "The bot is locked. Choose a plan to switch it on.";
+    if (h.k === "loss") return h.say || "A loss limit was reached, so the bot is not opening new trades.";
+    if (h.k === "stopped") return h.why || "The bot is stopped. Tap Start bot.";
+    if (h.k === "target" || h.k === "closed") return h.say || "";
+    return "";
+  }
+  /*B8e-pure-end*/
+  var bu = document.getElementById("bubble"); if (!bu) return;
+  var d = Object.getOwnPropertyDescriptor(Node.prototype, "textContent"); if (!d || !d.get || !d.set) return;
+  var HOLD = "", LAST = null;
+  Object.defineProperty(bu, "textContent", { configurable: true,
+    get: function () { return d.get.call(bu); },
+    set: function (v) { LAST = v; d.set.call(bu, HOLD || v); } });
+  function tick() {
+    var t = b8eText(window.SXH7);
+    if (t) { HOLD = t; if (d.get.call(bu) !== t) d.set.call(bu, t); }
+    else if (HOLD) { HOLD = ""; if (LAST !== null) d.set.call(bu, LAST); }
+  }
+  setInterval(tick, 700); tick();
+})();
+/*B8e-end*/
 </script>
 
 <script>
