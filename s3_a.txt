@@ -1,5 +1,0 @@
-Exit: fixed 2R target   max stop: 3.5 ATR   off: none
-min_confluence 1       trades  574  win%  36.8  avgR +0.10
-min_confluence 2       trades  403  win%  34.0  avgR +0.02
-min_confluence 3       trades  213  win%  32.4  avgR -0.03
-Note: this ignores the news lock, currency-exposure cap and loss limits, so live results will differ.
