@@ -293,3 +293,11 @@ Start now: tell me in one short line what you found in docs/HANDOFF.md, then giv
 - N3 (billing alerts) was applied in the owner's own copy and is NOT in the zip this was built on; N5 does not touch payments.py, so the two do not clash. N4 and N6 are still open.
 - A timer only runs while Render is awake (free plan sleeps after 15 min idle): a news alert is missed when the server sleeps through its window. Ping /healthz from an uptime monitor.
 - NOT tested: a real phone, real FCM, the real news feed (it cannot be reached from the build box), real gold candles.
+
+## Section N6a (system alerts, kinds 26-29) DONE (Nov 22)
+- New backend/system_alerts.py + tests/test_n6a.py (25 checks, fake FCM, mutation-checked). Two jobs on the ONE loop (system_alerts.register(), called in app.py before alerts.start()).
+- 26 MT5 connected (first time an EA heartbeat is seen), 27 MT5 offline (no heartbeat for 5 min; bypasses quiet hours), 28 back online. State per person in kv ea26:<scope> ('up' or 'down:<last heartbeat>'). The owner EA goes to ADMIN phones only; a subscriber's own EA goes to that subscriber only. A Deriv snapshot (src deriv) is not MT5 and sends nothing.
+- 29 server updated: needs RENDER_GIT_COMMIT (Render sets it) or BUILD_ID; admins only; the first start only remembers (kv boot29); a wake-up on the same version says nothing.
+- Tunables at the top: FRESH 120 s, OFFLINE_MIN 5. NOTE: the first deploy sends 26 once to the owner and to each person who already linked an EA.
+- NOT DONE here: 30 (monitor mode) and 31 (account type) fire from a button press, they are Section N6b. Then N6c (daily/weekly/monthly reports 32-37), N6d (nudges 45-49), N6e (security 50).
+- NOT tested: a real phone, real FCM.
