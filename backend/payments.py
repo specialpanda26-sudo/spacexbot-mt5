@@ -108,6 +108,7 @@ def stk_push(uid, pid, phone_raw):
     prov_ref = str(d.get('reference') or d.get('Reference') or d.get('CheckoutRequestID') or d.get('checkout_request_id') or '').strip()
     if prov_ref: st.x("UPDATE payments SET checkout_id=? WHERE ref=? AND status='pending'", (prov_ref, ref))
     note(ref, 'prompt accepted by gateway | provider=%s network=%s' % (prov, body.get('network_code', '-')))
+    _push(uid, 39, 'pay39-' + ref)
     return ref
 
 def _cbphone(v):
@@ -143,6 +144,16 @@ FAIL_REASON = {1: 'insufficient', 1032: 'cancelled', 1037: 'timeout', 2001: 'wro
 def _mark(ref, status, reason=''):
     st.x("UPDATE payments SET status=?,extra=? WHERE ref=? AND status IN('pending','expired')", (status, reason, ref))
 
+def _push(uid, kind, key, **f):
+    """N3 billing alert to this one person. A failed alert never touches the payment."""
+    try:
+        from . import push; push.notify_user(uid, kind, key, **f)
+    except Exception as e: print('billing push failed', e)
+def _push_paid(p, kind):
+    try:
+        from . import billalerts; _push(p['uid'], kind, 'pay%d-%s' % (kind, p['ref']), until=billalerts.until_for(p['uid']))
+    except Exception as e: print('billing push failed', e)
+
 def _receipt(p):
     try:
         from . import mailer; mailer.receipt(p['ref'])
@@ -166,10 +177,11 @@ def settle_deposit(cb):
         except Exception:                                  # paid but not delivered: reopen so a retry can deliver
             st.x("UPDATE payments SET status='expired' WHERE ref=? AND status='paid'", (p['ref'],)); raise
         _receipt(p)
+        _push_paid(p, 38)
         return 'paid'
     if cb['failed']:
         if p['status'] != 'pending': return 'duplicate'
-        note(p['ref'], 'callback: status=%s code=%s' % (cb['status'], cb['code'])); _mark(p['ref'], 'failed', FAIL_REASON.get(cb['code'], 'other')); return 'failed'
+        note(p['ref'], 'callback: status=%s code=%s' % (cb['status'], cb['code'])); _mark(p['ref'], 'failed', FAIL_REASON.get(cb['code'], 'other')); _push(p['uid'], 40, 'pay40-' + p['ref']); return 'failed'
     return 'waiting'
 
 def check_status(p):
@@ -185,16 +197,21 @@ def check_status(p):
     if cb['success']: cb['amount'] = cb['amount'] or p['amount']; cb['phone'] = ''
     return settle_deposit(cb) if (cb['success'] or cb['failed']) else 'waiting'
 
+def _expire(provider, cutoff):
+    """A prompt nobody answered: mark it expired (one row at a time, only the update that wins tells the person) and send alert 40."""
+    for p in st.q("SELECT ref,uid FROM payments WHERE provider=? AND status='pending' AND created<?", (provider, cutoff)):
+        if st.x("UPDATE payments SET status='expired',extra='no_response' WHERE ref=? AND status='pending'", (p['ref'],), count=True): _push(p['uid'], 40, 'pay40-' + p['ref'])
+
 def reconcile():
     now = int(time.time())
     for p in st.q("SELECT * FROM payments WHERE provider='finoq' AND status IN('pending','expired') AND checkout_id IS NOT NULL AND created>=? AND created<=? ORDER BY created LIMIT 25", (now - 6 * 3600, now - 120)):
         try: check_status(p)
         except Exception as e: print('reconcile failed', p['ref'], e)
-    st.x("UPDATE payments SET status='expired',extra='no_response' WHERE provider='finoq' AND status='pending' AND created<?", (now - 15 * 60,))
+    _expire('finoq', now - 15 * 60)
     for p in st.q("SELECT * FROM payments WHERE provider='paypal' AND status='pending' AND checkout_id IS NOT NULL AND created>=? AND created<=? ORDER BY created LIMIT 25", (now - 4 * 3600, now - 60)):
         try: paypal_recover(p)
         except Exception as e: print('paypal reconcile failed', p['ref'], e)
-    st.x("UPDATE payments SET status='expired',extra='no_response' WHERE provider='paypal' AND status='pending' AND created<?", (now - 4 * 3600,))
+    _expire('paypal', now - 4 * 3600)
 
 # ---------- PayPal (Orders v2) ----------
 def _pp_base(): return 'https://api-m.paypal.com' if (os.getenv('PAYPAL_ENV') or 'live').strip().lower() == 'live' else 'https://api-m.sandbox.paypal.com'
@@ -267,6 +284,8 @@ def _pp_apply(p, state, j):
         except Exception:                                # paid but not delivered: reopen so the next check delivers it
             st.x("UPDATE payments SET status='pending' WHERE ref=? AND status='paid'", (p['ref'],)); raise
         _receipt(p)
+        _push_paid(p, 41)
+    elif state == 'failed' and n: _push(p['uid'], 40, 'pay40-' + p['ref'])
 
 def _row(ref): return st.q('SELECT * FROM payments WHERE ref=?', (ref,), True)
 

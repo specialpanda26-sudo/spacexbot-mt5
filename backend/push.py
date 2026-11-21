@@ -180,6 +180,18 @@ def notify(kind, key=None, **facts):
         only = facts.pop('only', None); admins = bool(facts.pop('admins', False)); t, b, i = compose(kind, **facts); broadcast(kind, b, t, key, i, only, admins)
     except Exception as e: print('[push] notify failed', kind, e)
 
+def notify_user(uid, kind, key=None, **facts):
+    """Billing alerts for ONE person, whatever their plan state. broadcast() only reaches paid people and admins, but "prompt sent", "payment did not go through" and "plan ended" belong to people who have no plan right now. Background thread, never raises. key makes it once per person."""
+    if not configured(): return
+    try:
+        from .pushcopy import compose
+        t, b, i = compose(kind, **facts)
+    except Exception as e: print('[push] notify_user failed', kind, e); return
+    def run():
+        try: send(uid, kind, b, t, key, img=i)
+        except Exception as e: print('[push] failed', e)
+    threading.Thread(target=run, daemon=True).start()
+
 def send_data(uid, data):
     """Silent data message: no banner of its own. The app's native service turns it into the live 'Bot running' notification."""
     if not configured(): return 0

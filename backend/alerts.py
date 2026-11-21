@@ -17,6 +17,10 @@ def register_job(name, interval_seconds, func):
     }
     logger.info(f"Registered alert job: {name} every {interval_seconds}s")
 
+def _billing_job():
+    from . import billalerts
+    billalerts.run()
+
 def _self_test_job():
     logger.debug("Alerts background loop self-test heartbeat OK.")
 
@@ -24,6 +28,7 @@ def _alert_loop():
     global _running
     logger.info("Alerts background loop started.")
     register_job("self_test", 60, _self_test_job)
+    register_job("billing_plan", 600, _billing_job)
     
     while _running:
         now = time.time()
