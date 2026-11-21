@@ -1,7 +1,7 @@
 """Section 6 checks: Resend mailer, alert recipients, daily cap, receipts. No network. Run: python tests/test_mail.py"""
 import os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__)); DB = os.path.join(HERE, 'mail_test.db')
-os.environ.update(DEV_AUTH='1', EA_KEY='k', ADMIN_EMAILS='boss@x.com', DB_PATH=DB, BASE_URL='http://t', RESEND_API_KEY='re_test', MAIL_FROM='spaceXBot <a@b.com>', MAIL_ALERT_CAP='3', MAIL_HARD_CAP='5')
+os.environ.update(DEV_AUTH='1', EA_KEY='k', ADMIN_EMAILS='boss@x.com', DB_PATH=DB, BASE_URL='http://t', RESEND_API_KEY='re_test', MAIL_FROM='spaceXBot <a@b.com>', MAIL_ALERT_CAP='3', MAIL_HARD_CAP='5', MAIL_WELCOME='0')
 if os.path.exists(DB): os.remove(DB)
 sys.path.insert(0, os.path.join(HERE, '..'))
 from backend.app import app

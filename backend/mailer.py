@@ -118,3 +118,18 @@ def _receipt_now(ref):
 
 def receipt(ref):
     if configured(): threading.Thread(target=_receipt_now, args=(ref,), daemon=True).start()
+
+# ---------- welcome (Section 9a) ----------
+def _welcome_now(uid):
+    u = st.q('SELECT email,name FROM users WHERE uid=?', (uid,), True)
+    if not u or not (u['email'] or '').strip(): return False
+    first = (u['name'] or '').strip().split(' ')[0]
+    rows = [('Step 1', 'Choose a plan'), ('Step 2', 'Connect Deriv or MT5 on the Connect tab'), ('Step 3', 'Start the bot on the Bot tab')]
+    h, t = _page('Welcome to spaceXBot' + (', ' + first if first else '') + '!', rows, 'The bot does not trade until you start it. Not financial advice; trading can lose money. Questions? Reply to this email.', img='alert')
+    ok, info = send(u['email'], 'Welcome to spaceXBot', h, t, idem='welcome/' + uid, kind='receipt')
+    if not ok: print('[mail] welcome not sent:', uid, info)
+    return ok
+
+def welcome(uid):
+    """Once, when a verified person signs in for the first time. MAIL_WELCOME=0 turns it off."""
+    if configured() and os.getenv('MAIL_WELCOME', '1').strip() != '0': threading.Thread(target=_welcome_now, args=(uid,), daemon=True).start()

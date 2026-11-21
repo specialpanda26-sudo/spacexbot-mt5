@@ -237,6 +237,12 @@ Start now: tell me in one short line what you found in docs/HANDOFF.md, then giv
 - R2 only polls while the Connect tab is open, so the card shows when the person connects while looking at that tab.
 - NOT done: the Home speech bubble (#bubble) bug is still open. NOT tested: a real phone / the APK WebView, a real broker connecting.
 
+## Section 9a (welcome email) DONE (Nov 21)
+- apply_welcome9.py edits backend/mailer.py (welcome(uid), _welcome_now), backend/app.py (user()) and tests/test_mail.py (+ tests/test_welcome9.py). Trigger: user() inserts the users row for the first time (INSERT ... count=True == 1) AND the email is verified. Existing people get nothing; an unverified first sign-in gets no welcome and never will (no second trigger, on purpose: no email to unverified addresses).
+- Email: heading 'Welcome to spaceXBot, <first name>!', three steps (Choose a plan / Connect Deriv or MT5 on the Connect tab / Start the bot on the Bot tab), picture = the existing alert rocket (img='alert', so still 5 email pictures). Sent as kind 'receipt' (hard cap, never blocked by the alert cap), idempotency key welcome/<uid>. Does nothing when Resend is not set up. MAIL_WELCOME=0 turns it off (tests/test_mail.py sets it so its counts stay exact).
+- NOT built (no server trigger exists): plan-ending email (needs the parked N3 loop), update-available email, bot started/stopped email. NOT tested: a real Resend send.
+- Next: 9b only if a trigger is chosen; otherwise Section 10 (final check).
+
 ## STATUS BOARD (Nov 21, newest; read this first)
 - DONE: Sections 1 (release), 2-2b-5-5b (update pop-up), 3 (email gifs), 4 (Home cartoon motion), 6 (motion for all cartoons), 7 (Home states), 8a (session ended / server waking), 8b (plan ends soon / plan ended), 8c (something went wrong / broker connected), 8d (lock, moon, shield, plug move; closing-band rocket back in its corner), W9 (weekend rule per market). Files: apply_rel1/upd2/buddy4/upd5/upd5b/mot6/home7/sess8/plan8b/pop8c/pic8d/wknd9.py and their tests.
 - NEXT in order: 9 (more emails / notifications, only where the server has a trigger), 10 (final check: Render env, 4 signing secrets, "why no update pop-up" screen, real-phone checklist).
