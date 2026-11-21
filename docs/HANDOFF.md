@@ -184,3 +184,12 @@ Start now: tell me in one short line what you found in docs/HANDOFF.md, then giv
 - tests/test_home7.py (42 checks), mutation-checked. Checked in real Chromium on the real page: dark, light, reduced motion. NOT tested: a real phone / the APK WebView.
 - FOUND, NOT FIXED: the Home speech bubble (#bubble) is still written by older code (the sample 'I'm watching 8 pairs...' for the owner and unlinked people; statusText for linked people), so next to the loss-limit / stopped picture it can say the old thing. The grey line under the buttons says the true thing. Fix in Section 8: let H7 own the bubble text for those states.
 - Next: Section 8 (more in-app cartoon screens).
+
+## Section 8a (session ended + server waking cartoon screens) DONE (Nov 21)
+- apply_sess8.py edits static/index.html only (+ tests/test_session8.py, 44 checks). Block /*H8-start*/../*H8-end*/ in its own script tag after H7. The page's sxSetUser now tells window.sxH8.user(u, first, previousUser) about every sign-in change and offers window.sxLogin (opens the log-in screen). static/live.js is NOT touched.
+- "Your session ended" (IL2.lock): login lost while a person was signed in and they did not press Log out (SXA.signOut is wrapped to remember a Log out for 15 s). Buttons: Log in (big primary), Not now.
+- "Waking the server up" (IL2.sleep): shown when live.js marks the account offline (saved copy, server asleep) or when it toasts "Cannot reach the server". That toast is suppressed and the block asks /config.js: no answer or 5xx = waking; answers but the login is refused (401) = session ended. It looks again by itself up to 8 times (8 s apart), Try again restarts, Close keeps it closed until the server has answered once, then a "Back online" toast.
+- Pop-up is the site's .ov/.bd/.panel with .btn primary big block, CSS classes only (bottom sheet like the update pop-up), no colours written.
+- Mutation-checked (25 deliberate breaks, each went red). Checked in real Chromium on the real page with a fake Supabase and fake server: dark, light (data-theme via sxb2), reduced motion; session loss, sleeping server then waking, Log in opens the Welcome back screen.
+- The lock and moon pictures have no moving parts (IL2.lock and IL2.sleep carry no animated classes), so the cards are still pictures. Not tested: a real phone / the APK WebView, a really sleeping Render server, a real Supabase token expiry.
+- Next: Section 8b (plan about to expire and plan expired).
