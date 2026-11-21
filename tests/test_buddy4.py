@@ -13,6 +13,6 @@ T('the motion style exists and has the 3 keyframes', bool(m) and all('@keyframes
 T('it only plays when the phone did not ask to reduce motion', css.count('prefers-reduced-motion:no-preference') == 1 and css.index('prefers-reduced-motion') < css.index('.buddy .bk'))
 T('it loops forever and beats the calm block (iteration count is !important)', 'animation-iteration-count:infinite!important' in css)
 T('each part has its own animation name', all(('animation-name:' + k + '!important') in css for k in ('sxbc', 'sxbt', 'sxbb')))
-T('the calm block is still there (only the Home cartoon was brought back)', '/* calm: no decorative motion */' in s and s.index('id="bud2"') < s.index('/* calm: no decorative motion */'))
+T('the calm block is still there for reduce-motion phones (Section 6 made it narrow)', '/* calm: no decorative motion, only for phones' in s and s.index('id="bud2"') < s.index('/* calm: no decorative motion, only for phones'))
 T('index.html has one Home cartoon', s.count('class="ill2 buddy cart"') == 1)
 print('\n%d/%d passed' % (sum(R), len(R))); sys.exit(0 if all(R) else 1)
