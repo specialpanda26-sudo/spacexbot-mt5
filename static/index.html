@@ -1510,7 +1510,7 @@ if(vb){var ac=document.createElement("div");ac.className="card";ac.id="autobotc"
   $("#aLog").innerHTML=logs.slice(0,5).map(function(l){return'<div class="al"><time>'+l.t+'</time><span>'+l.m+'</span></div>'}).join("")||'<p class="note">No scans yet.</p>'};
  $("#aSw").onclick=function(){A.on=!A.on;LS("sxb_auto",A);aR()};pressed("#aTf button",function(b){A.tf=b.dataset.v;LS("sxb_auto",A);aR()});
  var OUT=[function(p){return'<b>'+p+'</b> trend up, RSI 58. Buy setup passed 5/5 safety gates (demo)'},function(p){return'<b>'+p+'</b> RSI stretched. Waiting for a pullback'},function(p){return'<b>'+p+'</b> skipped. High-impact news in 35 min'},function(p){return'<b>'+p+'</b> trend and RSI disagree. No clean entry'},function(p){return'<b>'+p+'</b> trend down, RSI 44. Sell setup passed 5/5 safety gates (demo)'}];
- setInterval(function(){if(!A.on){aR();return}cd--;if(cd<=0){cd=8;var p=CP[Math.floor(Math.random()*CP.length)][0],d=new Date();logs.unshift({t:d.getHours()+":"+("0"+d.getMinutes()).slice(-2),m:OUT[Math.floor(Math.random()*OUT.length)](p)})}
+ setInterval(function(){if(!A.on||(window.SXA&&SXA.user&&SXA.user())){aR();return}cd--;if(cd<=0){cd=8;var p=CP[Math.floor(Math.random()*CP.length)][0],d=new Date();logs.unshift({t:d.getHours()+":"+("0"+d.getMinutes()).slice(-2),m:OUT[Math.floor(Math.random()*OUT.length)](p)})}
   if(vb.classList.contains("on"))aR()},1000);aR()}
 
 /* ---- Platforms (Connect tab) ---- */
@@ -1794,7 +1794,7 @@ function ja(k,m,t){X.j.unshift({t:t||Date.now(),k:k,m:m});X.j.sort(function(a,b)
 var n0=X.j.length;X.j=X.j.filter(function(e){return e.k!=="trade"});if(X.j.length!==n0)sv();/* older builds saved 3 made-up trade lines here: drop them */
 if(!X.j.length){X.j.push({t:NOW,k:"note",m:"Journal started. Bot activity, rule changes and your notes are saved here."});X.j.sort(function(a,b){return b.t-a.t});sv()}
 window.jr=jr;window.sr=sr;/* S2: so the S6 loader can repaint these */
-function jall(){var T=SXJ.state==="ok"?SXJ.rows.map(function(r){return{t:r.t*1000,k:"trade",m:r.symbol+" "+(r.side==="buy"?"Buy":"Sell")+" closed "+m2(r.pnl)+" ("+r.broker+")"}}):[];return X.j.concat(T).sort(function(a,b){return b.t-a.t})}
+function jall(){var T=SXJ.state==="ok"?SXJ.rows.map(function(r){return{t:r.t*1000,k:"trade",m:r.symbol+" "+(r.side==="buy"?"Buy":"Sell")+" closed "+m2(r.pnl)+" ("+r.broker+")"}}):[];return X.j.filter(function(e){var m=e.m||"";return!((e.k==="bot"&&/setup passed|RSI stretched|High-impact news in \d+ min|trend and RSI disagree/.test(m))||(e.k==="note"&&/^Backtest ran: profit factor/.test(m)))}).concat(T).sort(function(a,b){return b.t-a.t})}
 function jsum(){var s=SXJ.stats,u=null,h="";try{u=SXA.user()}catch(e){}
  if(SXJ.state==="ok"&&s&&s.trades)h='<div class="stats">'+kp("Won",m2(s.won))+kp("Lost",m2(-s.lost))+kp("Net",m2(s.net))+kp("Win rate",s.win_rate.toFixed(1)+"%")+'</div><div class="note">'+s.wins+" wins · "+s.losses+" losses · "+s.trades+" closed trades</div>";
  if(u&&u.admin)h+='<div style="margin:8px 0"><button class="btn" id="jWipe">Clear all trades</button></div>';
@@ -1882,7 +1882,7 @@ if(vb){
   SXA.api("/api/prefs",{method:"POST",body:{entries:n}}).then(function(){return SXA.api("/api/groupcap",{method:"POST",body:{on:gcOn,target_usd:t,loss_pct:l}})}).then(function(j){gcShow(j);$("#gcMsg").textContent=gcOn&&(j.positions||0)<2?"Saved, but group rules need 2 or more positions at once.":"Saved on the server.";toast("Group rules saved")}).catch(function(e){$("#gcMsg").textContent=e.message||"Not saved";toast(e.message||"Not saved")}).then(function(){b.disabled=false})};
  gcLoad();
  vb.appendChild(card(["Run check",""],'<ul class="list" id="rcOut"></ul><button class="btn block" id="rcGo">Check again</button><p class="note">Is it sensible to run the bot right now? Uses your saved limits, gates and results.</p>'));
- vb.appendChild(card(["Backtest",""],'<button class="btn primary block" id="btGo">Run backtest</button><div id="btOut" style="display:grid;gap:14px"></div><p class="note">Replays your trend rule on sample candles of all 8 pairs. No trades, no cost.</p>'));
+ vb.appendChild(card(["Backtest (sample data, not your bot)",""],'<button class="btn primary block" id="btGo">Run backtest</button><div id="btOut" style="display:grid;gap:14px"></div><p class="note">Replays your trend rule on sample candles of all 8 pairs. No trades, no cost.</p>'));
  vb.appendChild(card(["Bot memory",'<span class="chip">Learns from your trades</span>'],'<ul class="list" id="mmOut"></ul><button class="btn block" id="mmClr">Reset memory</button><p class="note">After 4 or more trades on a pair, the bot skips it if its win rate sits 5 points under break-even.</p>'));
  var us=function(){$("#uSw").innerHTML=sw("lock","Profit lock","After 60% of the profit target, stop if the day gives back half its best gain.")+sw("auto","Auto-switch pairs","Move to the pair with the cleanest setup instead of staying on one.")+sw("mon","Monitor mode","Practice only. The bot logs what it would do and places nothing.");
   var f=focus();$("#uFocus").textContent=X.auto?(f?"Focus pair now: "+f.p[0]+" ("+f.a.s+" setup, score "+f.a.sc+").":"No clean setup right now, so the bot stays put."):"Auto-switch is off. The bot stays on the pair you chose.";
