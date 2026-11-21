@@ -158,11 +158,22 @@ def set_acct(a, uid=''):
     else: put('acct', json.dumps(a))
 def day_start(): t = time.time(); return int(t - t % 86400)
 
+def _drop_pool():
+    """Throw every saved connection away. After the free server sleeps they are dead; the next call opens fresh ones."""
+    global _pool
+    p = _pool; _pool = None
+    for c in list(getattr(p, '_pool', None) or []):
+        try: c.close()
+        except Exception: pass
+
 def _retry(f):
     def w(*a, **k):
         if not PG: return f(*a, **k)
         import psycopg2
-        try: return f(*a, **k)
-        except (psycopg2.OperationalError, psycopg2.InterfaceError): return f(*a, **k)
+        for i in range(3):
+            try: return f(*a, **k)
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if i == 2: raise
+                print('db: connection lost, reconnecting', i + 1, repr(e)[:100]); _drop_pool(); time.sleep(0.4 * i)
     w.__name__ = f.__name__; return w
 q = _retry(q); x = _retry(x)

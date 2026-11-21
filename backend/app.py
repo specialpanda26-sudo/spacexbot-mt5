@@ -10,7 +10,7 @@ st.init(); assist.init()
 def _boom(e):
     from werkzeug.exceptions import HTTPException
     if isinstance(e, HTTPException): return e
-    print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped. Please try again.'), 500
+    print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 from . import risk_alerts, system_alerts, report_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
 _last_scan = {}
@@ -66,7 +66,38 @@ def home(): return send_from_directory('../static', 'index.html')
 @app.get('/favicon.ico')
 def favicon(): return send_from_directory('../static/brand', 'favicon.ico')
 @app.get('/healthz')
-def hz(): return 'ok'
+def hz():
+    try: st.q('SELECT 1')          # keeps the database connection warm; a failure here must never fail the health check
+    except Exception as e: print('healthz db:', repr(e)[:120])
+    return 'ok'
+
+def _why(e):
+    """A database error in plain words. Never the raw text (it can hold the database address or user)."""
+    s = str(e).lower()
+    for k, m in (('password authentication failed', 'the database password is wrong (DATABASE_URL)'), ('tenant or user not found', 'the database user or project was not found (DATABASE_URL), or the Supabase project is paused'),
+                 ('could not translate host', 'the database address is wrong (DATABASE_URL)'), ('timeout expired', 'the database did not answer in time (is the Supabase project paused?)'),
+                 ('timed out', 'the database did not answer in time (is the Supabase project paused?)'), ('ssl connection has been closed', 'the connection dropped while the server slept'),
+                 ('too many', 'too many database connections'), ('connection refused', 'the database refused the connection (is the Supabase project paused?)')):
+        if k in s: return m
+    return type(e).__name__
+
+@app.get('/api/health/deep')
+def hz_deep():
+    """Open this in the phone browser: it says in plain words which part is broken. No secrets, no names, only ok or a reason."""
+    import requests
+    from . import mailer
+    out = {}
+    try: st.q('SELECT 1'); out['database'] = 'ok'
+    except Exception as e: out['database'] = _why(e)
+    if sbauth.configured():
+        try:
+            r = requests.get(sbauth._url() + '/auth/v1/health', headers={'apikey': sbauth._anon()}, timeout=6)
+            out['sign_in'] = 'ok' if r.status_code == 200 else 'Supabase answered %s (is the project paused?)' % r.status_code
+        except Exception as e: out['sign_in'] = 'cannot reach Supabase (%s)' % type(e).__name__
+    else: out['sign_in'] = 'not set up (SUPABASE_URL, SUPABASE_ANON_KEY)'
+    out['email'] = 'ok' if mailer.configured() else 'not set up (RESEND_API_KEY, MAIL_FROM)'
+    out['sign_up_mode'] = authmail.mode()
+    return jsonify(out)
 @app.get('/config.js')
 def cfgjs():
     return Response(f'window.SXB={{sb:{json.dumps(sbauth.public_config())},mail:{json.dumps(authmail.mode())},gid:{json.dumps(os.getenv("GOOGLE_WEB_CLIENT_ID", ""))},plans:{json.dumps(pay.plans())}}};', mimetype='application/javascript')
