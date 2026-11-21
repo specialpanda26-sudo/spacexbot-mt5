@@ -33,9 +33,15 @@ def verify(headers, raw, now=None):
         if v == 'v1' and hmac.compare_digest(s, exp): return True
     return False
 
+def _digits(token):
+    c = ''.join('<td style="padding:0 3px;"><div style="width:42px;height:54px;line-height:54px;text-align:center;background:#F3F5FB;border:2px solid #DDE3F3;border-radius:12px;font-family:Arial,Helvetica,sans-serif;font-size:26px;font-weight:700;color:#1E2330;">%s</div></td>' % _h.escape(ch) for ch in token)
+    return '<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;"><tr>%s</tr></table>' % c
+
+def _base(): return os.getenv('BASE_URL', '').strip().rstrip('/') or 'https://spacexbot-gn73.onrender.com'
+
 def _file(name, token, email):
     with open(os.path.join(_DIR, name), encoding='utf-8') as f: h = f.read()
-    return h.replace('{{ .Token }}', _h.escape(token)).replace('{{ .Email }}', _h.escape(email))
+    return h.replace('{{ .Digits }}', _digits(token)).replace('{{ .Token }}', _h.escape(token)).replace('{{ .Email }}', _h.escape(email)).replace('{{ .Base }}', _base())
 
 def _simple(heading, token):
     e = _h.escape
@@ -51,9 +57,10 @@ def build(payload):
     if not to or not tok: return None
     if typ == 'signup': sub, body, head = 'Your spaceXBot verification code', _file('verify-email.html', tok, to), 'Verify your email'
     elif typ == 'recovery': sub, body, head = 'Your spaceXBot password reset code', _file('reset-password.html', tok, to), 'Reset your password'
-    elif typ in ('magiclink', 'reauthentication'): sub, head = 'Your spaceXBot sign-in code', 'Your sign-in code'; body = _simple(head, tok)
+    elif typ in ('magiclink', 'reauthentication'): sub, head = 'Your spaceXBot sign-in code', 'Your sign-in code'; body = _file('signin-code.html', tok, to)
     else: return None
-    return to, sub, body, '%s: %s. It works for a short time and only once. If you did not ask for it, ignore this email.' % (head, tok)
+    what = {'signup': 'verification code', 'recovery': 'password reset code'}.get(typ, 'sign-in code')
+    return to, sub, body, 'Your spaceXBot %s is %s. It works for a short time and only once. Never share it. If you did not ask for it, ignore this email.' % (what, tok)
 
 def send(payload, idem=None):
     """-> (ok, why). idem = the hook's webhook-id, so a retry by Supabase never sends the email twice."""

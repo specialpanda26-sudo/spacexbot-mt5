@@ -53,11 +53,20 @@ def send(to, subject, html_body, text, idem=None, kind='alert'):
     except Exception as e:
         print('mail error', e); return False, 'Email error.'
 
-def _page(heading, rows, foot):
+def _base(): return os.getenv('BASE_URL', '').strip().rstrip('/') or 'https://spacexbot-gn73.onrender.com'
+
+def _page(heading, rows, foot, img=None):
     e = html.escape
-    tr = ''.join('<tr><td style="padding:6px 16px 6px 0;color:#6b7280">%s</td><td style="padding:6px 0;font-weight:600">%s</td></tr>' % (e(a), e(b)) for a, b in rows)
-    h = ('<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;color:#111827"><h2 style="margin:0 0 16px">%s</h2>'
-         '<table style="border-collapse:collapse;font-size:15px">%s</table><p style="margin-top:24px;font-size:12px;color:#6b7280">%s</p></div>') % (e(heading), tr, e(foot))
+    tr = ''.join('<tr><td style="padding:9px 14px 9px 0;color:#7b86a0;font-size:14px;border-bottom:1px solid #EEF1F8">%s</td><td style="padding:9px 0;font-weight:700;color:#1E2330;font-size:14px;border-bottom:1px solid #EEF1F8">%s</td></tr>' % (e(a), e(b)) for a, b in rows)
+    pic = ('<tr><td align="center" style="padding:14px 20px 0"><img src="%s/static/email/%s.gif" width="480" alt="spaceXBot illustration" style="display:block;width:100%%;max-width:480px;height:auto;border:0;border-radius:18px;background:#10151E"></td></tr>' % (_base(), e(img))) if img else ''
+    h = ('<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"></head>'
+         '<body style="margin:0;padding:0;background:#EEF1FB"><table role="presentation" width="100%%" cellpadding="0" cellspacing="0" bgcolor="#EEF1FB"><tr><td align="center" style="padding:26px 12px">'
+         '<table role="presentation" width="520" cellpadding="0" cellspacing="0" bgcolor="#FFFFFF" style="width:100%%;max-width:520px;background:#FFFFFF;border-radius:24px;border:1px solid #E1E6F4">'
+         '<tr><td style="padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:800;color:#1E2330"><span style="color:#1B9A47">&#9679;</span>&nbsp;spaceXBot</td></tr>%s'
+         '<tr><td style="padding:20px 28px 0;font-family:Arial,Helvetica,sans-serif;color:#1E2330;text-align:center"><h1 style="margin:0;font-size:23px;line-height:1.3;font-weight:800">%s</h1></td></tr>'
+         '<tr><td style="padding:16px 32px 6px;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">%s</table></td></tr>'
+         '<tr><td style="padding:16px 32px 26px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.7;color:#94a0b8;text-align:center">%s</td></tr>'
+         '</table></td></tr></table></body></html>') % (pic, e(heading), tr, e(foot))
     t = heading + '\n\n' + '\n'.join('%s: %s' % (a, b) for a, b in rows) + '\n\n' + foot
     return h, t
 
@@ -76,7 +85,7 @@ def _recipients():
 
 def _alerts(title, body, key=None, only=None):
     if not configured(): return 0
-    h, t = _page(title, [('Details', body)], 'You get this because Trade alerts are on. Turn them off in Profile > Notifications. Not financial advice; trading can lose money.')
+    h, t = _page(title, [('Details', body)], 'You get this because Trade alerts are on. Turn them off in Profile > Notifications. Not financial advice; trading can lose money.', img='alert')
     n = 0
     for uid, em in _recipients():
         if only and uid != only: continue
@@ -102,7 +111,7 @@ def _receipt_now(ref):
             ('Method', 'M-Pesa' if p['provider'] == 'finoq' else 'PayPal')]
     if p.get('receipt'): rows.append(('Receipt', str(p['receipt'])))
     rows += [('Reference', p['ref']), ('Access until', until)]
-    h, t = _page('Payment received. Thank you!', rows, 'Keep this email as your receipt. Questions? Reply to this email.')
+    h, t = _page('Payment received. Thank you!', rows, 'Keep this email as your receipt. Questions? Reply to this email.', img='receipt')
     ok, info = send(u['email'], 'spaceXBot receipt', h, t, idem='receipt/' + ref, kind='receipt')
     if not ok: print('[mail] receipt not sent:', ref, info)
     return ok
