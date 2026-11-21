@@ -2,7 +2,7 @@
    Asks GitHub for the latest release (tag app-<build>), compares it with the installed build and shows a popup: Update now / Later.
    Later only closes it for now, it comes back the next time the app is opened. Any error = stays silent. Does nothing in a normal browser. */
 (function () {
-  var REPO = "specialpanda26-sudo/spacexbot-mt5.";   // owner/repo, copied from the Download links in index.html. Change it here if your repo name differs.
+  var REPO = "specialpanda26-sudo/spacexbot-mt5";   // owner/repo, copied from the Download links in index.html. Change it here if your repo name differs.
   var APK = "https://github.com/" + REPO + "/releases/latest/download/spacexbot.apk";
   var API = "https://api.github.com/repos/" + REPO + "/releases/latest";
   var LATER = "sxb_update_later";
