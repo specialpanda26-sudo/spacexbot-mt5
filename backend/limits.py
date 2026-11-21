@@ -47,6 +47,10 @@ def max_open(uid=''):
     """R4: how many positions the bot may hold at once for this person. The owner's own scope uses the global setting max_open. A subscriber uses the number
     they picked (kept per person, never above the owner's ceiling, even if the ceiling was lowered later); with no pick they get the owner's default."""
     base = max(1, _g('max_open') or 3)
+    try:
+        from . import automode
+        if automode.on(): base = max(base, automode.positions())          # auto mode: always room for one whole trade
+    except Exception: pass
     if not uid: return base
     own = _num(_mine(uid).get('mo'))
     return min(own, ceiling()) if own > 0 else base

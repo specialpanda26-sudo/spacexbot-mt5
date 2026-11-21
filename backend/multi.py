@@ -19,7 +19,9 @@ def min_score():
     return max(1, _g('multi_min_score', 3))
 
 def entries(uid, score, strategy=''):
-    if automode.on(): return 1
+    if automode.on():          # auto mode: the owner's positions-per-trade number, as far as the open-position limit has room
+        n = automode.positions()
+        return max(1, min(n, limits.max_open(uid) - risk.open_count(uid))) if n > 1 else 1
     c = cap(uid); p = prefs.get(uid)
     try: sc = int(score or 0)
     except (TypeError, ValueError): sc = 0

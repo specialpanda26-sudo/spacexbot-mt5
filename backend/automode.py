@@ -22,6 +22,10 @@ def max_stop():
     """Widest stop in ATR. 3.5 is what the bot always used, so with nothing set nothing changes."""
     return _f('max_stop_atr', 0.8, 5.0, 3.5)
 
+def positions():
+    """Positions one trade opens in auto mode, 1 to 5."""
+    return int(_f('auto_positions', 1, 5, 1))
+
 def lock(off, solo, min_conf):
     """-> (off, solo, min_conf) the way auto mode wants them. Auto mode off: returned unchanged."""
     if not on(): return off, solo, min_conf

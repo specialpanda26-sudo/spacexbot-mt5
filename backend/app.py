@@ -451,7 +451,7 @@ def admin_pass():
 @need(admin=True)
 def admin_set(u):
     j = _j()
-    for k, lo, hi in (('risk_pct', 0.1, 2.0), ('rr', 1.0, 4.0), ('max_stop_atr', 0.8, 5.0)):          # the three auto-mode numbers: checked before anything is saved
+    for k, lo, hi in (('risk_pct', 0.1, 2.0), ('rr', 1.0, 4.0), ('max_stop_atr', 0.8, 5.0), ('auto_positions', 1, 5)):          # the three auto-mode numbers: checked before anything is saved
         if k in j:
             try: v = float(j[k])
             except (TypeError, ValueError): return jsonify(error='%s must be a number' % k), 400
