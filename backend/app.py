@@ -12,7 +12,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped. Please try again.'), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance
+from . import lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -105,6 +105,7 @@ def _scan_tf(sym, uid, tf, hi):
          (sym, s['side'], s['entry'], s['sl'], s['tp'], multi.share(base, n), s['strategy'], s['score'], 'pending', int(time.time()), uid or None, rz))
     sbauth.notify(f"{s['side'].upper()} {sym}", si.alert_body(s['strategy'], s['entry'], s['sl'], s['tp']), key=f'sig{sid}-new', only=uid or None)
     lag.created(sid, m15[-1]['t'], uid)
+    if n <= 1: stake.mark(sid, uid, s.get('score'), s.get('adx'))          # Section 1: bigger Deriv stake on strong setups
     if n > 1:
         st.x('UPDATE signals SET grp=? WHERE id=?', (sid, sid))
         for _ in range(n - 1):
@@ -458,7 +459,7 @@ def admin_pass():
 @need(admin=True)
 def admin_set(u):
     j = _j()
-    for k, lo, hi in (('risk_pct', 0.1, 2.0), ('rr', 1.0, 4.0), ('max_stop_atr', 0.8, 5.0), ('auto_positions', 1, 5)):          # the three auto-mode numbers: checked before anything is saved
+    for k, lo, hi in (('risk_pct', 0.1, 2.0), ('rr', 1.0, 4.0), ('max_stop_atr', 0.8, 5.0), ('auto_positions', 1, 5), ('stake_very_pct', 0, 50), ('stake_strong_pct', 0, 50), ('stake_max_risk_pct', 0.5, 25)):          # the three auto-mode numbers: checked before anything is saved
         if k in j:
             try: v = float(j[k])
             except (TypeError, ValueError): return jsonify(error='%s must be a number' % k), 400
