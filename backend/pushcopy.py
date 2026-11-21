@@ -65,7 +65,7 @@ T = {
  16: lambda f: ('Max trades for today reached', '%s trades taken today. New signals wait until tomorrow.' % f.get('n', '--'), 'risk'),
  17: lambda f: ('%s exposure limit' % (f.get('ccy') or 'Currency'), 'A %s trade was blocked so the same currency is not stacked too much.' % f.get('sym', 'new'), 'risk'),
  18: lambda f: ('Half of the daily limit used', "Today's loss is %s%% of the %s%% limit." % (f.get('used', '--'), f.get('limit', '--')), 'risk'),
- 19: lambda f: ('%s in 60 minutes' % (f.get('event') or 'High-impact news'), 'Big news for %s is coming. Trading may pause around it.' % (f.get('ccy') or 'the market'), 'news'),
+ 19: lambda f: ('%s in %s minutes' % (f.get('event') or 'High-impact news', f.get('mins') or 60), 'Big news for %s is coming. Trading may pause around it.' % (f.get('ccy') or 'the market'), 'news'),
  20: lambda f: ('News lock started', 'New trades are paused around %s.' % (f.get('event') or 'the news'), 'news'),
  21: lambda f: ('News lock ended', 'The bot can open trades again.', 'news'),
  22: lambda f: ('%s session is opening' % (f.get('session') or 'A'), 'The market is waking up. The bot is watching.', 'news'),

@@ -223,7 +223,10 @@ def ea_report():
             sbauth.notify(title, body, key=kk, only=only)
             if stt == 'open': push.notify(1, kk, sym=s['symbol'], side=s['side'], entry=s['fill'] or s['entry'], sl=s['sl'], tp=s['tp'], risk=s['risk_pct'], strategy=s['strategy'], **aud)
             else: push.notify({'tp': 2, 'sl': 3}.get(str(d.get('reason')), 4), kk, sym=s['symbol'], pnl=gp, **aud)
-    if stt == 'rejected': push.notify(8, f'sig{sid}-skipped', sym=(st.q('SELECT symbol FROM signals WHERE id=?', (sid,), True) or {}).get('symbol', ''), reason=str(d.get('reason') or '')[:80], **aud)
+    if stt == 'rejected':
+        rs = str(d.get('reason') or '')[:80]; sy = (st.q('SELECT symbol FROM signals WHERE id=?', (sid,), True) or {}).get('symbol', '')
+        if rs == 'spread too wide': push.notify(25, f'spread-{sy}-{int(time.time() // 600)}', sym=sy, **aud)          # N5: the EA's exact phrase; one alert per market per 10 minutes (a burst rejects many ids at once)
+        else: push.notify(8, f'sig{sid}-skipped', sym=sy, reason=rs, **aud)
     return jsonify(ok=True)
 
 # ---------------- phone notifications ----------------
@@ -868,6 +871,6 @@ except Exception as e: print('[markets] loop not started', e)
 try: deriv.start(_scan, _paid)
 except Exception as e: print('deriv loop not started', e)
 try:
-    from . import live; alerts.start()
+    from . import live, market_alerts; market_alerts.register(); alerts.start()
     live.start()
 except Exception as e: print('[live] not started', e)
