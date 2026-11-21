@@ -34,19 +34,23 @@
     }
     return "";
   }
-  /*U5c*/ /* The cartoon "update": only a phone, a download arrow dropping in and a line under the arrow that loads. */
+  /*U6*/ /* The cartoon "update": the site's dark-haired character next to a phone that downloads (arrow drops in, line loads), a green "new" badge and sparkles. Same look as the IL2 pictures. */
+  var CH = '<path d="M30 118C26 90 36 66 62 58c26-8 46 12 50 42l4 18" fill="#1d1d20"/><path d="M42 54C38 34 54 20 72 24c18 4 22 24 10 36-10 9-32 10-40-6z" fill="#26262a"/><path d="M44 38c4-15 30-20 44-8l12 7c-2 4-10 4-14 2-12-4-30-2-42 8z" fill="#34343a"/><path d="M60 47q6 5 12 0"/>';
   function art() {
-    return '<svg class="ill2 upd" viewBox="0 0 120 140" fill="none" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-      + '<g transform="translate(31 14)"><g class="up">'
+    return '<svg class="ill2 upd" viewBox="0 0 240 170" fill="none" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<g transform="translate(14 22)"><g class="up">'
       + '<rect width="58" height="96" rx="11" fill="#26262a"/><path d="M22 10h14"/><rect x="9" y="22" width="40" height="62" rx="8"/>'
       + '<g class="ua"><path d="M29 33v24"/><path d="M20 48l9 9 9-9"/></g>'
       + '<rect class="pt" x="14" y="69" width="30" height="4" rx="2"/><rect class="pf" x="14" y="69" width="30" height="4" rx="2"/>'
-      + '</g></g></svg>';
+      + '</g></g>'
+      + '<g transform="translate(88 30)"><g class="nb"><circle r="14" fill="#000"/><path d="M0 6V-6M-5.500-1L0-6.500l5.500 5.500" stroke="#fff" stroke-width="3.200"/></g></g>'
+      + '<path class="sp" d="M26 10v10M21 15h10"/><path class="sp" d="M104 92v8M100 96h8"/><path class="sp" d="M70 8v8M66 12h8"/>'
+      + '<path d="M114 146c-14 4-26 2-38-4"/><g transform="translate(112 40)">' + CH + '</g></svg>';
   }
   var CSS = [
     "#sxbUpd{z-index:100000}",
     "#sxbUpd .ucart{display:grid;place-items:center}",
-    "#sxbUpd .ill2{width:130px;max-width:50%;margin:0 auto}",
+    "#sxbUpd .ill2{width:190px;max-width:72%;margin:0 auto}",
     "#sxbUpd h2,#sxbUpd p{text-align:center}",
     "#sxbUpd .unote{background:var(--surface2);border:1px solid var(--line);border-radius:14px;padding:10px 14px;color:var(--fg);font-size:14px}",
     "#sxbUpd .btn.q{background:transparent;border-color:transparent;box-shadow:none;color:var(--muted)}",
@@ -54,6 +58,7 @@
     ".ill2.upd .ua{stroke:var(--green);stroke-width:3.2}",
     ".ill2.upd .pt{fill:none}",
     ".ill2.upd .pf{fill:var(--green);stroke:none}",
+    ".ill2.upd .nb{transform-box:fill-box;transform-origin:center}",
     "@media (prefers-reduced-motion:no-preference){",
     ".ill2.upd .up,.ill2.upd .ua,.ill2.upd .pf{transform-box:fill-box;animation-iteration-count:infinite!important}",
     ".ill2.upd .up{animation:sxuP 2.6s ease-in-out infinite}",
@@ -61,6 +66,8 @@
     ".ill2.upd .pf{transform-origin:0 50%;animation:sxuR 3s ease-in-out infinite}",
     "@keyframes sxuP{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}",
     "@keyframes sxuA{0%{transform:translateY(-28px);opacity:0}20%{opacity:1}42%{transform:translateY(0)}50%{transform:translateY(4px)}58%,88%{transform:translateY(0);opacity:1}100%{transform:translateY(0);opacity:0}}",
+    ".ill2.upd .nb{animation:sxuN 2.4s ease-in-out infinite}",
+    "@keyframes sxuN{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}",
     "@keyframes sxuR{0%{transform:scaleX(.05)}60%,100%{transform:scaleX(1)}}",
     "}"
   ].join("\n");

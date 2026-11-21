@@ -35,7 +35,7 @@ async function run(body) { const p = phone({ body }); p.timers[0](); await wait(
   const ov = p.body.kids[0], panel = ov.kids.find(k => k.className === 'panel'), bd = ov.kids.find(k => k.className === 'bd'), css = ov.kids.find(k => k.tag === 'style');
   out.shell = [p.body.kids.length, ov.id, p.seen, ov.className, !!panel, !!bd, panel && panel.attrs.role, panel && panel.attrs['aria-modal']];
   const cart = all(ov).find(n => n.className === 'ucart');
-  out.art = { svg: cart.innerHTML.indexOf('class="ill2 upd"') > -1, arrow: /class="ua"/.test(cart.innerHTML), track: /class="pt"/.test(cart.innerHTML), bar: /class="pf"/.test(cart.innerHTML), extra: /class="(uf|ug|us|ux|uc|uk|pl|st)[ "]/.test(cart.innerHTML), char: cart.innerHTML.indexOf('#1d1d20') > -1 };
+  out.art = { svg: cart.innerHTML.indexOf('class="ill2 upd"') > -1, arrow: /class="ua"/.test(cart.innerHTML), track: /class="pt"/.test(cart.innerHTML), bar: /class="pf"/.test(cart.innerHTML), extra: /class="(uf|ug|us|ux|uc|uk|pl|st)[ "]/.test(cart.innerHTML), char: cart.innerHTML.indexOf('#1d1d20') > -1, badge: /class="nb"/.test(cart.innerHTML), spark: (cart.innerHTML.match(/class="sp"/g) || []).length };
   out.title = (all(ov).find(n => n.tag === 'h2') || {}).textContent;
   out.fix = all(ov).filter(n => n.className !== 'unote' && /fix/i.test(n.textContent)).length;
   out.said = all(ov).some(n => n.textContent === 'A new update is available for spaceXBot. Update now to get the latest features.');
@@ -67,12 +67,12 @@ for j in range(css.find('{', i), len(css)):
     depth += (css[j] == '{') - (css[j] == '}')
     if depth == 0: break
 inside, outside = css[i:j + 1], css[:i] + css[j + 1:]
-code_nofill = src.replace(CH2, '').replace('fill="#26262a"', '')
+code_nofill = src.replace(CH2, '').replace('fill="#26262a"', '').replace('fill="#000"', '').replace('stroke="#fff"', '')
 vars_used = set(re.findall(r'var\((--[a-z0-9-]+)', css))
 vars_site = set(re.findall(r'(--[a-z0-9-]+)\s*:', page.split('*{box-sizing')[0]))
 names = re.findall(r'animation:\s*(sxu\w+)', css)
 T('pop-up is the site overlay: .ov with .bd and .panel (dialog), opened after the first paint', o['shell'] == [1, 'sxbUpd', 'ov', 'ov open', True, True, 'dialog', 'true'])
-T('the "update" cartoon is only a phone, a download arrow and a loading line (no flame, sparkles, character or extras)', o['art']['svg'] and o['art']['arrow'] and o['art']['track'] and o['art']['bar'] and not o['art']['extra'] and not o['art']['char'])
+T('the "update" cartoon: phone, download arrow, loading line, new badge, sparkles and the dark-haired site character', o['art']['svg'] and o['art']['arrow'] and o['art']['track'] and o['art']['bar'] and o['art']['badge'] and o['art']['spark'] >= 3 and o['art']['char'])
 T('title is Update available', o['title'] == 'Update available')
 T('the card text says a new update is available and never mentions fixes (the release note line is separate)', o['said'] is True and o['fix'] == 0)
 T('new build and installed build are shown', o['build'] is True)
