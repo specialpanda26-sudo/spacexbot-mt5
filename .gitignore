@@ -4,3 +4,9 @@ data/
 __pycache__/
 *.pyc
 *.csv
+s3_*.txt
+s6.txt
+s8.txt
+y1.txt
+y2.txt
+solo_long_full.txt
