@@ -12,7 +12,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped. Please try again.'), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake
+from . import lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -750,7 +750,8 @@ def admin_health(u):
     if not deriv.APP(): bad.append('DERIV_APP_ID is missing. The Deriv bot cannot trade for anyone.')
     try: beat = int(st.get('deriv:beat') or 0)
     except ValueError: beat = 0
-    return jsonify(dict(h, ok=not bad, problems=bad, deriv_loop_last=beat or None, deriv_loop_ago=int(time.time()) - beat if beat else None))
+    rows = envcheck.report()
+    return jsonify(dict(h, ok=not bad, problems=bad, deriv_loop_last=beat or None, deriv_loop_ago=int(time.time()) - beat if beat else None, env=rows, env_count=envcheck.summary(rows)))
 
 @app.get('/api/admin/lag')
 @need(admin=True)
