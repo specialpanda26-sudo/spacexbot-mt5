@@ -478,3 +478,38 @@ Suggested fix, one section each: (a) take the backtest out of the go-live verdic
 - Limit: a push the system draws while the app is closed (FCM notification message) cannot carry this icon; only Firebase's small icon and colour can be set for those. To show it there the server would have to send data-only messages that the app draws itself (not done).
 - tests/test_push2.py: stubs know setLargeIcon/Bitmap/BitmapFactory, 3 new checks (needs javac, SKIP without). tests/test_rk4.py checks the PNG and the build copy.
 - NOT done yet: a real APK build and a look at the notification on a phone; the logo-style symbol cartoons on the legal pages and the 5 email GIFs (Rk5).
+
+## Session Nov 22 (afternoon): what is DONE and what is NOT (read this first)
+Owner works from a phone (Termux): every change is given as paste-ready `cat > file << 'EOF'` blocks plus git add/commit/push. Never use /tmp. No Claude attribution in commits. Work in numbered Sections, one at a time, and say where it stopped.
+
+### Section 1 Nav3 DONE: active bottom-tab icon uses the normal site green
+- apply_nav3.py. static/index.html: the mint-to-dark-green gradient (#sxNavG) is gone; the active tab icon stroke is var(--green). tests/test_nav1.py updated (11/11).
+
+### Section 2 X1 DONE: every X / close works with one tap
+- apply_x1.py, tests/test_x1.py (7 checks). static/index.html: closeOv / sxGo / closeSheet / closeCmd no longer wipe or hide something opened right after the close (the 300 ms / 150 ms / 400 ms / 220 ms timers now check that the same overlay is still there). The Back arrow on 'About you' used to SIGN THE PERSON OUT; it now only closes (owner can say if he wants the old behaviour). Banner X is 44 px and only dismisses (no tab jump). touch-action:manipulation on the X / icon buttons.
+
+### Section 3 Rk5 DONE: email GIFs repainted like the rocket
+- tools/make_email_gifs.py rewritten (violet #7F61F5 outline, shifted fill, shade, yellow sparkles, blue/white/yellow character). tests/test_rk5.py (8 checks). New workflow .github/workflows/email-gifs.yml (Actions > Rebuild email GIFs > Run workflow) rebuilds and commits the 5 GIFs, because the owner cannot paste binary files. test_rk5 only passes AFTER that workflow ran and `git pull`.
+- Legal pages (Terms/Privacy/Cookies): already swapped to the new cartoons at runtime by fixArt (checked in headless Chromium: 3 new, 0 old). The old <symbol> sprites stay only as a no-JS fallback.
+- NOT touched: push-notification pictures (backend/notifart.py still draws the old dark style).
+
+### Section 4 U7 DONE: in-app update (download inside the app, success cartoon)
+- apply_upd7.py, android-wrapper/native/AppUpdatePlugin.java (Capacitor plugin 'SxbUpdate': download with progress events, install via FileProvider, cleanup), android-wrapper/native/SxbFileProvider.java, android-wrapper/update_patch.py (copies the files, adds REQUEST_INSTALL_PACKAGES, provider ${applicationId}.sxbupdate, res/xml/sxb_update_paths.xml), prepare.py calls update_patch.run, MainActivity registers AppUpdatePlugin. tests/test_upd7.py (22 checks: javac stubs + local web server, node flow, patch).
+- static/update.js: 'Update now' now (when the plugin exists) shows Downloading (progress bar) > Download complete > Android installer; 'One more step' card if installs from this app are not allowed yet; failure card with Try again / Open in browser; after the restart one 'Update successful' cartoon (pending build stored in localStorage sxb_upd_pending). Pictures are IL2.phone / ok / shield / off / yay from the site. Without the plugin (older app) it opens the APK link as before.
+- Limits: Android always shows its own Install button; the build the owner has installed now has no plugin, so ONE more browser update is needed, then updates stay in the app. NOT tested on a real phone or a real APK build: run Actions > Build Android APK, install it once, then publish a newer build and try Update now.
+- test_n4.py failed once during a full run (network/timing, passes alone). Known flaky, not caused by these sections.
+
+### Section 5 NOT DONE (was just starting): trade on ONE platform at a time (FBS/MT5, Deriv, Binance)
+Owner's words: when he picks Binance only Binance should trade; when FBS only FBS; when Deriv only Deriv (the owner's laptop is away, so the MT5 bridge is offline for now).
+What I found (no code written yet):
+- MT5 bridge: backend/links.py (per-user link, links.bot_on / links.set_bot); the owner's own EA uses setting bot_enabled. /api/ea/poll in backend/app.py (~line 214-232) hands signals to the EA; line 221 already hides a signal from the MT5 bridge when risk.bot_on(who) is on but links.bot_on(who) is off ('bot is on only for Deriv').
+- Deriv: backend/deriv.py (run_once, round_all, kick, start); per-user flag through brokers.py (bk.set_bot / bk.bot_flag); app.py _deriv_bot(u, on) is called from POST /api/bot (the Bot tab Start/Stop switches MT5 AND Deriv together when both exist) and from the per-broker POST (~line 455).
+- Binance: backend/binance.py is READ-ONLY (verify + balances). The UI says 'Binance does not trade yet' (_not_deriv in app.py). Trading on Binance needs NEW code: order placing, sizing, symbol names, testnet first, and keys with trade permission but NO withdrawal. This is a separate, big section (5B). Ask the owner: Binance spot or futures?
+- Plan: (5A) a per-user setting 'trade_on' = MT5 | Deriv | Binance (default = what works today). POST /api/bot starts only that platform and stops the others; /api/ea/poll sends no signal to the EA unless trade_on is MT5; deriv.round_all skips a user whose trade_on is not Deriv; a picker on the Bot tab / Platforms card shows the chosen platform and says plainly which one trades. Add tests (all three choices, switching stops the others, default unchanged). Never remove an existing setting. (5B) Binance trading, only after 5A, demo/testnet first.
+- Keep: real money safety rules (Real mode needs a plan and the word REAL; loss limits, news lock, max open trades still apply on every platform).
+
+### Still open after Section 5
+- Backtest on real data (needs the owner's MT5 M15 and H1 CSV exports, BTCUSD first): python tools/backtest.py X_M15.csv X_H1.csv --solo. The BTC range, BTC weekend rules and orb_session switches are unproven until then.
+- N6 kind 35: waiting for the owner to say what that alert should do.
+- Rk series leftovers: push-notification pictures (notifart.py) still in the old dark style.
+- Owner must still push and run: Nav3, X1, Rk5 (then run the 'Rebuild email GIFs' workflow and `git pull`), U7 (then run 'Build Android APK'), and the new HANDOFF text (this block).
