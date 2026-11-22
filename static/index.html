@@ -1884,13 +1884,13 @@ function runBt(){var rows=[],all=[];P.forEach(function(p,i){var tr=bt1(series(p[
 
 /* ---------- run check ---------- */
 function rc(){var m=main(),g=m.gates||{},sj=SXJ.stats,s=(SXJ.state==="ok"&&sj)?{n:sj.trades,wr:sj.win_rate,be:sj.break_even,band:sj.band}:{n:0,wr:0,be:50,band:0},on=["loss","circuit","checklist"].filter(function(k){return g[k]}).length,b=X.bt,h="";
- var c1=(m.mode||"demo")==="demo",c2=on===3,c3=(m.risk||1)<=2&&(m.dayLoss||3)<=5,c4=b?b.pf>1:null,c5=s.n<30?null:s.wr>s.be+s.band;
+ var c1=(m.mode||"demo")==="demo",c2=on===3,c3=(m.risk||1)<=2&&(m.dayLoss||3)<=5,c4=null,c5=s.n<30?null:s.wr>s.be+s.band;
  h+=rw(c1,"Account type",c1?"Demo account. No real money is at risk.":"Live mode needs a connected broker.");
  h+=rw(c2,"Core safety gates",on+" of 3 on: daily loss, drawdown breaker, checklist.");
  h+=rw(c3,"Risk size",(m.risk||1)+"% per trade, "+(m.dayLoss||3)+"% daily loss. Keep these at 2% and 5% or less.");
- h+=rw(c4,"Backtest evidence",b?"Profit factor "+b.pf.toFixed(2)+", "+b.pos+" of "+b.tot+" pairs positive.":"Run the backtest below.");
+ h+=rw(c4,"Backtest evidence","Not tested on real candles yet. The sample backtest below does not count; use tools/backtest.py on your own data.");
  h+=rw(c5,"Closed trades",s.n<30?s.n+" of 30 trades needed.":"Win rate "+s.wr.toFixed(1)+"% vs break-even "+s.be.toFixed(1)+"%.");
- var v,k="";if(!c1||!c2||!c3){v="Not now. Fix the failed checks first.";k="bad"}else if(c4===false||c5===false){v="Not recommended. Nothing has shown an edge yet.";k="bad"}else if(c4===null){v="Conditions are fine, but nothing is tested yet. Run the backtest.";k=""}else{v="Conditions pass. Treat it as unproven until real trades agree. Keep risk small.";k="good"}
+ var v,k="";if(!c1||!c2||!c3){v="Not now. Fix the failed checks first.";k="bad"}else if(c4===false||c5===false){v="Not recommended. Nothing has shown an edge yet.";k="bad"}else if(c5!==true){v="Conditions are fine, but nothing is proven yet. Real closed trades are the evidence (30 needed).";k=""}else{v="Conditions pass. Treat it as unproven until real trades agree. Keep risk small.";k="good"}
  $("#rcOut").innerHTML=h+'<li class="row"><span class="t '+k+'" style="grid-column:1/4">'+v+'</span></li>'}
 
 /* ---------- bot memory ---------- */
@@ -1930,7 +1930,7 @@ if(vb){
   SXA.api("/api/prefs",{method:"POST",body:{entries:n}}).then(function(){return SXA.api("/api/groupcap",{method:"POST",body:{on:gcOn,target_usd:t,loss_pct:l}})}).then(function(j){gcShow(j);$("#gcMsg").textContent=gcOn&&(j.positions||0)<2?"Saved, but group rules need 2 or more positions at once.":"Saved on the server.";toast("Group rules saved")}).catch(function(e){$("#gcMsg").textContent=e.message||"Not saved";toast(e.message||"Not saved")}).then(function(){b.disabled=false})};
  gcLoad();
  vb.appendChild(card(["Run check",""],'<ul class="list" id="rcOut"></ul><button class="btn block" id="rcGo">Check again</button><p class="note">Is it sensible to run the bot right now? Uses your saved limits, gates and results.</p>'));
- vb.appendChild(card(["Backtest (sample data, not your bot)",""],'<button class="btn primary block" id="btGo">Run backtest</button><div id="btOut" style="display:grid;gap:14px"></div><p class="note">Replays your trend rule on sample candles of all 8 pairs. No trades, no cost.</p>'));
+ vb.appendChild(card(["Backtest (sample data, not your bot)",""],'<button class="btn primary block" id="btGo">Run backtest</button><div id="btOut" style="display:grid;gap:14px"></div><p class="note">Replays your trend rule on random sample candles of all 8 pairs. Just a demo: it is not saved to your Journal and does not count in the go-live check.</p>'));
  vb.appendChild(card(["Bot memory",'<span class="chip">Learns from your trades</span>'],'<ul class="list" id="mmOut"></ul><button class="btn block" id="mmClr">Reset memory</button><p class="note">After 4 or more trades on a pair, the bot skips it if its win rate sits 5 points under break-even.</p>'));
  var us=function(){$("#uSw").innerHTML=sw("lock","Profit lock","After 60% of the profit target, stop if the day gives back half its best gain.")+sw("auto","Auto-switch pairs","Move to the pair with the cleanest setup instead of staying on one.")+sw("mon","Monitor mode","Practice only. The bot logs what it would do and places nothing.");
   var f=focus();$("#uFocus").textContent=X.auto?(f?"Focus pair now: "+f.p[0]+" ("+f.a.s+" setup, score "+f.a.sc+").":"No clean setup right now, so the bot stays put."):"Auto-switch is off. The bot stays on the pair you chose.";
@@ -1940,7 +1940,7 @@ if(vb){
  $("#uTp").value=X.tp;$("#uMax").value=X.maxT;$("#uStr").value=X.streak;us();limLoad();
  [["uTp","tp","Daily profit target"],["uMax","maxT","Max trades a day"],["uStr","streak","Loss streak stop"]].forEach(function(a){$("#"+a[0]).addEventListener("change",function(){var sv2=a[1]==="maxT"||a[1]==="streak",n=sv2&&this.value===""?0:parseFloat(this.value);if(n>=0){if(sv2){if(window.SXA)limSave(a[1],n,this,a[2]);else toast("Sign in first");return}X[a[1]]=n;sv();ja("rule",a[2]+" set to "+n);bn()}})});
  vb.addEventListener("click",function(e){var b=e.target.closest("[data-u]");if(!b)return;var k=b.dataset.u;X[k]=!X[k];sv();us();bn();ja("rule",b.querySelector("b").textContent+" turned "+(X[k]?"on":"off"));if(k==="mon")toast(X.mon?"Monitor mode on. Nothing will be placed":"Monitor mode off")});
- $("#btGo").onclick=function(){var b=this;b.disabled=true;b.textContent="Replaying…";setTimeout(function(){b.disabled=false;runBt();ja("note","Backtest ran: profit factor "+X.bt.pf.toFixed(2)+", "+X.bt.pos+" of "+X.bt.tot+" pairs positive")},450)};
+ $("#btGo").onclick=function(){var b=this;b.disabled=true;b.textContent="Replaying…";setTimeout(function(){b.disabled=false;runBt()},450)};
  $("#rcGo").onclick=rc;$("#mmClr").onclick=function(){X.memCut=Date.now();sv();mem();ja("note","Bot memory reset");toast("Memory reset")};
  rc();mem();if(X.bt)$("#btGo").textContent="Run again on new sample"}
 
