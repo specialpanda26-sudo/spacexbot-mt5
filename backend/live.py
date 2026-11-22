@@ -29,12 +29,15 @@ def _running(uid, admin, srcs):
         if not s.get('online'): continue
         if s['id'] == 'Deriv' and deriv._bot(uid): return True
         if s['id'] == 'MT5' and links.bot_on('' if admin else uid): return True
+        if s['id'] == 'Binance':          # LV4
+            from . import binance_bot
+            if binance_bot._bot(uid): return True
     return False
 
 def snapshot(now=None, uid=''):
     now = now or time.time(); admin = _is_admin(uid)
     ls = livestats.snapshot(uid, admin, now); srcs = ls.get('sources') or []
-    a = {'balance': ls['balance'], 'equity': ls['equity'], 'open': ls['open']} if srcs else {}
+    a = {'balance': ls['balance'], 'equity': ls['equity'], 'open': ls['open'], 'label': ' (%s %s)' % (srcs[0]['id'], srcs[0]['mode']) if ls.get('platform') and len(srcs) == 1 else ''} if srcs else {}
     return {'on': _running(uid, admin, srcs), 'a': a, 'today': ls['today'], 'open': list(ls.get('trades') or []), 'now': now}
 
 def explain(uid, now=None):
@@ -57,7 +60,7 @@ def build(admin, s):
     title = 'Bot running' + ('  |  ' + _m(bal) if admin and bal is not None else '')
     text = 'Today ' + _m(s['today'], True) + '  |  ' + (str(n) + ' open' if n else 'no open trades')
     lines = []
-    if admin and bal is not None: lines.append('Balance ' + _m(bal) + ('   Equity ' + _m(eq) if eq is not None else ''))
+    if admin and bal is not None: lines.append('Balance ' + _m(bal) + (a.get('label') or '') + ('   Equity ' + _m(eq) if eq is not None else ''))
     if admin and bal is not None and eq is not None: lines.append('Floating P/L ' + _m(float(eq) - float(bal), True))
     lines.append('Today ' + _m(s['today'], True))
     if s['open']:

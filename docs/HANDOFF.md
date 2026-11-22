@@ -819,3 +819,10 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - A group with no saved balance (opened before this update, or not through Deriv) is left alone: the limit is not guessed. Deriv multiplier contracts keep their own stop loss as before.
 - Card text on the Bot tab now says who closes the group on each platform. Binance still has no group close.
 - Nothing was tried against the real Deriv API (sell message and the profit fields are the same assumptions as CY2): run tools/deriv_probe.py first. Tests: tests/test_gl1.py.
+
+
+## Section LV4 (live numbers follow the chosen platform) DONE (Nov 23)
+- Found: livestats.snapshot() ADDED UP balance and equity of every connected account (Deriv + MT5), counted open trades and today's profit of every platform, had no Binance source, and live._running() never counted Binance. So the phone notification could show a mixed or stale number that matched no single account.
+- Now: when a platform is chosen (tradeon), balance, equity, mode (demo/real), open trades, open count and today come from THAT platform only (signals.broker; MT5 rows may have an empty broker). The notification shows the label, e.g. 'Balance $1,000.50 (Deriv demo)'. Nothing chosen = the old behaviour. Binance balance = testnet free USDT + cost of open positions; no floating figure (equity = balance).
+- Not changed: where MT5's numbers come from (the EA's last report, owner's scope ''). If the EA stopped, the card says stale after 2 minutes, but the notification is only sent while an account is online.
+- Tests: tests/test_lv4.py.
