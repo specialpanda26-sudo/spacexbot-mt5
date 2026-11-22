@@ -50,11 +50,18 @@ final class ScreenLogic {
         return "{\"context\":\"" + c + "\",\"image\":\"" + b64 + "\"}";
     }
 
-    /** What the bubble shows. tone: ok | watch | stop | info. ring = the colour of the bubble's ring. */
+    /** What the bubble shows. tone: ok | watch | stop | info. ring = the colour of the bubble's ring. pic = the name of the website cartoon shown on the card
+     *  (the file sxart_<pic>.png, drawn from window.IL2 of static/index.html by tools/make_screen_art.py); the choice mirrors pick() in static/screen.js. */
     static final class Verdict {
-        final String tone, head, say; final int ring; final boolean signIn;
-        Verdict(String tone, String head, String say, int ring, boolean signIn) { this.tone = tone; this.head = head; this.say = say; this.ring = ring; this.signIn = signIn; }
+        final String tone, head, say, pic; final int ring; final boolean signIn;
+        Verdict(String tone, String head, String say, int ring, boolean signIn, String pic) { this.tone = tone; this.head = head; this.say = say; this.ring = ring; this.signIn = signIn; this.pic = pic; }
     }
+
+    /** The cartoons the card may show: every one is a prop of the website's own set. */
+    static final String[] PICS = {"eye", "ok", "wait", "shield", "sleep", "off", "coin", "cx", "lock"};
+
+    /** The same weekend / Friday-night / Bitcoin-rests test the website panel uses to choose the moon instead of the shield. */
+    static boolean resting(String say) { return say != null && java.util.regex.Pattern.compile("weekend|Friday|rests", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(say).find(); }
 
     private static String s(Object o) { return o instanceof String ? (String) o : ""; }
 
@@ -64,29 +71,29 @@ final class ScreenLogic {
         Object root = null;
         try { root = Json.parse(json); } catch (RuntimeException e) { root = null; }
         Map<String, Object> m = root instanceof Map ? (Map<String, Object>) root : new HashMap<String, Object>();
-        if (status == 0) return new Verdict("stop", "No connection", "I could not reach the server. Check your internet and tap me again.", BERRY, false);
-        if (status == 401) return new Verdict("stop", "Please sign in", "Open spaceXBot once so I can sign in again, then tap me.", BERRY, true);
+        if (status == 0) return new Verdict("stop", "No connection", "I could not reach the server. Check your internet and tap me again.", BERRY, false, "cx");
+        if (status == 401) return new Verdict("stop", "Please sign in", "Open spaceXBot once so I can sign in again, then tap me.", BERRY, true, "lock");
         if (status != 200) {
             String t = s(m.get("error")); if (t.length() == 0) t = "Something went wrong. Try again in a moment.";
-            if (status == 429) return new Verdict("watch", "One moment", t, SUN, false);
-            if (status == 402) return new Verdict("watch", "You need an active plan", t, SUN, false);
-            if (status == 403) return new Verdict("stop", "The screen assistant is off", t, BERRY, false);
-            return new Verdict("stop", "I could not read it this time", t, BERRY, false);
+            if (status == 429) return new Verdict("watch", "One moment", t, SUN, false, "wait");
+            if (status == 402) return new Verdict("watch", "You need an active plan", t, SUN, false, "coin");
+            if (status == 403) return new Verdict("stop", "The screen assistant is off", t, BERRY, false, "off");
+            return new Verdict("stop", "I could not read it this time", t, BERRY, false, "cx");
         }
         Object rd0 = m.get("read"); Map<String, Object> rd = rd0 instanceof Map ? (Map<String, Object>) rd0 : new HashMap<String, Object>();
         if (!Boolean.TRUE.equals(rd.get("readable"))) {
             String n = s(rd.get("note")); if (n.length() == 0) n = "Show one market with its name and price on the screen, then try again.";
-            return new Verdict("stop", "I could not read this chart", n, BERRY, false);
+            return new Verdict("stop", "I could not read this chart", n, BERRY, false, "off");
         }
         Object b0 = m.get("bot");
-        if (!(b0 instanceof Map)) return new Verdict("info", "I read the chart", s(rd.get("note")), SKY, false);
+        if (!(b0 instanceof Map)) return new Verdict("info", "I read the chart", s(rd.get("note")), SKY, false, "wait");
         Map<String, Object> b = (Map<String, Object>) b0; String code = s(b.get("code")), say = s(b.get("text"));
-        if ("agree".equals(code)) return new Verdict("ok", "I see a possible trade.", say + side(b) + sizeText(b), GREEN, false);
-        if ("blocked".equals(code)) return new Verdict("watch", "I see a setup, but I cannot trade right now.", say, SUN, false);
-        if ("disagree".equals(code)) return new Verdict("watch", "We do not agree, so I stay out.", say, SUN, false);
-        if ("no_setup".equals(code)) return new Verdict("info", "Nothing to trade here yet.", say, MUTED, false);
-        if ("bot_only".equals(code)) return new Verdict("watch", "The bot sees a setup.", say, SUN, false);
-        return new Verdict("info", "I can only give you the AI read.", say, SKY, false);
+        if ("agree".equals(code)) return new Verdict("ok", "I see a possible trade.", say + side(b) + sizeText(b), GREEN, false, "ok");
+        if ("blocked".equals(code)) return new Verdict("watch", "I see a setup, but I cannot trade right now.", say, SUN, false, resting(say) ? "sleep" : "shield");
+        if ("disagree".equals(code)) return new Verdict("watch", "We do not agree, so I stay out.", say, SUN, false, "wait");
+        if ("no_setup".equals(code)) return new Verdict("info", "Nothing to trade here yet.", say, MUTED, false, "wait");
+        if ("bot_only".equals(code)) return new Verdict("watch", "The bot sees a setup.", say, SUN, false, "wait");
+        return new Verdict("info", "I can only give you the AI read.", say, SKY, false, "wait");
     }
 
     /** The bot's OWN entry, stop and target in words (never the AI's). Empty when the bot gave no signal. */

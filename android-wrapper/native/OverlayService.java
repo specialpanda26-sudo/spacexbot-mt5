@@ -9,8 +9,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.RectF;
 import android.graphics.Typeface;
@@ -33,6 +35,8 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -41,7 +45,10 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.ByteBuffer;
 
-/** SC3: the floating bubble. A foreground service of type mediaProjection keeps one screen capture open; a tap on the bubble = ONE picture, sent to
+/** SC3 / SC3b: the floating bubble. The bubble itself is the app's own icon (res/drawable-nodpi/ic_large_sxb.png, the purple, yellow and white one the alerts show); the card
+ *  next to it shows the website's own cartoon for the situation (res/drawable-nodpi/sxart_<name>.png, drawn from window.IL2 by tools/make_screen_art.py, chosen by
+ *  ScreenLogic.Verdict.pic like pick() in static/screen.js). Nothing is drawn here by hand except the ring colour.
+ *  A foreground service of type mediaProjection keeps one screen capture open; a tap on the bubble = ONE picture, sent to
  *  POST /api/screen/read by this service itself (the page is paused in the background). Long press = stop. The AI only READS; the answer shown is the
  *  server's: the bot's own words, entry, stop and target.
  *  PRIVACY: the picture exists only as local variables while it is sent; it is never written to disk, never logged. The token lives in memory only and is
@@ -67,7 +74,9 @@ public class OverlayService extends Service {
     private int capW, capH;
     private BubbleView bubble;
     private WindowManager.LayoutParams bubbleLp;
-    private TextView card;
+    private LinearLayout card;
+    private ImageView cardPic;
+    private TextView cardText;
     private long lastRead = 0;
     private boolean busy = false, down = false;
     private final Runnable hideCard = new Runnable() { @Override public void run() { if (card != null) card.setVisibility(View.GONE); } };
@@ -128,20 +137,35 @@ public class OverlayService extends Service {
     // ---------------------------------------------------------------- the bubble
     private static final class BubbleView extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Bitmap icon;                     // the app's own purple, yellow and white icon; null only if the file is missing from the build
         private int ring = ScreenLogic.MUTED; private boolean working = false;
-        BubbleView(Context c) { super(c); }
+        BubbleView(Context c, Bitmap icon) { super(c); this.icon = icon; }
         void set(int r, boolean w) { ring = r; working = w; invalidate(); }
         @Override protected void onDraw(Canvas cv) {
-            float w = getWidth(), h = getHeight(), r = Math.min(w, h) / 2f;
-            p.setStyle(Paint.Style.FILL); p.setColor(ScreenLogic.SURFACE); cv.drawCircle(w / 2f, h / 2f, r - 2f, p);
-            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(r * 0.16f); p.setColor(ring); cv.drawCircle(w / 2f, h / 2f, r * 0.88f, p);
-            p.setStyle(Paint.Style.FILL); p.setColor(ScreenLogic.FG); cv.drawOval(new RectF(w * 0.24f, h * 0.35f, w * 0.76f, h * 0.65f), p);
-            p.setColor(working ? ScreenLogic.SKY : ScreenLogic.SURFACE); cv.drawCircle(w / 2f, h / 2f, r * 0.17f, p);
+            float w = getWidth(), h = getHeight(), r = Math.min(w, h) / 2f, ringW = r * 0.14f, inner = r - ringW - 1f;
+            p.setStyle(Paint.Style.FILL); p.setColor(ScreenLogic.SURFACE); cv.drawCircle(w / 2f, h / 2f, r - 1f, p);
+            if (icon != null) {
+                Path clip = new Path(); clip.addCircle(w / 2f, h / 2f, inner, Path.Direction.CW);
+                cv.save(); cv.clipPath(clip);
+                cv.drawBitmap(icon, null, new RectF(w / 2f - inner, h / 2f - inner, w / 2f + inner, h / 2f + inner), p);
+                cv.restore();
+            } else {                                   // no picture in this build: the old plain eye, so the bubble is never empty
+                p.setColor(ScreenLogic.FG); cv.drawOval(new RectF(w * 0.24f, h * 0.35f, w * 0.76f, h * 0.65f), p);
+                p.setColor(ScreenLogic.SURFACE); cv.drawCircle(w / 2f, h / 2f, r * 0.17f, p);
+            }
+            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(ringW); p.setColor(working ? ScreenLogic.SKY : ring); cv.drawCircle(w / 2f, h / 2f, r - ringW / 2f - 1f, p);
         }
     }
 
+    /** A picture the build put in res/drawable-nodpi (0 = not there). */
+    private Bitmap pic(String name) {
+        int id = getResources().getIdentifier(name, "drawable", getPackageName());
+        if (id == 0) return null;
+        try { return BitmapFactory.decodeResource(getResources(), id); } catch (Exception e) { return null; }
+    }
+
     private void addBubble() {
-        bubble = new BubbleView(this);
+        bubble = new BubbleView(this, pic("ic_large_sxb"));
         bubble.setContentDescription("spaceXBot. Tap to read your chart. Hold to stop.");
         int size = dp(56);
         bubbleLp = new WindowManager.LayoutParams(size, size, overlayType(),
@@ -171,8 +195,12 @@ public class OverlayService extends Service {
     private void showCard(ScreenLogic.Verdict v) {
         if (down) return;
         if (card == null) {
-            card = new TextView(this);
-            card.setTextColor(ScreenLogic.FG); card.setTextSize(14f); card.setPadding(dp(14), dp(12), dp(14), dp(12));
+            card = new LinearLayout(this); card.setOrientation(LinearLayout.VERTICAL); card.setGravity(Gravity.CENTER_HORIZONTAL);
+            card.setPadding(dp(14), dp(10), dp(14), dp(12));
+            cardPic = new ImageView(this); cardPic.setAdjustViewBounds(true); cardPic.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            card.addView(cardPic, new LinearLayout.LayoutParams(dp(150), dp(106)));
+            cardText = new TextView(this); cardText.setTextColor(ScreenLogic.FG); cardText.setTextSize(14f);
+            card.addView(cardText, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
             card.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View x) { card.setVisibility(View.GONE); } });
             int w = Math.min(dp(300), getResources().getDisplayMetrics().widthPixels - dp(24));
             WindowManager.LayoutParams lp = new WindowManager.LayoutParams(w, WindowManager.LayoutParams.WRAP_CONTENT, overlayType(),
@@ -182,22 +210,24 @@ public class OverlayService extends Service {
         }
         GradientDrawable bg = new GradientDrawable(); bg.setColor(ScreenLogic.SURFACE); bg.setStroke(dp(2), v.ring); bg.setCornerRadius(dp(16));
         card.setBackground(bg);
+        Bitmap art = pic("sxart_" + v.pic);                  // the website's own cartoon for this situation; the card still works without it
+        if (art != null) { cardPic.setImageBitmap(art); cardPic.setVisibility(View.VISIBLE); } else cardPic.setVisibility(View.GONE);
         SpannableStringBuilder sb = new SpannableStringBuilder(v.head);
         sb.setSpan(new StyleSpan(Typeface.BOLD), 0, v.head.length(), 0);
         if (v.say.length() > 0) sb.append("\n").append(v.say);
         sb.append("\n").append("A read of your screen, not advice.");
-        card.setText(sb); card.setVisibility(View.VISIBLE);
-        main.removeCallbacks(hideCard); main.postDelayed(hideCard, 12000);
+        cardText.setText(sb); card.setVisibility(View.VISIBLE);
+        main.removeCallbacks(hideCard); main.postDelayed(hideCard, v.pic.equals("eye") ? 60000 : 12000);
     }
 
     // ---------------------------------------------------------------- one read
     private void readNow() {
         if (down || busy) return;
         long left = ScreenLogic.waitLeft(System.currentTimeMillis(), lastRead);
-        if (left > 0) { showCard(new ScreenLogic.Verdict("watch", "One moment", "One read every 10 seconds. Try again in " + ((left + 999) / 1000) + " s.", ScreenLogic.SUN, false)); return; }
+        if (left > 0) { showCard(new ScreenLogic.Verdict("watch", "One moment", "One read every 10 seconds. Try again in " + ((left + 999) / 1000) + " s.", ScreenLogic.SUN, false, "wait")); return; }
         busy = true; lastRead = System.currentTimeMillis();
         bubble.set(ScreenLogic.SKY, true);
-        if (card != null) card.setVisibility(View.GONE);
+        if (card != null) card.setVisibility(View.GONE);      // out of the picture
         bubble.setVisibility(View.INVISIBLE);                // keep our own bubble out of the picture
         main.postDelayed(new Runnable() { @Override public void run() { grab(); } }, 300);
     }
@@ -213,7 +243,7 @@ public class OverlayService extends Service {
         Bitmap shot = null;
         try {
             Image img = reader.acquireLatestImage();
-            if (img == null) { finish(new ScreenLogic.Verdict("info", "Nothing captured yet", "Try again in a moment.", ScreenLogic.SKY, false)); return; }
+            if (img == null) { finish(new ScreenLogic.Verdict("info", "Nothing captured yet", "Try again in a moment.", ScreenLogic.SKY, false, "wait")); return; }
             try {
                 Image.Plane pl = img.getPlanes()[0]; ByteBuffer buf = pl.getBuffer();
                 int ps = pl.getPixelStride(), rs = pl.getRowStride();
@@ -222,9 +252,10 @@ public class OverlayService extends Service {
                 shot = Bitmap.createBitmap(full, 0, 0, capW, capH);
                 if (shot != full) full.recycle();
             } finally { img.close(); }
-        } catch (Exception e) { finish(new ScreenLogic.Verdict("stop", "I could not capture the screen", "Try again, or stop and start the screen assistant.", ScreenLogic.BERRY, false)); return; }
+        } catch (Exception e) { finish(new ScreenLogic.Verdict("stop", "I could not capture the screen", "Try again, or stop and start the screen assistant.", ScreenLogic.BERRY, false, "cx")); return; }
         final Bitmap pic = shot; final String ep = endpoint, tk = token, cx = context;
         bubble.setVisibility(View.VISIBLE);
+        showCard(new ScreenLogic.Verdict("info", "Looking at your chart...", "Hold on. I am reading the chart and asking the bot what it thinks.", ScreenLogic.SKY, false, "eye"));
         new Thread(new Runnable() { @Override public void run() {
             final ScreenLogic.Verdict v = send(pic, ep, tk, cx);
             main.post(new Runnable() { @Override public void run() { finish(v); } });
@@ -278,7 +309,7 @@ public class OverlayService extends Service {
         main.removeCallbacksAndMessages(null);
         try { if (bubble != null) wm.removeView(bubble); } catch (Exception e) { /* already gone */ }
         try { if (card != null) wm.removeView(card); } catch (Exception e) { /* already gone */ }
-        bubble = null; card = null;
+        bubble = null; card = null; cardPic = null; cardText = null;
         try { if (display != null) display.release(); } catch (Exception e) { /* ignore */ }
         try { if (reader != null) reader.close(); } catch (Exception e) { /* ignore */ }
         try { if (projection != null) projection.stop(); } catch (Exception e) { /* ignore */ }

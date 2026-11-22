@@ -68,6 +68,14 @@ jobs:
       - name: Pillow (icon sizes)
         run: pip install pillow
 
+      - name: Screen assistant cartoons (drawn from the website's own cartoons)
+        working-directory: .
+        continue-on-error: true
+        run: |
+          pip install playwright
+          python3 -m playwright install --with-deps chromium
+          python3 tools/make_screen_art.py android-wrapper/branding/art
+
       - name: Permissions, version, native Google sign-in, push
         run: VERSION_CODE=${{ env.BUILD_N }} VERSION_NAME=1.0.${{ env.BUILD_N }} python3 prepare.py
 
