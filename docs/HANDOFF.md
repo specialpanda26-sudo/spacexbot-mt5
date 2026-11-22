@@ -777,3 +777,10 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - NOT built: Binance. backend/binance_bot.py has no groups at all (single spot trades), so there is no group to close or repeat. Needs a decision from the owner first: should the Binance bot open several entries as one group?
 - Not tried with a real MT5. Run on a DEMO account first: a group with 2-3 entries and a small group target, watch the Journal.
 - Tests: tests/test_cy4.py.
+
+
+## Section BT1 (Burst switch on the Bot tab) DONE (Nov 23)
+- Owner wish (dictated): burst should be a simple switch users flip when the market is too busy / no strategy is firing. The server (backend/burst.py, GET/POST /api/burst) existed but had NO user card.
+- static/index.html: card "Burst mode" at the top of the Bot tab (block /*BT1-start*/ .. /*BT1-end*/). The switch saves at once (POST /api/burst {on}) and goes back if the save fails. Fields: Quiet minutes first, Entries, Target per entry ($) with Save numbers (blank = keep). Chip: Off / Off (owner) / On / Ready / Running, plus the plain-words line from burst.explain.
+- Notes on the card: Auto settings turns burst off, phone-only mode cannot close, Deriv refuses stakes under 1 USD (0.5 USD entries are rejected on Deriv).
+- Not built: big-burst numbers on the card; Deriv sub-1-USD stakes. Not checked on a real phone. Test: tests/test_bt1.py.
