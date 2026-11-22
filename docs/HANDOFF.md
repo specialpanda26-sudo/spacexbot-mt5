@@ -804,3 +804,11 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Now in the Admin panel with ranges, server-checked in backend/app.py admin_set: news before/after 0-240, cooldown 0-1440, same-currency trades 1-10, entries 1-10, regime trades 5-500, practice trades 0-100. News + cooldown + currency exposure are in Main settings (safety gates); the other three are in Advanced.
 - tests/test_au1.py also fails if a new server setting is added without a field.
 - Not touched: the Find a setting search does not cover Admin settings. Advanced is still a collapsed section (Admin panel); say if it should be opened by default.
+
+
+## Section SW2 (strategy switching, in plain view) DONE (Nov 24)
+- Finding: the bot already switches strategies by market type (brain.evaluate: ADX above 28 skips reversal setups, below 18 skips trend setups) and the owner could switch on the learned switch (setting regime_switch, per-strategy per-market-type results, stats.regime_off). Nothing showed this to a person, /api/admin/regimes had no screen, and a person had no switch of their own.
+- New: prefs choice 'regime' (default off). The learned switch is on when the owner's regime_switch is on OR the person's own choice is on; Auto settings still turns it off. Used in 3 places: backend/app.py (scan and burst scan) and backend/screenread.py (dry run). Uses the person's own closed trades only, never fewer than regime_min_trades (at least 5).
+- New: GET /api/regimes (verified user): owner, mine, auto, active, min_trades, the real ADX limits, the latest market reading from the last scan note, and rows per strategy per market type (weak, paused).
+- Bot tab: card "Strategy switching" right under Burst mode (block /*SW2-start*/ .. /*SW2-end*/). Explains the automatic part, shows the latest reading, the learned switch, and the per-market results.
+- Not built: choosing a fixed strategy per market type by hand (the Profile page lets a person pick which strategies may trade). The latest reading is the last market the bot looked at (any market), only shown when the last check left a market sentence. Not checked on a real phone. Tests: tests/test_sw2.py.

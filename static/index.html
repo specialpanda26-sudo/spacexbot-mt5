@@ -1989,6 +1989,22 @@ if(vb){
   SXA.api("/api/burst",{method:"POST",body:body}).then(function(j){bswShow(j);$("#bswMsg").textContent="Saved on the server.";toast("Burst numbers saved")}).catch(function(e){$("#bswMsg").textContent=e.message||"Not saved";toast(e.message||"Not saved")}).then(function(){b.disabled=false})};
  bswLoad();
  /*BT1-end*/
+ /*SW2-start*/
+ vb.insertBefore(card(["Strategy switching",'<span class="chip info" id="swcChip"></span>'],'<p class="note" id="swcAuto"></p><p class="note" id="swcMarket" role="status"></p><button type="button" class="switch" role="switch" aria-checked="false" id="swcOn"><span><b>Learned switch</b><small>Pause a strategy in a market type where my own closed trades keep losing. Off by default.</small></span><span class="sw"></span></button><p class="note" id="swcNow" role="status"></p><div id="swcRows" style="display:grid;gap:6px"></div><p class="note" id="swcMsg" role="status"></p>'),(function(){var b=$("#bswOn"),c=b&&b.closest?b.closest(".card"):null;return c&&c.nextSibling?c.nextSibling:vb.firstChild})());
+ var swcMine=false;
+ function swcAge(s){return s==null?"":s<60?"under a minute":s<5400?Math.round(s/60)+" min":Math.round(s/3600)+" h"}
+ function swcShow(j){swcMine=j.mine===true;$("#swcOn").setAttribute("aria-checked",swcMine);
+  $("#swcChip").textContent=j.auto?"Auto settings":j.active?"Learned switch on":"Automatic only";
+  $("#swcAuto").textContent="The bot reads the market type from ADX, by itself, every time. Above "+j.adx_strong+" is a strong trend: trend strategies lead and reversal setups are skipped. Below "+j.adx_quiet+" is quiet: reversal strategies lead and trend setups are skipped. In between, both kinds are allowed. This part needs no switch.";
+  $("#swcMarket").textContent=j.market?"Latest reading ("+swcAge(j.market_age)+" ago): "+j.market:"No market reading yet. It appears after the bot's next check.";
+  $("#swcNow").textContent=j.auto?"Auto settings is on, so the learned switch does nothing right now.":j.owner?"The owner has the learned switch on for everyone, so it stays on whatever you choose here.":j.active?"On. A strategy is paused in a market type only after "+j.min_trades+" or more of your closed trades there, and only while it loses on average. Your own trades are used.":"Off. Turn it on and the bot pauses a strategy in a market type where it keeps losing, after "+j.min_trades+" or more of your own closed trades there.";
+  var rs=j.rows||[];$("#swcRows").innerHTML=rs.length?rs.map(function(r){return'<p class="note"><b>'+esc(r.name)+'</b> ('+(r.group==="reversion"?"reversal":"trend")+') in a '+esc(r.regime)+' market: '+r.n+(r.n>1?" trades, ":" trade, ")+r.win_rate+'% wins, average '+r.avg+(r.paused?' - <b>paused here</b>':r.weak?' - losing here, not paused because the switch is off':'')+'</p>'}).join(""):'<p class="note">No results by market type yet. Every trade the bot opens saves its market type, so this fills in as you trade.</p>'}
+ function swcLoad(){if(!window.SXA)return;SXA.api("/api/regimes").then(swcShow).catch(function(){})}
+ $("#swcOn").onclick=function(){var b=this;if(!window.SXA){toast("Sign in first");return}
+  var want=!swcMine;b.disabled=true;b.setAttribute("aria-checked",want);
+  SXA.api("/api/prefs",{method:"POST",body:{regime:want}}).then(function(){toast(want?"Learned switch on":"Learned switch off");return SXA.api("/api/regimes")}).then(swcShow).catch(function(e){b.setAttribute("aria-checked",swcMine);toast(e.message||"Not saved")}).then(function(){b.disabled=false})};
+ swcLoad();
+ /*SW2-end*/
  /*BT2-start*/
  (function(){
   var st=document.createElement("style");st.textContent=".sxflash{outline:3px solid var(--accent,#7c5cff);outline-offset:3px;transition:outline-color .6s}.sxfind button.hit{display:block;width:100%;text-align:left;padding:12px 0;border:0;border-top:1px solid var(--line);background:none;color:inherit;font:inherit;cursor:pointer}.sxfind button.hit small{display:block;opacity:.7}";document.head.appendChild(st);

@@ -98,7 +98,7 @@ def ask_bot(uid, read, ctx):
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
     if st.get('auto_disable') == '1': off |= stats.losers(int(st.fget('auto_disable_min_trades')), uid)
     solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
-    orf = stats.regime_off(uid) if st.get('regime_switch') == '1' else None
+    orf = stats.regime_off(uid) if (st.get('regime_switch') == '1' or prefs.get(uid)['regime']) else None
     off, solo, mc = prefs.apply(uid, off, solo, int(st.fget('min_confluence'))); off, solo, mc = automode.lock(off, solo, mc)
     if automode.on(): orf = None
     info = {}; s = brain.evaluate(m, h, mc, automode.rr(), off, solo=solo, info=info, off_reg=orf, max_stop=automode.max_stop())

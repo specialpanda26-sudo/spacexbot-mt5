@@ -4,6 +4,7 @@
   min_conf   : how many strategies must agree, 1..5. 0 = use the owner's setting.
   entries    : entries opened per setup, 1..ceiling. 0 = use the owner's setting (multi.py).
   scale      : True = the bot may open MORE entries (up to `entries`) only while its recent setups are winning (see scale.py).
+  regime     : True = the learned switch for me: pause a strategy in a market type where my own closed trades keep losing (the owner's switch also works).
   fast       : True = also scan 5-minute candles (more checks per hour). Needs M5 candles from the EA / Deriv.
 The person can only choose things the owner's ceiling allows. Nothing here claims more entries make more money: they share one trade's risk."""
 import json
@@ -21,7 +22,7 @@ def _known():
 def get(uid=''):
     j = _raw(uid); ok = set(_known())
     return {'strategies': [x for x in (j.get('strategies') or []) if x in ok], 'alone': j.get('alone') is True,
-            'min_conf': _i(j.get('min_conf'), 0, 5), 'entries': min(_i(j.get('entries'), 0, 10), limits.ceiling()), 'scale': j.get('scale') is True, 'fast': j.get('fast') is True}
+            'min_conf': _i(j.get('min_conf'), 0, 5), 'entries': min(_i(j.get('entries'), 0, 10), limits.ceiling()), 'scale': j.get('scale') is True, 'fast': j.get('fast') is True, 'regime': j.get('regime') is True}
 
 def _i(v, lo, hi):
     try: return max(lo, min(hi, int(float(v))))
@@ -45,7 +46,7 @@ def save(uid, d):
             except ValueError: raise ValueError('%s must be a whole number' % k)
             if f != int(f) or f < 0 or f > hi: raise ValueError('%s must be a whole number from 0 to %d (0 = use the default)' % (k, hi))
             cur[k] = int(f)
-    for k in ('alone', 'scale', 'fast'):
+    for k in ('alone', 'scale', 'fast', 'regime'):
         if k in d:
             if not isinstance(d[k], bool): raise ValueError('%s must be true or false' % k)
             cur[k] = d[k]

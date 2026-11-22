@@ -131,7 +131,7 @@ def _scan_tf(sym, uid, tf, hi):
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
     if st.get('auto_disable') == '1': off |= stats.losers(int(st.fget('auto_disable_min_trades')), uid)
     solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
-    orf = stats.regime_off(uid) if st.get('regime_switch') == '1' else None          # R3: strategies that keep losing in this kind of market (off unless the owner switches it on)
+    orf = stats.regime_off(uid) if (st.get('regime_switch') == '1' or prefs.get(uid)['regime']) else None          # R3: strategies that keep losing in this kind of market (off unless the owner switches it on)
     off, solo, mc = prefs.apply(uid, off, solo, int(st.fget('min_confluence')))
     off, solo, mc = automode.lock(off, solo, mc)          # auto mode: the tested setup, whatever else is saved
     if automode.on(): orf = None
@@ -179,7 +179,7 @@ def _burst_scan(sym, uid=''):
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
     if st.get('auto_disable') == '1': off |= stats.losers(int(st.fget('auto_disable_min_trades')), uid)
     solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
-    orf = stats.regime_off(uid) if st.get('regime_switch') == '1' else None
+    orf = stats.regime_off(uid) if (st.get('regime_switch') == '1' or prefs.get(uid)['regime']) else None
     off, solo, _mc = prefs.apply(uid, off, solo, 1)
     info = {}; s = brain.evaluate(m, h, 1, st.fget('rr'), off, solo=solo, info=info, off_reg=orf)
     if not s: return
@@ -822,6 +822,25 @@ def admin_strategies(u):
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
     solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
     return jsonify(si.listing([f.__name__ for f in S.ALL], S.TREND, S.REVERSION, off, learn.by_strategy(), solo))
+
+@app.get('/api/regimes')
+@need(verified=True)
+def regimes_mine(u):
+    """SW2: strategy switching by market type, in plain view. The automatic part (ADX limits from brain.evaluate) always runs; the learned switch is the owner's
+    setting OR this person's own choice (prefs 'regime'), and Auto settings turns it off. Rows = this person's closed trades by strategy and market type."""
+    import inspect
+    from . import strategies as S
+    sc = _mine(u); mine = bool(prefs.get(sc)['regime']); owner = st.get('regime_switch') == '1'; auto = bool(automode.on()); on = (owner or mine) and not auto
+    mt = max(stats.MIN_FLOOR, int(st.fget('regime_min_trades'))); weak = stats.regime_off(sc, mt); rows = []
+    for n, cells in sorted(stats.by_regime(sc).items()):
+        for rg, c in sorted(cells.items()):
+            w = rg in weak.get(n, ()); rows.append(dict(c, strategy=n, name=si.name(n), group=si.group(n, S.TREND, S.REVERSION), regime=rg, weak=w, paused=bool(w and on)))
+    mk, age = '', None; last = botstate._last(sc)
+    if last:
+        m = re.search(r'Market: [^.]*\.', str(last.get('w') or ''))
+        if m: mk = m.group(0); age = max(0, int(time.time()) - int(last.get('t') or 0))
+    pr = inspect.signature(brain.evaluate).parameters
+    return jsonify(owner=owner, mine=mine, auto=auto, active=on, min_trades=mt, adx_quiet=pr['adx_trend_min'].default, adx_strong=pr['adx_rev_max'].default, market=mk, market_age=age, rows=rows)
 
 @app.get('/api/admin/regimes')
 @need(admin=True)
