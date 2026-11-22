@@ -1947,7 +1947,7 @@ if(vb){
 
 /* ---------- Market: weekly brief (sits with the Calendar tab) ---------- */
 var vm=$("#view-market");
-if(vm){vm.appendChild(card(["Weekly market brief",""],'<button class="btn primary block" id="wbGo">Build weekly brief</button><div id="wbOut" style="display:grid;gap:14px"></div>',"cal"));
+if(vm){vm.appendChild(card(["Weekly market brief (sample data)",""],'<button class="btn primary block" id="wbGo">Build weekly brief</button><div id="wbOut" style="display:grid;gap:14px"></div>',"cal"));
  $("#wbGo").onclick=function(){var b=this;b.disabled=true;b.textContent="Reading the week…";setTimeout(function(){b.disabled=false;b.textContent="Refresh weekly brief";brief()},500)}}
 
 /* ---------- status banner + settings sheet ---------- */
@@ -2836,7 +2836,8 @@ build()})();
   function ready() { var u = me(); return !!(u && u.verified); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function ago(t, now) { var s = Math.max(0, Math.round((now - t * 1000) / 1000)); return s < 10 ? "just now" : s < 90 ? s + " s ago" : s < 5400 ? Math.round(s / 60) + " min ago" : Math.round(s / 3600) + " h ago"; }
-  function fake() { var a = document.getElementById("autobotc"); if (a) a.style.display = ready() ? "none" : ""; }
+  function fake() { var a = document.getElementById("autobotc"); if (a) a.style.display = ready() ? "none" : "";
+    var w = document.getElementById("wbGo"), c = w && w.closest ? w.closest(".card") : null; if (c) c.style.display = ready() ? "none" : ""; }   /*FD4: the random-walk Weekly brief is hidden for a signed-in, verified person*/
   function paint() {
     fake();
     if (!ready()) { C.hidden = true; return; }
