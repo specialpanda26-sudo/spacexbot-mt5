@@ -826,3 +826,12 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Now: when a platform is chosen (tradeon), balance, equity, mode (demo/real), open trades, open count and today come from THAT platform only (signals.broker; MT5 rows may have an empty broker). The notification shows the label, e.g. 'Balance $1,000.50 (Deriv demo)'. Nothing chosen = the old behaviour. Binance balance = testnet free USDT + cost of open positions; no floating figure (equity = balance).
 - Not changed: where MT5's numbers come from (the EA's last report, owner's scope ''). If the EA stopped, the card says stale after 2 minutes, but the notification is only sent while an account is online.
 - Tests: tests/test_lv4.py.
+
+
+## Section CY5 (group close, loss limit and auto-cycle on Binance) DONE (Nov 23)
+- backend/binance_group.py + two small hooks in backend/binance_bot.py. Binance spot (testnet, long-only) has no basket, so like Deriv the bot adds the legs of a group up itself: booked profit + live profit of the open legs (qty x price, minus an estimated 0.1% selling fee, minus cost). At the group target, or at the group loss limit (percent of the balance saved when the first leg was bought, kv bg:<grp> bal0), every open leg is sold at market and marked closedby 'basket'.
+- Only after a PROFIT close, with the cycle on, a multi group and every leg sold, deriv_group.reopen() queues the next group (same size, same gates, same daily limit), and only when the bot may trade (plan active, Binance chosen, bot switch on, testnet). A loss-limit close or a failed sell never starts the next group.
+- Waits instead of guessing: a group with a pending, 'sent' or 'closing' leg, or a leg whose price cannot be read, is skipped this round. A leg that cannot be sold stays open and is counted again next round. Each leg still has its own stop loss and take profit.
+- Spot has no stop built in and the bot looks about once a minute, so a fast move can pass the target or the limit.
+- Not tried against the real Binance testnet. Run it there first: a group of 2-3 entries and a small group target, watch the Journal.
+- Tests: tests/test_cy5.py.

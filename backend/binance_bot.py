@@ -88,6 +88,10 @@ def _open_one(uid, key, secret, bal, now, http):
         st.x("UPDATE signals SET status='open',ticket=?,lots=?,fill=?,note='spot',broker='Binance' WHERE id=?", (str(out['order_id']), float(out['net_qty']), float(out['avg']), s['id']))
         st.put('bnpos:%d' % s['id'], json.dumps({'pair': p, 'qty': format(out['net_qty'].normalize(), 'f'), 'cost': str(out['quote']), 'fee_q': str(out['fee_quote'])}))
         _report(uid, s['id'], 'open')
+        try:          # CY5: the group loss limit is a percent of the balance from before this group's first buy
+            if s['grp']:
+                from . import deriv_group; deriv_group.note_open_balance(s['grp'], bal)
+        except Exception as e: print('[binance_bot] group balance note failed', type(e).__name__)
     elif 'may or may not' in str(out.get('msg')):
         st.x("UPDATE signals SET note=? WHERE id=?", ('buy not confirmed, check Binance', s['id']))          # stays 'sent': never retried, so it can never buy twice
     else: _reject(uid, s['id'], out.get('msg') or 'Binance refused the order')
@@ -159,6 +163,10 @@ def _run_once(uid, scan, paid, http, now):
     key, secret = sec['key'], sec['secret']
     ms = int(now * 1000)
     if st.q("SELECT 1 FROM signals WHERE uid=? AND status='open' AND broker='Binance'", (uid,), True): _track(uid, key, secret, http, now)          # always, even if the bot is off
+    try:          # CY5: close a whole group at its profit target or loss limit; after a profit (cycle on, bot allowed to trade) queue the next group
+        from . import binance_group
+        binance_group.check(uid, key, secret, http, now, bool(paid(uid)) and tradeon.get(uid) == 'Binance' and _bot(uid) and bk.mode(uid, 'Binance') != 'real')
+    except Exception as e: print('[binance_bot] group failed', type(e).__name__)
     if not paid(uid): return 'plan ended'
     if tradeon.get(uid) != 'Binance': return 'other platform'          # Binance trades only when it was chosen on purpose
     if not _bot(uid): return 'bot off'
