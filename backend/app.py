@@ -12,6 +12,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
+from . import btc_switch
 from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
 _last_scan = {}
 
@@ -123,6 +124,7 @@ def _scan_tf(sym, uid, tf, hi):
     st.put(key, m15[-1]['t'])
     ok, why = risk.global_gate(uid=uid)
     if ok and risk.crypto_open() and risk.weekend_skip(sym): ok, why = False, 'weekend/Friday-night risk'          # the gate passed only because a BTC market is listed: gold and forex still wait
+    if ok and risk.weekday_skip(sym): return          # B1: Bitcoin weekends-only mode, Bitcoin rests on weekdays
     if not ok: botstate.note(uid, sym, 'gate', why); risk_alerts.gate(uid, why, sym); return
     risk_alerts.watch(uid)
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
@@ -165,6 +167,7 @@ def _burst_scan(sym, uid=''):
     _last_scan[k] = time.time()
     ok, why = burst.look(uid)
     if not ok or (risk.crypto_open() and risk.weekend_skip(sym)): return
+    if risk.weekday_skip(sym): return          # B1: Bitcoin weekends-only mode
     m5 = bars.get(sym, 'M5', uid); tf, hi = ('M5', 'M15') if m5 else ('M15', 'H1')
     m = m5 or bars.get(sym, 'M15', uid); h = bars.get(sym, hi, uid)
     if not m: return
@@ -706,6 +709,20 @@ def admin_feed_set(u):
         st.put('feed_on', '1' if j['on'] else '0')
         if j['on']: threading.Thread(target=lambda: feed.tick(_scan), daemon=True).start()       # first round now, not in a minute
     return jsonify(feed.status())
+
+@app.get('/api/admin/btc')
+@need(admin=True)
+def admin_btc_get(u): return jsonify(btc_switch.status())
+
+@app.post('/api/admin/btc')
+@need(admin=True)
+def admin_btc_set(u):
+    j = _j()
+    if 'on' in j:
+        if not isinstance(j['on'], bool): return jsonify(error='on must be true or false'), 400
+        if 'weekend_only' in j and not isinstance(j['weekend_only'], bool): return jsonify(error='weekend_only must be true or false'), 400
+        btc_switch.set_on(j['on'], j.get('weekend_only', True))
+    return jsonify(btc_switch.status())
 
 @app.get('/api/limits')
 @need(verified=True)

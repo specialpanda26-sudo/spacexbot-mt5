@@ -43,6 +43,10 @@ def weekend_skip(sym, now=None):
     """True = do not trade this market now because of the weekend rule (every market except crypto when the exemption is on)."""
     return weekend_shut(now) and not (st.get('crypto_weekend') != '0' and is_crypto(sym))
 
+def weekday_skip(sym, now=None):
+    """B1: 'weekends only' Bitcoin mode: a crypto market rests on weekdays (gold and forex trade then). Off when btc_mode is not 'weekend' or crypto_weekend = 0."""
+    return is_crypto(sym) and st.get('crypto_weekend') != '0' and st.get('btc_mode') == 'weekend' and not weekend_shut(now)
+
 def global_gate(now=None, uid='', burst=False):
     now = now or time.time(); a = st.acct(uid); d = dt.datetime.utcfromtimestamp(now)
     if not bot_on(uid): return False, 'bot off'
