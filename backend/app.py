@@ -14,7 +14,7 @@ def _boom(e):
     import traceback; print('500', request.path, repr(e)[:300]); traceback.print_exc(); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 from . import btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
-from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck
+from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -182,6 +182,7 @@ def _burst_scan(sym, uid=''):
     orf = stats.regime_off(uid) if (st.get('regime_switch') == '1' or prefs.get(uid)['regime']) else None
     off, solo, _mc = prefs.apply(uid, off, solo, 1)
     info = {}; s = brain.evaluate(m, h, 1, st.fget('rr'), off, solo=solo, info=info, off_reg=orf)
+    if not s: s = burst_free.setup(uid, m)          # BT4: no strategy setup, so plain momentum, capped per hour
     if not s: return
     ok, why = risk.symbol_gate(sym, s['side'], uid=uid, cool=False)
     if not ok: print('burst skip', sym, s['side'], why); return
@@ -189,6 +190,7 @@ def _burst_scan(sym, uid=''):
     if not pl: print('burst skip', sym, why); return
     s.setdefault('why', {})['burst'] = {'kind': pl['kind'], 'n': pl['n'], 'each': pl['each'], 'tf': tf}
     ids = burst.create(uid, sym, s, pl, rsn.pack(s))
+    if s.get('free'): burst_free.mark(uid)          # BT4: counts toward the hourly cap
     sbauth.notify(f"BURST {s['side'].upper()} {sym}", si.alert_body(s['strategy'], s['entry'], s['sl'], s['tp']), key=f'sig{ids[0]}-new', only=uid or None)
     for i in ids: lag.created(i, m[-1]['t'], uid)
     print('burst', pl['kind'], sym, s['side'], pl['n'], 'entries', pl['each'], 'USD each')
@@ -546,7 +548,7 @@ def admin_set(u):
     j = _j()
     for k, lo, hi in (('risk_pct', 0.1, 2.0), ('rr', 1.0, 4.0), ('max_stop_atr', 0.8, 5.0), ('auto_positions', 1, 5), ('stake_very_pct', 0, 50), ('stake_strong_pct', 0, 50), ('stake_max_risk_pct', 0.5, 25),
                      ('max_open', 1, 10), ('max_daily_loss_pct', 0.5, 20), ('max_weekly_loss_pct', 1, 40), ('max_losing_streak', 0, 20), ('streak_cooldown_h', 0, 72),
-                     ('burst_ceiling', 2, 30), ('burst_big_score', 2, 10), ('min_confluence', 1, 6), ('multi_min_score', 2, 10), ('auto_disable_min_trades', 5, 500),
+                     ('burst_ceiling', 2, 30), ('burst_big_score', 2, 10), ('burst_free_per_hour', 0, 12), ('min_confluence', 1, 6), ('multi_min_score', 2, 10), ('auto_disable_min_trades', 5, 500),
                      ('auto_markets_max', 0, 10), ('max_trades_day', 0, 100), ('auto_target_usd', 0, 1000), ('practice_trades_needed', 0, 100),
                      ('news_before_min', 0, 240), ('news_after_min', 0, 240), ('cooldown_min', 0, 1440), ('max_ccy_exposure', 1, 10), ('multi_entries', 1, 10), ('regime_min_trades', 5, 500)):          # AU1: the six numbers that had no field, checked before anything is saved
                                # the three auto-mode numbers: checked before anything is saved

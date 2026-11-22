@@ -843,3 +843,10 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Burst card label: 'Stake per entry ($, Deriv needs 1 or more)'. The default is left at 0.5 on purpose (a saved setting must not change by itself): raise it to 1 on Deriv.
 - MT5 is unaffected: risk percent sets the lot size there, and the burst Stake per entry is not used. Binance has its own sizing (binance_trade.plan_buy refuses an order under Binance's minimum with its own message).
 - Tests: tests/test_sm1.py.
+
+
+## Section BT4 (burst with no strategy signal, capped) DONE (Nov 23)
+- Found: burst only fires when at least one strategy sees a setup on a new 5-minute candle (after the quiet minutes), so a quiet market can stay at 0 trades. Now backend/burst_free.py: when no strategy has a setup, plain momentum (price above a rising 20 EMA = buy, below a falling one = sell, move of 0.2 ATR or more over 3 candles) opens one normal quick burst group. Stop and target 1 ATR each. Strategy name 'burst_free', score 1 (never a big burst).
+- Cap: owner setting burst_free_per_hour (default 2 per person per hour, 0 = off, max 12), on the admin page; counted in kv bfree:<uid>. Every burst rule still applies (quiet minutes, loss limits, ceiling, news lock, symbol gate).
+- Not a tested strategy. Demo only until tools/backtest.py or a demo run says how it does. Deriv still needs a stake of 1 USD or more (see SM1).
+- Tests: tests/test_bt4.py.
