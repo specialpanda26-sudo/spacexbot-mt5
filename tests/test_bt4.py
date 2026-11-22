@@ -53,6 +53,6 @@ T('owner master switch off: nothing opens', rows == []); st.put('burst_enabled',
 risk.global_gate = lambda now=None, uid='', burst=False: (False, 'daily loss limit reached'); rows = run(1.0)
 T('a loss limit still stops it', rows == [])
 src = open(os.path.join(HERE, '..', 'backend', 'app.py'), encoding='utf-8').read()
-T('hooks are in app.py once each', src.count('burst_free.setup(uid, m)') == 1 and src.count('burst_free.mark(uid)') == 1)
+T('hooks are in app.py once each', src.count('burst_free.setup(uid, m') == 1 and src.count('burst_free.mark(uid)') == 1)
 T('owner setting is on the admin page and checked 0 to 12', '"burst_free_per_hour"' in open(os.path.join(HERE, '..', 'static', 'index.html'), encoding='utf-8').read() and "('burst_free_per_hour', 0, 12)" in src)
 n = sum(1 for _, ok in R if ok); print('%d/%d passed' % (n, len(R))); sys.exit(0 if n == len(R) else 1)

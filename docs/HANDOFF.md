@@ -863,3 +863,11 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - backend/burst_live.py: deriv_group.check already reads the live profit of every open member of a group (only groups with a target or loss limit); it now saves it (kv glive:<grp>: t, live, tot, n, tgt). burst.view() returns 'group', one sentence for the burst card ('3 open, profit now +$0.30 of +$10.00 target (updated just now).', or 'live profit not read yet' when no fresh figure). livestats Deriv equity = balance + the fresh live profit of the person's open groups.
 - A figure older than 150 seconds is ignored, never guessed. Groups without a target or limit are not measured. MT5 is unchanged (the EA reports its own equity).
 - Not tried against the real Deriv API: run tools/deriv_probe.py first. Tests: tests/test_bt6.py.
+
+
+## Section BT7 (burst: trade every minute switch) DONE (Nov 23)
+- Owner wish: burst should open 2 or 3 entries every minute, as a rule the person can switch on and off. New per-person burst settings 'minute' (off by default) and 'minute_n' (2 or 3, default 2), on the burst card ('Trade every minute' + 'Entries each minute').
+- When on: burst.due() needs only 1 quiet minute and no longer waits for the last group to close; _burst_scan looks once a minute (not once per candle); a strategy setup is used when there is one, else plain momentum, else (no clear move) the direction of the last 5 candles (burst_free.side_any, a plain guess); burst.plan(uid, score, n=) gives a quick group of that many entries (never big).
+- Cap: owner setting burst_minute_per_hour (default 30, 1 to 60, on the admin page), counted in kv bmin:<uid>. Loss limits, news lock, ceiling, symbol gate and max trades a day still apply. The Last look line says when the cap is reached.
+- Not a tested strategy: forcing trades pays the spread each time. Demo only until a run or tools/backtest.py says how it does. Journal lines per decision were NOT added (the card's Last look line shows the latest decision).
+- Tests: tests/test_bt7.py; three older tests updated for the new keys and counts (test_burst1, test_bt4, test_bt5).

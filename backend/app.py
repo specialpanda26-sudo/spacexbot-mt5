@@ -174,23 +174,27 @@ def _burst_scan(sym, uid=''):
     m = m5 or bars.get(sym, 'M15', uid); h = bars.get(sym, hi, uid)
     if not m: burst_look.note(uid, sym + ': no candles received yet.'); return          # BT5
     key = f'lastbar:{uid}:{sym}:burst'
-    if st.get(key) == str(m[-1]['t']): return          # already looked at this candle
-    st.put(key, m[-1]['t'])
+    mm = burst.get(uid)['minute']          # BT7: trade every minute: one look a minute instead of one per candle
+    stamp = int(time.time() // 60) if mm else m[-1]['t']
+    if st.get(key) == str(stamp): return          # already looked at this candle (or this minute)
+    st.put(key, stamp)
+    if mm and burst_free.used(uid, minute=True) >= burst_free.per_hour(True): burst_look.note(uid, sym + ': every-minute cap reached (%d of %d groups this hour).' % (burst_free.used(uid, minute=True), burst_free.per_hour(True))); return          # BT7
     off = {x for x in (st.get('strategies_off') or '').split(',') if x}
     if st.get('auto_disable') == '1': off |= stats.losers(int(st.fget('auto_disable_min_trades')), uid)
     solo = {x for x in (st.get('strategies_solo') or '').split(',') if x}
     orf = stats.regime_off(uid) if (st.get('regime_switch') == '1' or prefs.get(uid)['regime']) else None
     off, solo, _mc = prefs.apply(uid, off, solo, 1)
     info = {}; s = brain.evaluate(m, h, 1, st.fget('rr'), off, solo=solo, info=info, off_reg=orf)
-    if not s: s = burst_free.setup(uid, m)          # BT4: no strategy setup, so plain momentum, capped per hour
-    if not s: burst_look.note(uid, sym + ': ' + (info.get('text') or 'No strategy setup.') + ' ' + burst_look.free_words(uid, m)); return          # BT5
+    if not s: s = burst_free.setup(uid, m, minute=mm)          # BT4: no strategy setup, so plain momentum, capped per hour (BT7: every minute)
+    if not s: burst_look.note(uid, sym + ': ' + (info.get('text') or 'No strategy setup.') + ' ' + burst_look.free_words(uid, m, mm)); return          # BT5
     ok, why = risk.symbol_gate(sym, s['side'], uid=uid, cool=False)
     if not ok: print('burst skip', sym, s['side'], why); burst_look.note(uid, sym + ': a ' + s['side'] + ' chance was found but it stayed out. ' + botstate._words(why)); return          # BT5
-    pl, why = burst.plan(uid, s['score'])
+    pl, why = burst.plan(uid, s['score'], n=burst.get(uid)['minute_n'] if mm else None)
     if not pl: print('burst skip', sym, why); burst_look.note(uid, sym + ': a chance was found but ' + str(why) + '.'); return          # BT5
     s.setdefault('why', {})['burst'] = {'kind': pl['kind'], 'n': pl['n'], 'each': pl['each'], 'tf': tf}
     ids = burst.create(uid, sym, s, pl, rsn.pack(s))
-    if s.get('free'): burst_free.mark(uid)          # BT4: counts toward the hourly cap
+    if s.get('free') and not mm: burst_free.mark(uid)          # BT4: counts toward the hourly cap
+    if mm: burst_free.mark(uid, minute=True)          # BT7: counts toward the every-minute hourly cap
     sbauth.notify(f"BURST {s['side'].upper()} {sym}", si.alert_body(s['strategy'], s['entry'], s['sl'], s['tp']), key=f'sig{ids[0]}-new', only=uid or None)
     for i in ids: lag.created(i, m[-1]['t'], uid)
     print('burst', pl['kind'], sym, s['side'], pl['n'], 'entries', pl['each'], 'USD each')
@@ -549,7 +553,7 @@ def admin_set(u):
     j = _j()
     for k, lo, hi in (('risk_pct', 0.1, 2.0), ('rr', 1.0, 4.0), ('max_stop_atr', 0.8, 5.0), ('auto_positions', 1, 5), ('stake_very_pct', 0, 50), ('stake_strong_pct', 0, 50), ('stake_max_risk_pct', 0.5, 25),
                      ('max_open', 1, 10), ('max_daily_loss_pct', 0.5, 20), ('max_weekly_loss_pct', 1, 40), ('max_losing_streak', 0, 20), ('streak_cooldown_h', 0, 72),
-                     ('burst_ceiling', 2, 30), ('burst_big_score', 2, 10), ('burst_free_per_hour', 0, 12), ('min_confluence', 1, 6), ('multi_min_score', 2, 10), ('auto_disable_min_trades', 5, 500),
+                     ('burst_ceiling', 2, 30), ('burst_big_score', 2, 10), ('burst_free_per_hour', 0, 12), ('burst_minute_per_hour', 1, 60), ('min_confluence', 1, 6), ('multi_min_score', 2, 10), ('auto_disable_min_trades', 5, 500),
                      ('auto_markets_max', 0, 10), ('max_trades_day', 0, 100), ('auto_target_usd', 0, 1000), ('practice_trades_needed', 0, 100),
                      ('news_before_min', 0, 240), ('news_after_min', 0, 240), ('cooldown_min', 0, 1440), ('max_ccy_exposure', 1, 10), ('multi_entries', 1, 10), ('regime_min_trades', 5, 500)):          # AU1: the six numbers that had no field, checked before anything is saved
                                # the three auto-mode numbers: checked before anything is saved

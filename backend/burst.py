@@ -18,7 +18,7 @@ import json, time
 from . import store as st, links, risk, limits, multi, groupcap, burst_look, burst_live
 
 HI = 30
-DEF = {'on': False, 'idle_min': 5, 'quick_n': 5, 'big_n': 15, 'quick_usd': 0.5, 'big_usd': 1.0, 'giveback': 40, 'stake_usd': 0.5}
+DEF = {'on': False, 'idle_min': 5, 'quick_n': 5, 'big_n': 15, 'quick_usd': 0.5, 'big_usd': 1.0, 'giveback': 40, 'stake_usd': 0.5, 'minute': False, 'minute_n': 2}
 KEYS = tuple(DEF)
 USD_LO, USD_HI = 0.05, 1000.0
 
@@ -65,7 +65,8 @@ def get(uid=''):
             'quick_usd': round(_clamp(j.get('quick_usd'), USD_LO, USD_HI, DEF['quick_usd'], float), 2),
             'big_usd': round(_clamp(j.get('big_usd'), USD_LO, USD_HI, DEF['big_usd'], float), 2),
             'giveback': _clamp(j.get('giveback'), 0, 90, DEF['giveback']),
-            'stake_usd': round(_clamp(j.get('stake_usd'), 0, USD_HI, DEF['stake_usd'], float), 2)}
+            'stake_usd': round(_clamp(j.get('stake_usd'), 0, USD_HI, DEF['stake_usd'], float), 2),
+            'minute': j.get('minute') is True, 'minute_n': _clamp(j.get('minute_n'), 2, 3, DEF['minute_n'])}          # BT7
 
 
 def _whole(v, lo, hi, name):
@@ -92,6 +93,10 @@ def save(uid, d):
         if not isinstance(d['on'], bool): raise ValueError('on must be true or false')
         new['on'] = d['on']
     if 'idle_min' in d: new['idle_min'] = _whole(d['idle_min'], 1, 60, 'Quiet minutes')
+    if 'minute' in d:          # BT7
+        if not isinstance(d['minute'], bool): raise ValueError('minute must be true or false')
+        new['minute'] = d['minute']
+    if 'minute_n' in d: new['minute_n'] = _whole(d['minute_n'], 2, 3, 'Entries each minute')
     if 'quick_n' in d: new['quick_n'] = _whole(d['quick_n'], 1, c, 'Quick burst entries')
     if 'big_n' in d: new['big_n'] = _whole(d['big_n'], 1, c, 'Big burst entries')
     if 'quick_usd' in d: new['quick_usd'] = _money(d['quick_usd'], 'Quick target')
@@ -147,9 +152,10 @@ def due(uid='', now=None):
     if not p['on']: return False, 'burst mode is off'
     ok, why = risk.global_gate(now, uid=uid, burst=True)
     if not ok: return False, why
-    if active(uid): return False, 'a burst is already running'
-    quiet = int(now - quiet_since(uid))
-    if quiet < p['idle_min'] * 60: return False, 'quiet for %d of %d minutes' % (quiet // 60, p['idle_min'])
+    mm = p.get('minute') is True          # BT7: trade every minute: a new group every minute, even while the last one is still open
+    if active(uid) and not mm: return False, 'a burst is already running'
+    quiet = int(now - quiet_since(uid)); need = 1 if mm else p['idle_min']
+    if quiet < need * 60: return False, 'quiet for %d of %d minutes' % (quiet // 60, need)
     return True, 'ok'
 
 
@@ -160,10 +166,10 @@ def look(uid='', now=None):
     return ok, why
 
 
-def plan(uid, score, now=None):
+def plan(uid, score, now=None, n=None):
     """-> (plan or None, why). The kind and size of the burst for a setup that `score` strategies agree on."""
-    p = get(uid); big = int(score or 0) >= big_score() and p['big_n'] > p['quick_n']
-    want = p['big_n'] if big else p['quick_n']
+    p = get(uid); big = n is None and int(score or 0) >= big_score() and p['big_n'] > p['quick_n']          # BT7: an entries number given (every minute) is never a big burst
+    want = n if n else p['big_n'] if big else p['quick_n']
     room = ceiling() - risk.open_count(uid)
     mt = limits.trades(uid)
     if mt > 0:

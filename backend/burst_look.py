@@ -27,11 +27,11 @@ def last(uid='', now=None):
     return None if age > OLD else {'why': str(j['why']), 'ago': ago(age)}
 
 
-def free_words(uid, m):
+def free_words(uid, m, minute=False):
     """Why the no-strategy burst (BT4) did not open either. Empty text when it did not need to say anything."""
-    n = bf.per_hour()
+    n = bf.per_hour(minute)
     if n <= 0: return 'Burst without a strategy signal is off.'
-    u = bf.used(uid)
+    u = bf.used(uid, minute=minute)
     if u >= n: return 'Hourly cap reached (%d of %d groups).' % (u, n)
-    if bf.side(m) is None: return 'No clear price move either.'
+    if bf.side(m) is None and not (minute and bf.side_any(m)): return 'No clear price move either.'
     return ''
