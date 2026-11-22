@@ -186,6 +186,11 @@ def _run_once(uid, scan, paid, connect, http, now):
         try: _track(sess, uid, acct)
         except ConnectionError: raise
         except Exception as e: print('[deriv] track failed', repr(e)[:100])
+        try:          # CY2: close a whole group at its profit target, then (cycle on) queue the next group; the trade step below opens it
+            from . import deriv_group
+            if deriv_group.check(sess, uid, acct, now): _resnap(sess, uid, acct)
+        except ConnectionError: raise
+        except Exception as e: print('[deriv] group failed', repr(e)[:100])
         syms = [x.strip() for x in (st.get('symbols') or '').split(',') if x.strip()][:8]
         for sym in syms:
             try:
