@@ -15,6 +15,7 @@ INFO = {
     'gold_scalp': ('Liquidity sweep scalp', 'In a 15m demand/supply zone, price sweeps a swing low/high and closes back; 1h and 15m trends agree (video 5).'),
     'gold_scalp_c': ('Sweep scalp (safe entry)', 'Same as the sweep scalp, but waits for a market shift and a pullback into the zone that caused it before entering (video 5).'),
     'orb_entry': ('Opening range breakout', 'New York 9:30 range breaks out on big candles; enters when price returns to the zone or gap and holds (video 4).'),
+    'orb_session': ('ORB + session bias', 'The opening range trade, only when Asia and London agree: one side swept = New York reverses, both = continues. Off until on.'),
     'btc_range': ('BTC range reaction', 'Range break, price falls back inside, a candle reacts in the discount (buy) or premium (sell) quarter; 8h to 30m (BTC video).'),
     'btc_sunday_bounce': ('BTC Sunday bounce', 'After a big Friday sell-off, buys the first bounce in the Sunday open window, target the 0.382 fib. Off until switched on (video 2).'),
     'btc_pullback_short': ('BTC pullback short', 'With the 4h trend down, sells only after a pullback to the 4h 50 EMA or a bear-flag breakdown. Off until switched on (video 3).'),
