@@ -3449,12 +3449,11 @@ build()})();
 })();
 </script>
 
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="sxNavG" gradientUnits="userSpaceOnUse" x1="3" y1="2" x2="21" y2="22"><stop offset="0" stop-color="#A6F5BC"/><stop offset=".5" stop-color="#3CCB68"/><stop offset="1" stop-color="#13803B"/></linearGradient></defs></svg>
 <style id="nav1">
-/* nav1: active tab icon is filled with a green gradient, no square behind it */
+/* nav1: active tab icon is the normal site green (var(--green)), no square behind it */
 .nav button[aria-current="page"]{color:var(--green)}
 @media (max-width:899px){.nav button[aria-current="page"]{background:none}}
-.nav button[aria-current="page"] svg:not(.mk){fill:none;stroke:url(#sxNavG);stroke-width:2.6}
+.nav button[aria-current="page"] svg:not(.mk){fill:none;stroke:var(--green);stroke-width:2.6}
 .nav button[aria-current="page"] svg:not(.mk) *{stroke-dasharray:80;animation:sxNavDraw .7s var(--ease) both}
 @keyframes sxNavDraw{from{stroke-dashoffset:80}to{stroke-dashoffset:0}}
 @media (prefers-reduced-motion:reduce){.nav button[aria-current="page"] svg:not(.mk) *{animation:none}}
