@@ -33,7 +33,7 @@ for m, p in (('DELETE', '/api/v3/order'), ('POST', '/sapi/v1/capital/withdraw/ap
     try: bt._call(m, p, KEY, SEC, http=fake()[0]); bad += 1
     except ValueError: pass
 T('no withdraw, transfer, margin, futures or DELETE call can be made', bad == 0)
-T('only 6 method+path pairs are allowed', len(bt.ALLOWED) == 6 and all(p.startswith('/api/v3/') for _, p in bt.ALLOWED))
+T('only 7 method+path pairs are allowed', len(bt.ALLOWED) == 7 and all(p.startswith('/api/v3/') for _, p in bt.ALLOWED))
 src = open(os.path.join(ROOT, 'backend', 'binance.py'), encoding='utf-8').read()
 T('the Section 2 file binance.py is still read-only (no POST, no orders)', 'requests.post' not in src and "'POST'" not in src and 'requests.get' in src)
 

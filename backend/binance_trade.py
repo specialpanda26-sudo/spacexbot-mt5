@@ -1,5 +1,5 @@
 """Binance SPOT trading, Section 5B-1: the ORDER LAYER only. TESTNET ONLY. Nothing in the app calls this file yet (5B-2 wires the bot, 5B-3 adds Real).
-Safety, on purpose: (1) the address is fixed to Binance's TESTNET (testnet.binance.vision, fake money); no env var can change it. (2) Only the 6 (method, path) pairs in ALLOWED
+Safety, on purpose: (1) the address is fixed to Binance's TESTNET (testnet.binance.vision, fake money); no env var can change it. (2) Only the 7 (method, path) pairs in ALLOWED
 can ever be called: no DELETE, no /sapi, so no withdrawal, transfer or margin call exists here. (3) Spot is long-only: BUY opens, SELL closes what we hold; no shorting.
 (4) Every order carries a client id, so a repeated send is refused by Binance instead of buying twice. (5) Keys are only used to sign; they are never put in a message or a log.
 binance.py (the Section 2 key check) stays read-only and is untouched."""
@@ -9,7 +9,7 @@ from decimal import Decimal, ROUND_DOWN, InvalidOperation
 TEST_BASE = 'https://testnet.binance.vision'
 BASE = lambda: TEST_BASE                                    # fixed: 5B-3 is where a Real address may ever be added
 ALLOWED = (('GET', '/api/v3/time'), ('GET', '/api/v3/exchangeInfo'), ('GET', '/api/v3/ticker/price'), ('GET', '/api/v3/account'),
-           ('POST', '/api/v3/order'), ('GET', '/api/v3/order'))
+           ('POST', '/api/v3/order'), ('GET', '/api/v3/order'), ('GET', '/api/v3/klines'))
 SYM = re.compile(r'^[A-Z0-9]{5,12}$')
 
 def _http(method, path, key, qs):
@@ -87,8 +87,9 @@ def plan_buy(stake, price, r):
 def _result(j, base):
     ex = _d(j.get('executedQty')); cq = _d(j.get('cummulativeQuoteQty'))
     fee = sum((_d(x.get('commission')) for x in (j.get('fills') or []) if x.get('commissionAsset') == base), Decimal(0))
+    feeq = sum((_d(x.get('commission')) for x in (j.get('fills') or []) if x.get('commissionAsset') == 'USDT'), Decimal(0))
     return {'ok': True, 'order_id': j.get('orderId'), 'status': j.get('status'), 'qty': ex, 'net_qty': ex - fee, 'quote': cq,
-            'avg': (cq / ex) if ex > 0 else Decimal(0), 'fee_base': fee}
+            'avg': (cq / ex) if ex > 0 else Decimal(0), 'fee_base': fee, 'fee_quote': feeq}
 
 def market(key, secret, r, side, qty, cid, http=None, now_ms=None):
     """One MARKET order. -> result dict (ok True/False, plain `msg` when not ok). A refused or failed send never raises."""
