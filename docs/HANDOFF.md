@@ -730,3 +730,10 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Not built: price-past-TP/SL hint (needs a recent candle price), reminder push for old taken trades (ask the owner before adding a notification kind).
 - Flaky: test_n4 check 9, test_feed. Known failure: test_rk5.
 - Next: D4, an account tag (FBS or Deriv MT5) on each Take. Still waiting on what the learner cards say on the live site.
+
+## D4 done
+- Phone mode: pick FBS or Deriv MT5 above "Take it". It is only a label saved with the take (assist_log.acct, added safely to old databases), shown on the running-trades card. Nothing trades for the person.
+- Backend: assist.take(..., acct=), assist.running() returns acct, POST /api/assist/take passes acct. Frontend: acctPick() inside the A4 block of static/index.html; running.js shows the label.
+- Tests: tests/test_d4.py (9), tests/test_d4b.py (8). Patches: apply_d4a_acct.py, apply_d4b_picker.py, apply_d4c_fix.py (moved acctPick into the A4 block so tests/test_sigtext.py can run the card code alone).
+- Checked with the related tests only (every test that mentions assist, plus d3, d4).
+- Next: owner to confirm on the live site what the three learner cards say and whether the running card appears after a Take.

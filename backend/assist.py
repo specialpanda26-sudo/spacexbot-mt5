@@ -29,6 +29,8 @@ def init():
     st.x('CREATE TABLE IF NOT EXISTS assist(uid TEXT PRIMARY KEY,enabled INTEGER DEFAULT 0,balance DOUBLE PRECISION,risk DOUBLE PRECISION,updated BIGINT)')
     st.x('CREATE TABLE IF NOT EXISTS assist_log(uid TEXT,sid BIGINT,action TEXT,ts BIGINT,lots DOUBLE PRECISION,outcome TEXT,pnl DOUBLE PRECISION,done BIGINT,PRIMARY KEY(uid,sid))')
     st.x('CREATE INDEX IF NOT EXISTS ix_assist_log_uid ON assist_log(uid,ts)')
+    try: st.x('ALTER TABLE assist_log ADD COLUMN ' + ('IF NOT EXISTS ' if st.PG else '') + 'acct TEXT')
+    except Exception: pass     # the column is already there
     if st.PG:
         st.x('ALTER TABLE assist ENABLE ROW LEVEL SECURITY'); st.x('ALTER TABLE assist_log ENABLE ROW LEVEL SECURITY')   # nobody reads these through Supabase's public API
 
@@ -122,11 +124,11 @@ def stats(uid):
 def running(uid, now=None):
     # taken trades with no result logged yet (read-only; the server cannot see the MT5 app)
     now = now or time.time()
-    rows = st.q('SELECT l.sid AS id,l.ts AS ts,l.lots AS lots,s.symbol AS symbol,s.side AS side,s.entry AS entry,s.sl AS sl,s.tp AS tp '
+    rows = st.q('SELECT l.sid AS id,l.ts AS ts,l.lots AS lots,l.acct AS acct,s.symbol AS symbol,s.side AS side,s.entry AS entry,s.sl AS sl,s.tp AS tp '
                 'FROM assist_log l JOIN signals s ON s.id=l.sid '
                 "WHERE l.uid=? AND l.action='taken' AND (l.outcome IS NULL OR l.outcome='') ORDER BY l.ts DESC LIMIT 20", (uid,))
     return [{'id': r['id'], 'symbol': r['symbol'], 'side': r['side'], 'entry': r['entry'], 'sl': r['sl'], 'tp': r['tp'], 'lots': r['lots'],
-             'since': r['ts'], 'minutes': max(0, int((now - r['ts']) // 60))} for r in rows]
+             'acct': r['acct'], 'since': r['ts'], 'minutes': max(0, int((now - r['ts']) // 60))} for r in rows]
 
 # ---------- take / skip / result ----------
 def _signal(sid):
@@ -138,13 +140,16 @@ def _signal(sid):
 
 def _log(uid, sid): return st.q('SELECT * FROM assist_log WHERE uid=? AND sid=?', (uid, sid), True)
 
-def take(uid, sid, now=None):
+ACCTS = {'fbs': 'FBS', 'deriv mt5': 'Deriv MT5'}      # which MT5 account it was taken on (a label only)
+
+def take(uid, sid, now=None, acct=None):
+    acct = ACCTS.get(str(acct or '').strip().lower())
     now = now or time.time(); sg = _signal(sid); lg = _log(uid, sg['id'])
     if lg and lg['action'] == 'taken': return {'ok': True, 'repeat': True}
     if now > sg['created'] + WINDOW: raise ValueError('Too late: this signal is over %d minutes old and the price has probably moved.' % (WINDOW // 60))
     s = get(uid); z = size(sg['symbol'], sg['entry'], sg['sl'], sg['tp'], s['balance'], s['risk']) if s['balance'] else {'lots': None}
-    if lg: st.x("UPDATE assist_log SET action='taken',ts=?,lots=? WHERE uid=? AND sid=?", (int(now), z.get('lots'), uid, sg['id']))      # changed their mind after skipping
-    else: st.x("INSERT INTO assist_log(uid,sid,action,ts,lots) VALUES(?,?,'taken',?,?) ON CONFLICT(uid,sid) DO NOTHING", (uid, sg['id'], int(now), z.get('lots')))
+    if lg: st.x("UPDATE assist_log SET action='taken',ts=?,lots=?,acct=? WHERE uid=? AND sid=?", (int(now), z.get('lots'), acct, uid, sg['id']))      # changed their mind after skipping
+    else: st.x("INSERT INTO assist_log(uid,sid,action,ts,lots,acct) VALUES(?,?,'taken',?,?,?) ON CONFLICT(uid,sid) DO NOTHING", (uid, sg['id'], int(now), z.get('lots'), acct))
     return {'ok': True, 'lots': z.get('lots')}
 
 def skip(uid, sid, now=None):

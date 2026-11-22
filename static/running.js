@@ -12,7 +12,7 @@
   var R = null, ERR = false, LH = "";
   function row(t) {
     return '<div style="border:2px solid var(--surface2);border-radius:16px;padding:10px 14px;margin-top:10px">' +
-      '<div class="card-head" style="margin:0"><h2 style="font-size:16px">' + (t.side === "buy" ? "BUY " : "SELL ") + esc(t.symbol) + '</h2><span class="chip info">' + esc(span(t.minutes)) + '</span></div>' +
+      '<div class="card-head" style="margin:0"><h2 style="font-size:16px">' + (t.side === "buy" ? "BUY " : "SELL ") + esc(t.symbol) + '</h2><span class="chip info">' + (t.acct ? esc(t.acct) + " \u00b7 " : "") + esc(span(t.minutes)) + '</span></div>' +
       '<p class="note">Entry ' + num(t.entry) + " · SL " + num(t.sl) + " · TP " + num(t.tp) + " · " + (t.lots == null ? "lots not set" : num(t.lots) + " lots") + "</p></div>";
   }
   function draw() {

@@ -512,7 +512,7 @@ def assist_set(u):
 @need(verified=True, active=True)
 def assist_take(u):
     if not u['admin'] and not assist.is_on(u['uid']): return jsonify(error='Turn phone mode on first.'), 400
-    return _assist_do(u, lambda: assist.take(u['uid'], _j().get('id')))
+    return _assist_do(u, lambda: assist.take(u['uid'], _j().get('id'), acct=_j().get('acct')))
 
 @app.post('/api/assist/skip')
 @need(verified=True)

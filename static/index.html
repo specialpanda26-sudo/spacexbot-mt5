@@ -3322,6 +3322,7 @@ build()})();
   if (!vc || !window.SXA) return;
   var P = document.createElement("div"); P.className = "card"; P.id = "phonec";
   var mt = document.getElementById("mt5c"); vc.insertBefore(P, mt ? mt.nextSibling : vc.firstChild);
+  var ACCT = "FBS";      /* which MT5 account the next Take is for (a label only) */
   var D = null, ERR = "", BUSY = false, UID = null, SIG = "", RES = null;       /* RES = {id, outcome} while an amount is being typed */
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -3333,6 +3334,12 @@ build()})();
   function head(chip) { return '<div class="card-head"><h2>Phone mode</h2>' + (chip || "") + "</div>"; }
 
   /*A4-start*/
+  function acctPick() {
+    var h = '<div class="jrow" style="margin-top:8px"><span class="note" style="align-self:center">Taking it on:</span>';
+    ["FBS", "Deriv MT5"].forEach(function (n) { h += '<button class="btn' + ((typeof ACCT !== "undefined" ? ACCT : "FBS") === n ? " primary" : "") + '" type="button" data-act="acct" data-a="' + n + '">' + n + "</button>"; });
+    return h + "</div>";
+  }
+
   function stratLine(s) {      /* readable strategy name: the server sends strategy_name; an older reply only has the raw id */
     var n = s.strategy_name || (s.strategy ? String(s.strategy).replace(/_/g, " ").replace(/\+/g, " + ") : "");
     if (!s.strategy_name && n) n = n.charAt(0).toUpperCase() + n.slice(1);
@@ -3347,7 +3354,7 @@ build()})();
     h += '<p class="note">Entry about ' + esc(s.entry) + " · Stop-loss " + esc(s.sl) + " · Take-profit " + esc(s.tp) + "<br>Found " + ago(s.created) + (s.state === "new" ? ". Take it within " + left + " min." : ".") + "</p>";
     if (z.lots) h += '<p class="note" style="font-weight:800;color:var(--fg)">Suggested size: ' + esc(z.lots.toFixed(2)) + " lots. Risks about " + usd(z.risk_usd) + ", could make about " + usd(z.win_usd) + ".</p>";
     else if (z.why) h += '<p class="note">' + esc(z.why) + "</p>";
-    if (s.state === "new" || (s.state === "skipped" && left > 0)) h += '<div class="jrow"><button class="btn primary" data-act="take" data-id="' + s.id + '"' + (BUSY ? " disabled" : "") + '>Take it</button>' + (s.state === "new" ? '<button class="btn" data-act="skip" data-id="' + s.id + '"' + (BUSY ? " disabled" : "") + ">Skip</button>" : "") + "</div>";
+    if (s.state === "new" || (s.state === "skipped" && left > 0)) h += acctPick() + '<div class="jrow"><button class="btn primary" data-act="take" data-id="' + s.id + '"' + (BUSY ? " disabled" : "") + '>Take it</button>' + (s.state === "new" ? '<button class="btn" data-act="skip" data-id="' + s.id + '"' + (BUSY ? " disabled" : "") + ">Skip</button>" : "") + "</div>";
     else if (s.state === "late") h += '<div class="jrow"><button class="btn" data-act="skip" data-id="' + s.id + '"' + (BUSY ? " disabled" : "") + ">Skip</button></div>";
     else if (s.state === "taken") {
       if (RES && RES.id === s.id) {
@@ -3413,8 +3420,9 @@ build()})();
     var a = b.dataset.act, id = Number(b.dataset.id);
     if (a === "save") return run(function () { return api("/api/assist/settings", "POST", settings()); }, "Saved");
     if (a === "onoff") return run(function () { return api("/api/assist/settings", "POST", settings({ on: !D.on })); }, D.on ? "Phone mode off" : "Phone mode on");
-    if (a === "take") return run(function () { return api("/api/assist/take", "POST", { id: id }); }, "Marked as taken. Place it in MT5 now.");
+    if (a === "take") return run(function () { return api("/api/assist/take", "POST", { id: id, acct: ACCT }); }, "Marked as taken. Place it in MT5 now.");
     if (a === "skip") return run(function () { return api("/api/assist/skip", "POST", { id: id }); }, "Skipped");
+    if (a === "acct") { ACCT = b.dataset.a === "Deriv MT5" ? "Deriv MT5" : "FBS"; return paint(true); }
     if (a === "res") { RES = { id: id, outcome: b.dataset.o }; return paint(true); }
     if (a === "rno") { RES = null; return paint(true); }
     if (a === "rgo") {
