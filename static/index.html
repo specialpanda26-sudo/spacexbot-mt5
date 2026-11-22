@@ -930,7 +930,7 @@ function analyse(p){
 function genSeries(p,n){var rr=rng(p.s.charCodeAt(0)*31+p.s.charCodeAt(3)),a=analyse(p),pv=[],c=p.p*(a.up?.985:1.012);
   for(var i=0;i<n;i++){c+=(p.p-c)*.04+p.p*(rr()-.5)*.003;pv.push(c)}pv[n-1]=p.p;return pv}
 PAIRS.forEach(function(p){p.series=genSeries(p,40)});
-var NEWS=[{m:95,c:"USD",e:"Core PCE Price Index",i:"high"},{m:240,c:"EUR",e:"ECB President speaks",i:"high"},{m:420,c:"GBP",e:"Retail Sales m/m",i:"med"},{m:1500,c:"JPY",e:"BoJ Summary of Opinions",i:"med"},{m:1800,c:"USD",e:"Unemployment Claims",i:"low"}];
+var NEWS=[],NEWSST="load";/*FD3: the real calendar, filled by loadNews() from GET /api/news; nothing is invented*/
 var SXJ={rows:[],total:0,stats:null,pairs:[],brokers:[],broker:"",state:"idle"};/* the person's REAL closed trades, filled by the S6 block from GET /api/journal. state: idle | out (signed out) | load | ok | err. There is no sample data any more. */
 window.SXJ=SXJ;window.jmsg=jmsg;window.renderTrades=renderTrades;/* S2: share with the other script blocks (Journal, Stats, S6 loader) */
 function jmsg(){return SXJ.state==="out"?"Sign in to see your trades.":SXJ.state==="err"?"Cannot load your trades right now. Check your internet and try again.":SXJ.state==="ok"?"No trades yet. Your closed trades show up here after your broker closes some. Nothing on this screen is invented.":"Loading your trades..."}
@@ -1008,7 +1008,8 @@ function renderCards(){
     return '<div style="position:relative"><button type="button" class="pcard" data-open="'+p.s+'" aria-label="Open '+p.s+' analysis"><div class="pthumb '+a.cls+'">'+spark(p.series,col)+'<span class="pbadge">'+a.setup+'</span></div><div class="pmeta"><b>'+p.s+'</b><b class="num">'+p.p.toFixed(p.d)+'</b></div><div class="psub"><span>RSI '+p.rsi+' · '+(a.up?"Uptrend":"Downtrend")+'</span><span class="num '+(p.chg>=0?"good":"bad")+'">'+(p.chg>=0?"+":"")+p.chg.toFixed(2)+'%</span></div></button>'+
       '<button type="button" class="fav" data-fav="'+p.s+'" aria-pressed="'+fav+'" aria-label="Save '+p.s+'"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.500-7-10a4 4 0 0 1 7-2.500A4 4 0 0 1 19 10c0 5.500-7 10-7 10z"/></svg></button></div>'}).join("")||'<p class="note">No pairs match. Try another search or category.</p>';
 }
-function renderNews(){$("#newsList").innerHTML=NEWS.map(function(n){return '<li class="row"><span class="ic nw">'+ICON_NEWS+'</span><span class="t">'+n.c+' · '+esc(n.e)+'</span><span class="r"><span class="chip '+(n.i==="high"?"stop":n.i==="med"?"watch":"")+'">'+({high:"High",med:"Medium",low:"Low"})[n.i]+'</span></span><span class="s">in '+fmtIn(n.m)+'</span></li>'}).join("")}
+function renderNews(){var L=$("#newsList");if(!L)return;if(!NEWS.length){L.innerHTML='<li class="row"><span class="t" style="grid-column:1/4">'+(NEWSST==="load"?"Loading the calendar...":NEWSST==="err"?"The calendar could not be loaded right now. Try again in a few minutes.":"No high or medium impact events left this week.")+'</span></li>';return}L.innerHTML=NEWS.map(function(n){return '<li class="row"><span class="ic nw">'+ICON_NEWS+'</span><span class="t">'+esc(n.c)+' · '+esc(n.e)+'</span><span class="r"><span class="chip '+(n.i==="high"?"stop":n.i==="med"?"watch":"")+'">'+({high:"High",med:"Medium",low:"Low"})[n.i]+'</span></span><span class="s">in '+fmtIn(n.m)+'</span></li>'}).join("")}
+function loadNews(){fetch("/api/news").then(function(r){return r.ok?r.json():Promise.reject()}).then(function(j){if(!j||!j.loaded){NEWS=[];NEWSST="err"}else{NEWS=(j.events||[]).map(function(e){return{m:e.in_min,c:e.ccy||"",e:e.title||"",i:e.impact==="medium"?"med":e.impact}});NEWSST="ok"}renderNews()},function(){NEWS=[];NEWSST="err";renderNews()})}/*FD3*/
 var lastFocus=null;
 function openSheet(sym){
   var p=PAIRS.filter(function(x){return x.s===sym})[0];if(!p)return;var a=analyse(p),fav=S.fav.indexOf(p.s)>=0;
@@ -1214,7 +1215,7 @@ window.addEventListener("scroll",function(){document.body.classList.toggle("scro
 applyFold();
 
 /* ---------- boot ---------- */
-renderBot();renderCats();renderFilters();renderCards();renderNews();renderBotSettings();renderTrades();renderConnect();applyTheme();
+renderBot();renderCats();renderFilters();renderCards();renderNews();loadNews();setInterval(loadNews,600000);renderBotSettings();renderTrades();renderConnect();applyTheme();
 show(location.hash.slice(1)||"welcome");
 booted=true;
 })();

@@ -53,3 +53,16 @@ def next_high(now=None, ccy=None):
     return None
 
 def loaded(): return _rows is not None
+
+def upcoming(now=None, limit=8, impact=('high', 'medium')):
+    """FD3: the real calendar for the page. [{in_min, ccy, title, impact}], soonest first, only events still ahead."""
+    now = now or time.time()
+    with _lock: _fetch()
+    out = []
+    for r in (_rows or []):
+        try: t = dt.datetime.fromisoformat(r['date']).timestamp()
+        except Exception: continue
+        imp = (r.get('impact') or '').lower()
+        if imp in impact and t >= now: out.append((t, {'in_min': int((t - now) / 60), 'ccy': r.get('country'), 'title': r.get('title'), 'impact': imp}))
+    out.sort(key=lambda x: x[0])
+    return [e for _, e in out[:limit]]

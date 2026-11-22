@@ -557,6 +557,12 @@ def status(u):
                    news_lock=st.get('news_lock') == '1', exposure=risk.exposure(sc), demo=a.get('demo'),
                    strategies=[f.__name__ for f in __import__('backend.strategies', fromlist=['ALL']).ALL], off=[x for x in (st.get('strategies_off') or '').split(',') if x])
 
+@app.get('/api/news')
+def news_list():
+    """FD3: public, read-only. The real week's high and medium impact events still ahead (same feed as the news lock). loaded=false means the feed could not be read yet."""
+    ev = news.upcoming()
+    return jsonify(loaded=news.loaded(), events=ev)
+
 @app.get('/api/bridge')
 @need(verified=True)
 def bridge_api(u):
