@@ -93,7 +93,7 @@ def reopen(uid, parent, m, first, spot, now=None):
     if not r: return _why(uid, 'cycle off', None)
     if used_today(uid, now) >= r['max_per_day']: return _why(uid, 'daily limit of %d new groups reached' % r['max_per_day'], None)
     spot = _f(spot)
-    if not spot or spot <= 0: return _why(uid, 'no price from Deriv', None)
+    if not spot or spot <= 0: return _why(uid, 'no current price', None)
     sym, side = first['symbol'], first['side']
     e, sl, tp = _f(first['entry']), _f(first['sl']), _f(first['tp'])
     if not e or sl is None or tp is None or sl == e or tp == e: return _why(uid, 'the old stop or target is unreadable', None)

@@ -207,6 +207,9 @@ def ea_sync():
         ok = {x.strip() for x in (st.get('symbols') or '').split(',') if x.strip()}
         bz = {s: v for s, v in list(bz.items())[:12] if s in ok}                                                        # only the owner's symbol list
     st.set_acct(a, who)
+    try:          # CY4: a next group that had to wait for the account snapshot to catch up is tried again now
+        from . import mt5_cycle; mt5_cycle.retry(who)
+    except Exception as e: print('cycle retry failed', str(e)[:120])
     for sym, tfs in bz.items():
         for tf, rows in (tfs.items() if isinstance(tfs, dict) else ()):
             if who and (tf not in ('M5', 'M15', 'H1') or not isinstance(rows, list)): continue
@@ -268,6 +271,10 @@ def ea_report():
         if stt == 'be': push.notify(5, f'sig{sid}-be', sym=sy, **aud)
         elif stt == 'partial': push.notify(6, f'sig{sid}-partial-{int(time.time() // 60)}', sym=sy, pnl=d.get('pnl'), **aud)
         else: push.notify(9, f'sig{sid}-pending-{str(d.get("state") or "")[:20]}', sym=sy, state=str(d.get('state') or '')[:20], **aud)
+    if stt == 'closed' and str(d.get('reason')) == 'basket':          # CY4: the last entry of a group the EA closed at its target may start the next group
+        try:
+            from . import mt5_cycle; mt5_cycle.after_close(who, sid, d.get('price'))
+        except Exception as e: print('cycle failed', str(e)[:120])
     if stt == 'rejected':
         rs = str(d.get('reason') or '')[:80]; sy = (st.q('SELECT symbol FROM signals WHERE id=?', (sid,), True) or {}).get('symbol', '')
         if rs == 'spread too wide': push.notify(25, f'spread-{sy}-{int(time.time() // 600)}', sym=sy, **aud)          # N5: the EA's exact phrase; one alert per market per 10 minutes (a burst rejects many ids at once)
