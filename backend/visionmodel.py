@@ -20,7 +20,7 @@ MODEL_OK = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$')
 TIMEOUT = 25
 
 def provider():
-    p = st.get('vision_provider') or DEFAULT
+    p = st.get('vision_provider') or os.getenv('VISION_PROVIDER', '').strip().lower() or DEFAULT          # PH4: Render variable VISION_PROVIDER
     return p if p in PROVIDERS else DEFAULT
 
 def model_for(p):
