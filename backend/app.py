@@ -12,7 +12,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import btc_switch, tradeon, course, roadmap, guide, deriv_oauth
+from . import btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
 from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
 _last_scan = {}
 
@@ -623,6 +623,20 @@ def course_quiz(u):
     try: r = course.grade(u['uid'], str(j.get('lesson') or ''), j.get('answers'))
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, 'lesson': str(j.get('lesson'))[:20], 'score': r['score']})
+    return jsonify(r)
+
+@app.get('/api/admin/testlab')
+@need(admin=True)
+def testlab_list(u):
+    """Test Lab: the fake cases, only for an admin and only while TEST_LAB=1."""
+    return jsonify(on=testlab.enabled(), cases=testlab.cases() if testlab.enabled() else [])
+
+@app.post('/api/admin/testlab/run')
+@need(admin=True)
+def testlab_run(u):
+    """Test Lab: hands back the words of one fake case. Writes nothing, trades nothing."""
+    r, why = testlab.run(_j().get('case'))
+    if why: return jsonify(error=why), (403 if not testlab.enabled() else 400)
     return jsonify(r)
 
 @app.get('/api/deriv/login')
