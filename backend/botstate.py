@@ -56,6 +56,18 @@ def _deriv_state(uid, dv):
     else: out.update(state='waiting', code='starting', why='Deriv is connected. The first check runs within a minute.')
     return out
 
+def _binance_state(uid):
+    """5B-2b: what the bot is doing on Binance (testnet), from the note the Binance loop saves after every round (brokers.REASONS)."""
+    try: b = next((r for r in bk.view(uid) if r['name'] == 'Binance'), None)
+    except Exception: b = None
+    if not b: return {'running': False, 'state': 'stopped', 'why': 'Binance is chosen but no key is saved. Save your testnet key on the Connect tab.', 'code': 'no key', 'broker': 'Binance'}
+    if not b.get('bot'): return {'running': False, 'state': 'stopped', 'why': PLAIN['bot off'], 'code': 'bot off', 'broker': 'Binance'}
+    code = b.get('why_code'); out = {'running': True, 'broker': 'Binance', 'checked': b.get('why_t')}
+    if code == 'ok': out.update(state='watching', code='watching', why='Connected to Binance (testnet, fake money) and watching. It checks the market each time a new 15-minute candle closes.')
+    elif code: out.update(state='waiting', code=code, why=b.get('why') or 'Waiting.')
+    else: out.update(state='waiting', code='starting', why='Binance is connected. The first check runs within a minute.')
+    return out
+
 def _quiet_for(sc, now):
     """' Last signal: 3 h ago.' for this scope, or '' when it never had one."""
     r = st.q("SELECT MAX(created) c FROM signals WHERE COALESCE(uid,'')=?", (sc or '',), True) or {}
@@ -79,6 +91,8 @@ def explain(uid, admin, paid=True, now=None):
     now = now or time.time(); sc = '' if admin else uid
     running = links.bot_on(sc); a = st.acct(sc); out = {'running': running, 'checked': None}
     if not admin and not paid: out.update(state='stopped', why=PLAIN['plan ended'], code='plan ended'); return out
+    from . import tradeon
+    if tradeon.get(uid) == 'Binance': out.update(_binance_state(uid)); return out          # 5B-2b
     mt5_up = bool(a.get('seen')) and now - a.get('seen', 0) <= 120 and a.get('src') != 'deriv'          # R7: a Deriv snapshot is not the MT5 bridge talking
     dv = None if mt5_up else _deriv(uid)
     if dv is not None and (_dbot(uid) or not running): out.update(_deriv_state(uid, dv)); return out          # Deriv is the one that is running (or nothing is): say so, not "MT5 is not talking"

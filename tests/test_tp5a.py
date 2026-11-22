@@ -67,10 +67,10 @@ links.set_bot(A, True); bk.set_bot(A, 'Deriv', True)
 c.post('/api/trade-on', json={'platform': 'Binance'}, headers=H('amy@x.com'))
 T('choosing Binance stops MT5 and Deriv', links.bot_on(A) is False and bk.bot_flag(A, 'Deriv') is False)
 r = c.post('/api/bot', json={'on': True}, headers=H('amy@x.com'))
-T('Binance chosen: Start says Binance does not trade yet', r.status_code == 400 and 'Binance' in r.get_json()['error'] and not links.bot_on(A))
+T('Binance chosen, no Binance key saved: Start asks for the key and MT5 stays off (5B-2b)', r.status_code == 400 and 'Binance' in r.get_json()['error'] and not links.bot_on(A))
 pending(A); links.set_bot(A, True); T('Binance chosen: the EA gets nothing', poll(AK).get('signal') is None); links.set_bot(A, False)
 j = c.get('/api/trade-on', headers=H('amy@x.com')).get_json()
-T('Binance chosen: the note says nothing will trade', 'nothing will trade' in j['note'])
+T('Binance chosen: the note says nothing will trade', 'Only Binance trades' in j['note'])
 
 # ---- validation and isolation ----
 for bad in ('Kraken', '', None, 5):

@@ -13,7 +13,7 @@ def _boom(e):
     import traceback; print('500', request.path, repr(e)[:300]); traceback.print_exc(); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 from . import btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
-from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
+from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, binance_bot, stake, envcheck
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -421,9 +421,9 @@ def brokers_put(u, name):
     return jsonify(brokers=bk.view(u['uid']))
 
 def _not_deriv(n, what):
-    """Plain words for 'this broker has no <what>' (what = check | switch | bot). MT5 brokers trade through the MT5 app; Binance does not trade yet."""
+    """Plain words for 'this broker has no <what>' (what = check | switch | bot). MT5 brokers trade through the MT5 app; Binance trades on the testnet only."""
     if bk.CATALOG.get(n) == 'mt5': t = {'check': 'MT5 brokers are checked by your MT5 app, not here. See the Connect your MT5 card.', 'switch': 'This broker trades through the MT5 app. Change its mode on the Connect your MT5 card.', 'bot': 'This broker trades through the MT5 app. Use the Connect your MT5 card.'}[what]
-    elif n == 'Binance': t = {'switch': 'Binance does not trade yet, so it has no demo or real switch.', 'bot': 'Binance does not trade yet, so there is no bot to start.'}[what]
+    elif n == 'Binance': t = {'switch': 'Binance trades on the testnet (demo) only for now, so it has no demo or real switch.', 'bot': 'Use the Binance card to start its bot.'}[what]
     else: t = 'Unknown broker'
     return jsonify(error=t), 400
 
@@ -432,7 +432,7 @@ def _not_deriv(n, what):
 def brokers_verify(u, name):
     n = bk.canon(name)
     if n not in ('Deriv', 'Binance'): return _not_deriv(n, 'check')
-    ok, msg = deriv.verify(u['uid']) if n == 'Deriv' else binance.verify(u['uid'])
+    ok, msg = deriv.verify(u['uid']) if n == 'Deriv' else binance_bot.verify(u['uid']) if bk.mode(u['uid'], 'Binance') == 'demo' else binance.verify(u['uid'])          # 5B-2b: Binance demo = testnet key
     return jsonify(ok=ok, message=msg, brokers=bk.view(u['uid']))
 
 @app.post('/api/brokers/<name>/mode')
@@ -459,16 +459,18 @@ def brokers_bot(u, name):
     """Start / stop the bot for ONE broker connection. Deriv only for now (the MT5 brokers trade through the MT5 app). Works for admins too:
     it needs no MT5 key. Starting needs an active plan, a checked token, and Phone mode off (so a signal is never traded twice)."""
     n = bk.canon(name)
-    if n != 'Deriv': return _not_deriv(n, 'bot')
-    on = _j().get('on') is True; r = st.q("SELECT status FROM broker_links WHERE uid=? AND broker='Deriv'", (u['uid'],), True)
+    if n not in ('Deriv', 'Binance'): return _not_deriv(n, 'bot')
+    on = _j().get('on') is True; r = st.q("SELECT status FROM broker_links WHERE uid=? AND broker=?", (u['uid'], n), True); what = 'token' if n == 'Deriv' else 'key'
     if on:
-        if not r: return jsonify(error='Save your Deriv token first.'), 400
+        if not r: return jsonify(error='Save your %s %s first.' % (n, what)), 400
         if not u['active']: return jsonify(error='subscription required'), 402
-        if r['status'] != 'verified': return jsonify(error='Your token is not checked yet. Save it again to check it.'), 400
+        if r['status'] != 'verified': return jsonify(error='Your %s is not checked yet. Save it again to check it.' % what), 400
         if assist.is_on(u['uid']): return jsonify(error='Turn off Phone mode first, so the same signal is not traded twice.'), 400
-        if tradeon.blocked_msg(u['uid'], 'Deriv'): return jsonify(error=tradeon.blocked_msg(u['uid'], 'Deriv')), 400          # 5A
+        if tradeon.blocked_msg(u['uid'], n): return jsonify(error=tradeon.blocked_msg(u['uid'], n)), 400          # 5A
+        if n == 'Binance' and tradeon.get(u['uid']) != 'Binance': return jsonify(error='Choose Binance as your trading platform on the Bot tab first.'), 400          # 5B-2b: never on by default
+        if n == 'Binance' and bk.mode(u['uid'], n) == 'real': return jsonify(error='Real-money Binance trading is not available yet.'), 400
     bk.set_bot(u['uid'], n, on); learn.log(u['uid'], 'setting', data={'path': request.path, 'on': on})
-    if on: deriv.kick(u['uid'], _scan, _paid)
+    if on: (deriv if n == 'Deriv' else binance_bot).kick(u['uid'], _scan, _paid)
     else: bk.set_why(u['uid'], n, 'bot off')
     return jsonify(brokers=bk.view(u['uid']))
 
@@ -674,6 +676,17 @@ def path_get(u):
 def path_seen(u):
     return jsonify(ok=True, seen=roadmap.seen(u['uid']))
 
+def _binance_bot(u, on):
+    """5B-2b: the Bot tab's Start / Stop for Binance (testnet). None if fine, or (message, status). Stop never fails."""
+    r = st.q("SELECT status FROM broker_links WHERE uid=? AND broker='Binance'", (u['uid'],), True)
+    if not r: return ('Save your Binance testnet key on the Connect tab first.', 400) if on else None
+    if on and r['status'] != 'verified': return 'Your Binance key is not checked yet. Save it again to check it.', 400
+    if on and bk.mode(u['uid'], 'Binance') == 'real': return 'Real-money Binance trading is not available yet.', 400
+    bk.set_bot(u['uid'], 'Binance', on)
+    if on: binance_bot.kick(u['uid'], _scan, _paid)
+    else: bk.set_why(u['uid'], 'Binance', 'bot off')
+    return None
+
 def _deriv_bot(u, on):
     """The Bot tab's Start / Stop also drives Deriv when this person has a Deriv token. None if fine, or (message, status) if it cannot start."""
     r = st.q("SELECT status FROM broker_links WHERE uid=? AND broker='Deriv'", (u['uid'],), True)
@@ -689,20 +702,24 @@ def _deriv_bot(u, on):
 def bot_switch(u):
     """Section 4: the Bot tab's Start / Stop. The owner switches the owner's EA; everyone else switches their own link (plan and Phone-mode rules as before)."""
     on = _j().get('on') is True; tp = tradeon.get(u['uid'])
-    if on and tp == 'Binance': return jsonify(error='Binance does not trade yet. Choose MT5 or Deriv as your trading platform first.'), 400          # 5A
+    # 5B-2b: Binance may start now when it was chosen (the old refusal is gone)
     m5, dv = (not on) or tradeon.allows(u['uid'], 'MT5'), (not on) or tradeon.allows(u['uid'], 'Deriv')          # 5A: Start reaches only the chosen platform; Stop always reaches all
+    bn = (not on) or tp == 'Binance'          # 5B-2b: Binance starts only when it was chosen on purpose; Stop reaches it too
     if u['admin']:
         if m5: st.put('bot_enabled', '1' if on else '0')
         learn.log(u['uid'], 'setting', data={'path': request.path, 'on': on})
         if dv: _deriv_bot(u, on)
+        be = _binance_bot(u, on) if bn else None
+        if be: return jsonify(error=be[0]), be[1]
         return jsonify(ok=True, **botstate.explain(u['uid'], True))
     if on and not u['active']: return jsonify(error='subscription required'), 402
     if on and assist.is_on(u['uid']): return jsonify(error='Turn off Phone mode first, so the same signal is not traded twice.'), 400
     has_mt5 = bool(links.get(u['uid']))
-    if not has_mt5 and not st.q("SELECT 1 FROM broker_links WHERE uid=? AND broker='Deriv'", (u['uid'],), True): return jsonify(error='Make your MT5 key on the Connect tab first.'), 400
+    if not has_mt5 and not st.q("SELECT 1 FROM broker_links WHERE uid=? AND broker IN('Deriv','Binance')", (u['uid'],), True): return jsonify(error='Make your MT5 key on the Connect tab first.'), 400
     if on and tp == 'MT5' and not has_mt5: return jsonify(error='Make your MT5 key on the Connect tab first.'), 400
     if has_mt5 and m5: links.set_bot(u['uid'], on)
     err = _deriv_bot(u, on) if dv else None
+    err = err or (_binance_bot(u, on) if bn else None)
     if err and not (has_mt5 and m5): return jsonify(error=err[0]), err[1]
     learn.log(u['uid'], 'setting', data={'path': request.path, 'on': on})
     return jsonify(ok=True, **botstate.explain(u['uid'], False, _paid(u['uid'])))
@@ -1041,6 +1058,8 @@ try: automarkets.start()
 except Exception as e: print('[markets] loop not started', e)
 try: deriv.start(_scan, _paid)
 except Exception as e: print('deriv loop not started', e)
+try: binance_bot.start(_scan, _paid)          # 5B-2b: Binance testnet bot (every BINANCE_EVERY seconds, default 60)
+except Exception as e: print('binance loop not started', e)
 try:
     from . import live, market_alerts; market_alerts.register(); risk_alerts.register(); system_alerts.register(); report_alerts.register(); nudge_alerts.register(); alerts.start()
     live.start()

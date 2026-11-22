@@ -22,7 +22,7 @@ T('covers the 9 topics asked for', [s['id'] for s in guide.STEPS] == ['signup', 
 T('every cartoon is one the site already has (window.IL2)', all(re.search(r'IL2\.%s=|[,{]%s:il2\(' % (s['art'], s['art']), ix) for s in guide.STEPS))
 T('wording says demo or real, and the word REAL is explained', 'Demo' in txt and 'Real' in txt and 'REAL' in txt)
 T('no profit promise', not re.search(r'guarantee|risk.free|sure profit|always win|make money', txt + js, re.I))
-T('names all three brokers and says Binance does not trade yet', all(b in txt for b in ('Deriv', 'MT5', 'Binance')) and 'does not place trades yet' in txt)
+T('names all three brokers and says Binance does not trade yet', all(b in txt for b in ('Deriv', 'MT5', 'Binance')) and 'testnet only for now' in txt)
 T('brand line is Ogolla Tech (two L, the owner is Ogolla)', j['brand'] == 'Powered by Ogolla Tech')
 T('the one-L spelling is nowhere in the app files', not [f for f in glob.glob(os.path.join(ROOT, 'backend', '*.py')) + glob.glob(os.path.join(ROOT, 'static', '*.js')) + glob.glob(os.path.join(ROOT, 'emails', '*.html')) + [os.path.join(ROOT, 'static', 'index.html')] if 'Ogola' in open(f, encoding='utf-8').read()])
 import backend.course as course

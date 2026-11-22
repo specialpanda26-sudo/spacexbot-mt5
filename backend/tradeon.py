@@ -5,7 +5,7 @@ Binance cannot trade yet (backend/binance.py is read-only), so choosing it means
 from . import store as st, links, brokers as bk
 
 PLATFORMS = ('MT5', 'Deriv', 'Binance')
-CAN_TRADE = {'MT5': True, 'Deriv': True, 'Binance': False}
+CAN_TRADE = {'MT5': True, 'Deriv': True, 'Binance': True}          # Binance: testnet (fake money) only, 5B-2b
 
 def canon(name):
     n = str(name or '').strip().lower()
@@ -32,6 +32,8 @@ def set_(uid, admin, name):
         if admin: st.put('bot_enabled', '0')
     if n != 'Deriv' and st.q("SELECT 1 FROM broker_links WHERE uid=? AND broker='Deriv'", (uid,), True):
         bk.set_bot(uid, 'Deriv', False); bk.set_why(uid, 'Deriv', 'other platform')
+    if n != 'Binance' and st.q("SELECT 1 FROM broker_links WHERE uid=? AND broker='Binance'", (uid,), True):          # 5B-2b
+        bk.set_bot(uid, 'Binance', False); bk.set_why(uid, 'Binance', 'other platform')
     return n
 
 def blocked_msg(scope, platform):
@@ -43,5 +45,5 @@ def blocked_msg(scope, platform):
 def view(uid, admin=False):
     c = get(uid)
     return {'trade_on': c, 'platforms': [{'name': p, 'trades': CAN_TRADE[p]} for p in PLATFORMS],
-            'note': ('Binance does not trade yet, so nothing will trade while it is chosen.' if c == 'Binance' else
+            'note': ('Only Binance trades, on the testnet (fake money) for now. The other platforms stay stopped.' if c == 'Binance' else
                      'Only %s trades. The other platforms stay stopped.' % c if c else 'No platform chosen: every platform whose bot is on may trade.')}

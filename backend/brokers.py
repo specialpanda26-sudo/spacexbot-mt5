@@ -16,7 +16,7 @@ def canon(name):
 ABOUT = {
     'mt5': {'tile': 'Via your MT5 app', 'works': 'Trades through your MT5 app and the SpaceXBridge EA.', 'not': 'This site does not check your key or read your balance. Your MT5 app does that.'},
     'Deriv': {'tile': 'Check, balance, demo bot', 'works': 'Token check, balance read, and the bot trading on your demo (virtual) account.', 'not': 'Real-money trading stays off unless the owner allows it and you switch to Real.'},
-    'Binance': {'tile': 'Balance only, no trading', 'works': 'Key check and Spot balance read (read-only).', 'not': 'No trading. The bot never places a Binance order. A key that can withdraw is refused.'},
+    'Binance': {'tile': 'Testnet demo bot', 'works': 'Key check, test balance read, and a demo bot that buys and sells Spot crypto on the Binance TESTNET (fake money). Long-only: it buys, then sells.', 'not': 'Real-money Binance trading is not available yet. Use a testnet key from testnet.binance.vision, never your real Binance key.'},
 }
 def about(name): return ABOUT.get(name) or ABOUT.get('mt5' if CATALOG.get(name) == 'mt5' else '', {})
 def catalog(): return [dict({'name': k, 'kind': v}, **about(k)) for k, v in CATALOG.items()]
@@ -72,7 +72,11 @@ REASONS = {
     'off': 'Deriv trading is not switched on on the server yet. The owner must set DERIV_APP_ID on Render.',
     'plan ended': 'Your plan has ended. Renew it to trade.',
     'bot off': 'The bot is off. Tap Start bot.',
-    'other platform': 'You chose another platform to trade on, so Deriv is paused. Change it on the Bot tab.',
+    'other platform': 'You chose another platform to trade on, so this one is paused. Change it on the Bot tab.',
+    'real not ready': 'Real-money Binance trading is not available yet. Switch to the testnet (demo).',
+    'no key': 'No Binance key is saved. Save your testnet key and secret again.',
+    'no crypto symbols': 'No crypto market is set to trade. The owner must add one (for example BTCUSD) to the symbols list.',
+    'cannot trade': 'This Binance key cannot trade. Make a testnet key with trading allowed.',
     'not verified': 'Your token is not checked yet. Save it again to check it.',
     'no token': 'No token saved. Save your Deriv token again.',
     'no real account': 'Real mode is on but this token has no real account.',
@@ -115,7 +119,7 @@ def set_mode(uid, name, m):
 def view(uid):
     """What the app may see: name, kind, a short tail of the key, mode, status. Never the secret."""
     b = _bals(uid)
-    return [dict({'name': r['broker'], 'kind': r['kind'], 'label': r['label'], 'mode': mode(uid, r['broker'], r['mode']), 'status': r['status'] or 'saved', 'bot': bot_flag(uid, r['broker']) is True, 'note': note(uid, r['broker']), 'trades': r['broker'] != 'Binance', **_why(uid, r['broker'])},
+    return [dict({'name': r['broker'], 'kind': r['kind'], 'label': r['label'], 'mode': mode(uid, r['broker'], r['mode']), 'status': r['status'] or 'saved', 'bot': bot_flag(uid, r['broker']) is True, 'note': note(uid, r['broker']), 'trades': True, **_why(uid, r['broker'])},
                  **({'balance': b[r['broker']].get('balance'), 'currency': b[r['broker']].get('currency'), 'acct_demo': b[r['broker']].get('demo'), 'bal_t': b[r['broker']].get('t')} if r['broker'] in b else {}))
             for r in st.q('SELECT broker,kind,label,mode,status FROM broker_links WHERE uid=? ORDER BY created', (uid,))]
 def drop(uid, name):

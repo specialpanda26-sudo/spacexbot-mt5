@@ -116,6 +116,31 @@ def _track(uid, key, secret, http, now):
         st.put('closedby:%d' % r['id'], why); st.put('exitpx:%d' % r['id'], float(out['avg']))
         _report(uid, r['id'], 'closed', why)
 
+_vlast = {}
+def _mark(uid, status): st.x("UPDATE broker_links SET status=?,updated=? WHERE uid=? AND broker='Binance'", (status, int(time.time()), uid))
+
+def verify(uid, http=None, now=None):
+    """5B-2b: check the saved TESTNET key (demo mode) and read the test balance. Sets verified / rejected and a plain note. Returns (ok, message). Places no order."""
+    now = now or time.time()
+    if now - _vlast.get(uid, 0) < 8: return False, 'Wait a few seconds and try again.'
+    _vlast[uid] = now
+    sec = bk.secret(uid, 'Binance')
+    if not sec or not sec.get('key') or not sec.get('secret'): return False, 'Save your Binance testnet key and secret first.'
+    try: free, can = _free(sec['key'], sec['secret'], http, int(now * 1000))
+    except ConnectionError as e:
+        msg = str(e)
+        if 'did not accept' in msg or 'does not match' in msg: _mark(uid, 'rejected'); bk.set_note(uid, 'Binance', msg)
+        return False, msg
+    except Exception as e:
+        print('[binance_bot] check failed:', type(e).__name__)          # the type only: a message could hold the key
+        return False, 'Could not reach Binance. Try again in a minute.'
+    if not can:
+        msg = 'This key cannot trade. Make a testnet key with trading allowed.'; _mark(uid, 'rejected'); bk.set_note(uid, 'Binance', msg); return False, msg
+    bal = free + _held_cost(uid)
+    _mark(uid, 'verified'); bk.set_bal(uid, 'Binance', bal, 'USD', demo=True, now=now)
+    note = 'Testnet key works. Test balance about %s USDT (fake money). Binance trades on the testnet only for now. The bot checks the stop loss and take profit about once a minute, so a fast move can pass them.' % format(bal, ',.2f')
+    bk.set_note(uid, 'Binance', note); return True, note
+
 def _bot(uid): return bk.bot_flag(uid, 'Binance') is True
 
 def run_once(uid, scan, paid, http=None, now=None):

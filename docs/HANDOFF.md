@@ -572,3 +572,13 @@ What I found (no code written yet):
 - Rules: trades only when the person CHOSE Binance (trade_on), bot switch on, key verified, plan active, mode demo (= testnet); Real gives "real not ready". Stake: strong setup = its share of the balance (stake.py, 40% very strong), else the stop loses about risk_pct; never over half the balance. Balance = free USDT + cost of open trades.
 - The stop loss / take profit are checked by the bot about once a minute (no stop inside a market order), so a fast move can pass them. Open trades are followed even with the bot off or the plan ended. An order or sell that could not be confirmed is never repeated (stays sent / closing with a note).
 - NOT wired: the app does not start this loop (test asserts it). Next 5B-2b: start the loop in app.py, check TESTNET keys on the Binance card (binance_trade.check_key) with a demo/testnet switch, allow Start bot / Trade on Binance, REASONS text for the new codes (real not ready, no key, no crypto symbols, cannot trade), tile text, a note about the 1-minute stop check. Then 5B-3 (Real).
+
+## Section 5B-2b (Binance SPOT TESTNET bot switched on) DONE (Nov 22)
+- New: apply_bn2b.py, apply_bn2b_tests.py (updates 5 old tests), tests/test_bn2b.py (49 checks; 8 deliberate breaks each went red).
+- binance_bot.verify(uid): checks the saved TESTNET key (balance + canTrade, no order). Rejected only when Binance says the key is wrong or cannot trade; Binance down never marks a key rejected. 8 s wait. POST /api/brokers/Binance/verify uses it in demo mode, the old read-only check (binance.py, untouched) in real mode.
+- app.py starts binance_bot.start(_scan, _paid) next to deriv.start (BINANCE_EVERY seconds, default 60).
+- Start / Stop: Binance card button -> POST /api/brokers/Binance/bot; Bot tab Start -> _binance_bot(). Start needs: Binance chosen on the Bot tab, key checked, plan active, mode demo, Phone mode off. Stop always works. Choosing another platform switches Binance off. Real Binance is refused in plain words (that is 5B-3).
+- Words: brokers.REASONS got real not ready / no key / no crypto symbols / cannot trade; botstate says what Binance is doing; tile Testnet demo / Testnet bot on; card says use a testnet key, never the real one, stop loss checked about once a minute.
+- IMPORTANT: a REAL Binance key saved earlier is now rejected in demo mode ("did not accept this test key"). Save a testnet key instead.
+- NOT tested: a real testnet run, the card on a phone. Livestats / Journal / Home do not list Binance trades by name yet.
+- Next: 5B-3 (Real), the backtest on real data, N6 kind 35.

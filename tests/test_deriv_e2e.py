@@ -111,7 +111,7 @@ T('W5 the MT5 card steps have the address, ServerUrl and Algo Trading', all(x in
 T('W6 old confusing texts are gone', 'Then make your key in the Connect MT5 card' not in idx and 'Start on a virtual account.' not in idx)
 T('W7 Connection check shows an unused MT5 as one calm line', 'Skip it if you use Deriv' in idx and next(r for r in cn['rows'] if r['id'] == 'MT5')['name'].startswith('MT5 app'))
 e = lambda path, body: c.post(path, json=body, headers=H('zed@x.com')).get_json()['error']
-T('W8 Binance is not described as an MT5 broker', all('MT5' not in e('/api/brokers/Binance/' + w, {'on': True, 'mode': 'real'}) for w in ('bot', 'mode')) and 'does not trade yet' in e('/api/brokers/Binance/bot', {'on': True}))
+T('W8 Binance is not described as an MT5 broker', all('MT5' not in e('/api/brokers/Binance/' + w, {'on': True, 'mode': 'real'}) for w in ('bot', 'mode')) and 'Binance key' in e('/api/brokers/Binance/bot', {'on': True}))
 T('W9 MT5 brokers still point to the MT5 card', all('MT5' in e('/api/brokers/FBS/' + w, {'on': True, 'mode': 'real'}) for w in ('bot', 'mode', 'verify')))
 
 # ---- the token is never given back, never stored as plain text ----

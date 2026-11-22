@@ -14,7 +14,7 @@ STEPS = [
         'Demo practice is open for everyone. Real trading needs an active plan.']),
     S('connect', 'Connect your broker', 'plug', 'Deriv, MT5 or Binance.', [
         'Open Connect and pick your broker.',
-        'Deriv: paste your Deriv token. Binance: paste a key that can read, never one that can withdraw. Binance does not place trades yet.',
+        'Deriv: paste your Deriv token. Binance: paste a TESTNET key (fake money) with trading allowed and withdrawals off. Binance trades on the testnet only for now.',
         'MT5: install the free bridge on your PC and paste your key.',
         'The tile says Connected only when the server really talks to your account.']),
     S('mode', 'Demo or real', 'plug', 'Start with demo. Real is your choice.', [
