@@ -513,3 +513,13 @@ What I found (no code written yet):
 - N6 kind 35: waiting for the owner to say what that alert should do.
 - Rk series leftovers: push-notification pictures (notifart.py) still in the old dark style.
 - Owner must still push and run: Nav3, X1, Rk5 (then run the 'Rebuild email GIFs' workflow and `git pull`), U7 (then run 'Build Android APK'), and the new HANDOFF text (this block).
+
+## Section 5A (trade on ONE platform at a time: MT5 / Deriv / Binance) DONE (Nov 22)
+- New: backend/tradeon.py, static/trade_on.js, tests/test_tp5a.py (34 checks; 3 deliberate breaks each went red: EA still gets the signal, Deriv still trades, switching does not stop the other bot), apply_tp5a.py (idempotent; edits backend/app.py, deriv.py, brokers.py, static/index.html script tag).
+- Setting: kv 'trade_on:<uid>' = MT5 | Deriv | Binance. NEVER chosen = nothing changes from before. For the OWNER the choice is also stored under scope '' because the owner's own EA calls with no uid.
+- GET/POST /api/trade-on (signed in + verified). Choosing a platform switches the OTHER bots off (MT5 link bot / owner bot_enabled / Deriv flag with why 'other platform'). Bot tab card "Trade on" (static/trade_on.js) shows the three buttons and a plain note.
+- Gates: /api/ea/sync gives the EA no signal and bot=false unless MT5 is allowed; deriv._bot / run_once say 'other platform'; POST /api/link/bot, /api/brokers/Deriv/bot and POST /api/bot refuse Start for a platform that was not chosen; Stop always stops everything; Bot tab Start with Binance chosen says Binance does not trade yet.
+- Real-money rules are untouched (plan, the word REAL, loss limits, news lock, max open trades).
+- Honest limits: choosing Binance means NOTHING trades (backend/binance.py is read-only) - Section 5B (Binance orders, testnet first, trade-only key, spot or futures?) is still to be built and the owner has not answered spot vs futures. The card was not looked at in a real browser or on a phone. Signals already pending when you switch expire after 180 s as usual.
+- Next: 5B (ask spot or futures), the backtest on real data, N6 kind 35.
+

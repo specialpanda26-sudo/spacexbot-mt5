@@ -72,6 +72,7 @@ REASONS = {
     'off': 'Deriv trading is not switched on on the server yet. The owner must set DERIV_APP_ID on Render.',
     'plan ended': 'Your plan has ended. Renew it to trade.',
     'bot off': 'The bot is off. Tap Start bot.',
+    'other platform': 'You chose another platform to trade on, so Deriv is paused. Change it on the Bot tab.',
     'not verified': 'Your token is not checked yet. Save it again to check it.',
     'no token': 'No token saved. Save your Deriv token again.',
     'no real account': 'Real mode is on but this token has no real account.',
