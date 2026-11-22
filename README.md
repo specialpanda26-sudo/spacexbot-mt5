@@ -127,6 +127,7 @@ Check it: sign in as admin, open `#admin`, press **Send test alert**. It reports
 
 ## AI screen assistant (SC1, server side)
 The AI only READS a chart picture; the bot's own strategies and safety rules answer (a dry run, nothing is placed). Set ANTHROPIC_API_KEY on Render, then `screen_on` = 1 in the admin settings. Paid plans use context `trade`, the learning path uses `learn`. The picture is never stored.
+Which AI reads the picture is the owner's choice (admin: `GET/POST /api/admin/screenmodel`, body `{provider, model}` or `{check:true}`): `anthropic`, `grok`, `gemini` or `custom` (any OpenAI-style service). Set only that provider's key on Render (ANTHROPIC_API_KEY, XAI_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY + OPENAI_BASE_URL).
 
 ## Known limits
 - **SQLite on Render free is wiped on every redeploy.** Users, plans and payments reset. Move to Supabase Postgres before taking real money.

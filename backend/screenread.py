@@ -6,7 +6,7 @@ only the short JSON read, the time and the verdict go into screen_reads. Switch:
 default, key only in the ANTHROPIC_API_KEY env var; tests replace call_model)."""
 import os, re, json, time, math, base64
 import requests
-from . import store as st, bars, brain, risk, prefs, automode, stats, regime as rgm, strategy_info as si
+from . import store as st, bars, brain, risk, prefs, automode, stats, regime as rgm, strategy_info as si, visionmodel as vm
 
 MAX_B64 = 800_000            # about 600 KB of picture
 MAX_BODY = MAX_B64 + 2_000
@@ -14,7 +14,7 @@ GAP = 10                     # seconds between two reads of one person
 NOTE = 'A read of your screen, not advice.'
 ALIAS = {'GOLD': 'XAUUSD', 'XAUUSD': 'XAUUSD', 'BTCUSD': 'BTCUSD', 'BTCUSDT': 'BTCUSD', 'BITCOIN': 'BTCUSD'}
 
-class ModelError(Exception): pass
+ModelError = vm.ModelError
 
 def init():
     st.x('CREATE TABLE IF NOT EXISTS screen_reads(uid TEXT,ts BIGINT,ctx TEXT,symbol TEXT,bias TEXT,verdict TEXT,data TEXT)')
@@ -40,19 +40,11 @@ PROMPT = ('You are reading ONE screenshot of a trading chart. Answer with ONE JS
           '"last_price": number or null, "strategies": [ids from this list that the chart looks like: %s], "note": "one plain sentence"}. '
           'No advice, no promises, no entry or stop prices.')
 
-def _anthropic(jpeg_b64):
-    key = os.getenv('ANTHROPIC_API_KEY', '')
-    if not key: raise ModelError('The AI reader is not set up yet. The owner must add its key on the server.')
-    body = {'model': os.getenv('VISION_MODEL', 'claude-sonnet-5-5'), 'max_tokens': 600, 'messages': [{'role': 'user', 'content': [
-        {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': jpeg_b64}},
-        {'type': 'text', 'text': PROMPT % ', '.join(sorted(si.INFO))}]}]}
-    try: r = requests.post('https://api.anthropic.com/v1/messages', json=body, timeout=25, headers={'x-api-key': key, 'anthropic-version': '2023-06-01'})
-    except requests.RequestException: raise ModelError('The AI reader did not answer. Try again in a moment.')
-    if r.status_code != 200: raise ModelError('The AI reader did not answer (%d). Try again in a moment.' % r.status_code)
-    try: return ''.join(b.get('text', '') for b in r.json().get('content', []) if b.get('type') == 'text')
-    except ValueError: raise ModelError('The AI reader sent something unreadable.')
+def _prompt(): return PROMPT % ', '.join(sorted(si.INFO))
+def _anthropic(jpeg_b64): return vm.ask(jpeg_b64, _prompt(), 'anthropic')      # kept for the tests
+def _chosen(jpeg_b64): return vm.ask(jpeg_b64, _prompt())                   # the provider the owner picked (backend/visionmodel.py)
 
-call_model = _anthropic      # call_model(jpeg_b64) -> text. Tests replace it.
+call_model = _chosen      # call_model(jpeg_b64) -> text. Tests replace it.
 
 def _nums(v, n=4):
     if not isinstance(v, list): return None
@@ -144,3 +136,13 @@ def handle(uid, ctx, paid, image, now=None):
         out.update(context=ctx, used=n + 1, cap=cap(ctx), note=NOTE)
         if ctx == 'learn' and read and read.get('readable'): out['teach'] = [{'id': i, 'name': si.name(i), 'desc': si.desc(i)} for i in read['strategies']]
     return code, out
+
+TINY = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABQODxIPDRQSEBIXFRQYHjIhHhwcHj0sLiQySUBMS0dARkVQWnNiUFVtVkVGZIhlbXd7gYKBTmCNl4x9lnN+gXz/2wBDARUXFx4aHjshITt8U0ZTfHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHz/wAARCABkAKADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDq6KKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/Z'      # a blank 160x100 JPEG for the admin test button
+
+def check_model():
+    """Admin test button: send a blank picture to the chosen provider and run the answer through the SAME shape check as a real read. Nothing is saved or counted."""
+    p = vm.provider(); out = {'provider': p, 'model': vm.model_for(p)}
+    try: text = call_model(TINY)
+    except ModelError as e: return dict(out, ok=False, error=str(e))
+    if parse(text) is None: return dict(out, ok=False, error='The service answered, but not in the shape the bot needs (one JSON object). Try another model name.')
+    return dict(out, ok=True, text='Connected. The service answered in the right shape.')

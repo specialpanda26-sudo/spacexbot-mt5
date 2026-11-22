@@ -844,6 +844,20 @@ def admin_feed_set(u):
         if j['on']: threading.Thread(target=lambda: feed.tick(_scan), daemon=True).start()       # first round now, not in a minute
     return jsonify(feed.status())
 
+@app.get('/api/admin/screenmodel')
+@need(admin=True)
+def admin_screenmodel_get(u): return jsonify(screenread.vm.status())
+
+@app.post('/api/admin/screenmodel')
+@need(admin=True)
+def admin_screenmodel_set(u):
+    """SC1b: pick the AI provider / model that reads chart pictures, or {check:true} to test it. Keys are env vars on Render and never pass through here."""
+    j = _j()
+    if j.get('check'): return jsonify(screenread.check_model())
+    ok, err = screenread.vm.configure(j)
+    if not ok: return jsonify(error=err), 400
+    return jsonify(screenread.vm.status())
+
 @app.get('/api/admin/btc')
 @need(admin=True)
 def admin_btc_get(u): return jsonify(btc_switch.status())
