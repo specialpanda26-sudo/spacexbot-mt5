@@ -96,3 +96,4 @@ patch_manifest(); patch_version(); patch_google_signin(); patch_push()
 
 import live_patch; live_patch.run(MAIN, APP, HERE, PKG)
 import launch_patch; launch_patch.run(MAIN, HERE)
+import update_patch; update_patch.run(MAIN, HERE, PKG)

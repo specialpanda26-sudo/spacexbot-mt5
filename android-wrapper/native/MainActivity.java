@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(GoogleSignInPlugin.class);   // must come BEFORE super.onCreate
+        registerPlugin(AppUpdatePlugin.class);
         super.onCreate(savedInstanceState);
         makeChannels();
     }
