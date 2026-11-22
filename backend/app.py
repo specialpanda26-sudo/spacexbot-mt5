@@ -12,7 +12,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import btc_switch, tradeon, course, roadmap
+from . import btc_switch, tradeon, course, roadmap, guide
 from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
 _last_scan = {}
 
@@ -624,6 +624,12 @@ def course_quiz(u):
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, 'lesson': str(j.get('lesson'))[:20], 'score': r['score']})
     return jsonify(r)
+
+@app.get('/api/guide')
+@need(verified=True)
+def guide_get(u):
+    """C4: the cartoon how-to steps (same text the PDF guide will use)."""
+    return jsonify(guide.view())
 
 @app.get('/api/path')
 @need(verified=True)
