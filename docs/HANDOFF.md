@@ -557,3 +557,10 @@ What I found (no code written yet):
 ## Section Rk6 (notification pictures) DONE (Nov 22)
 - backend/notifart.py already had the new look (ART9: violet outline, blue/white/yellow character); the old note "still in the old dark style" was stale. Rk6 adds 4 pictures: update, soon (plan ends), ended (plan ended), linked (connected) and maps them in backend/pushcopy.py: kind 29 update; 42 and 43 soon; 44 ended; 26 and 28 linked.
 - apply_rk6.py (idempotent), tests/test_rk6.py. The card behind the picture is still the dark navy. NOT seen on a real phone. Kinds with no picture of their own yet: session ended, server waking, something went wrong (no push kind for them).
+
+## Section 5B-1 (Binance SPOT order layer, TESTNET ONLY) DONE (Nov 22)
+- New: backend/binance_trade.py, tests/test_bt1.py (36 checks; 7 deliberate breaks each went red: env changes the address, DELETE allowed, balance check removed, rounding instead of flooring, client id dropped, canTrade check removed, fee not subtracted).
+- Owner chose SPOT. Spot is long-only: open_long = BUY MARKET of about N USDT (floored to the market's step, minimum size checked, balance checked first); close_long = SELL MARKET of the held amount (never more). The fee paid in the coin is taken off the held amount.
+- Safety: address fixed to testnet.binance.vision (no env var), only 6 method+path pairs allowed (no DELETE, no /sapi, no withdraw), keys never in messages or logs, every order has a client id, nothing is sent if any check fails. binance.py (Section 2) is still read-only and untouched.
+- NOT wired: nothing calls binance_trade yet, so the app behaves exactly as before. Needs testnet keys from testnet.binance.vision (different from real keys).
+- Next: 5B-2 (the bot places and closes testnet trades from signals, saves positions, uses the trade_on = Binance setting, plain messages in the app), then 5B-3 (Real: its own key check with withdrawals OFF, the word REAL, plan, loss limits).
