@@ -8,10 +8,12 @@
   function art(k) { var I = window.IL2 || {}; return I[k] || ""; }
   var C = document.createElement("div"); C.className = "card"; C.id = "coursec"; C.hidden = true;
   vh.insertBefore(C, vh.firstChild ? vh.firstChild.nextSibling : null);
-  var D = null, LH = "", OV = null, S = { v: "list", id: null, pick: [], res: null, busy: false, err: "" };
+  var D = null, ERR = false, LH = "", OV = null, S = { v: "list", id: null, pick: [], res: null, busy: false, err: "" };
   function lesson(id) { return D && D.lessons.filter(function (l) { return l.id === id; })[0]; }
   function drawCard() {
     var u = me(), on = !!(u && u.verified && D); C.hidden = !on; C.style.display = on ? "" : "none";
+    var msg = u && !on ? (!u.verified ? "Verify your email to start your learning path." : ERR ? "Could not load your learning path." : "") : ""; if (msg) { C.hidden = false; C.style.display = ""; }
+
     var h = "";
     if (on) {
       var all = D.complete, pc = Math.round(100 * D.done / D.total);
@@ -20,9 +22,10 @@
         '<p class="note">' + (all ? "All lessons done. See Road to Real below for what is left." : "Short lessons, about two minutes each. Demo trading is open now. The lessons are the first part of the road to Real.") + "</p>" +
         '<button class="btn primary block" type="button" data-c="open">' + (all ? "Review lessons" : D.done ? "Continue learning" : "Start learning") + "</button>";
     }
+    if (!on && msg) h = '<div class="card-head"><h2>Your learning path</h2></div><p class="note">' + esc(msg) + '</p>' + (u.verified ? '<button class="btn block" type="button" data-c="retry">Try again</button>' : '');
     if (h !== LH) C.innerHTML = LH = h;
   }
-  function load() { var u = me(); if (!(u && u.verified)) { D = null; drawCard(); return; } SXA.api("/api/course").then(function (j) { D = j; drawCard(); if (OV) draw(); }).catch(function () {}); }
+  function load() { var u = me(); if (!(u && u.verified)) { D = null; drawCard(); return; } SXA.api("/api/course").then(function (j) { D = j; ERR = false; drawCard(); if (OV) draw(); }).catch(function () { ERR = true; drawCard(); }); }
   function close() { if (OV && OV.remove) OV.remove(); OV = null; }
   function open(v, id) {
     S.v = v; S.id = id || null; S.pick = []; S.res = null; S.err = "";
@@ -50,7 +53,7 @@
         return "<p><b>" + (qi + 1) + ". " + esc(q.q) + "</b></p>" + q.o.map(function (o, oi) {
           return '<button class="btn block" type="button" style="text-align:left;margin:4px 0" data-c="pick" data-q="' + qi + '" data-o="' + oi + '" aria-pressed="' + (S.pick[qi] === oi) + '">' + esc(o) + "</button>"; }).join("");
       }).join("") + (S.err ? '<p class="err">' + esc(S.err) + "</p>" : "") +
-        '<button class="btn primary big block" type="button" data-c="check"' + (S.pick.length === l.quiz.length && S.pick.indexOf(undefined) < 0 && !S.busy ? "" : " disabled") + '>Check answers</button><button class="btn block" type="button" data-c="lesson" data-id="' + esc(l.id) + '">Back to the lesson</button>';
+        '<button class="btn primary big block" type="button" data-c="check"' + (l.quiz.every(function (q, i) { return typeof S.pick[i] === "number"; }) && !S.busy ? "" : " disabled") + '>Check answers</button><button class="btn block" type="button" data-c="lesson" data-id="' + esc(l.id) + '">Back to the lesson</button>';
     } else if (S.v === "result" && S.res && l) {
       var r = S.res, nx = D.next;
       h = art(r.passed ? "yay" : "wait") + '<h2 style="text-align:center">' + (r.passed ? "Lesson done!" : "Almost there") + '</h2><p class="muted" style="text-align:center">You got ' + r.score + " of " + r.total + " right." + (r.passed ? "" : " You need 2. Read the lesson again and retry.") + "</p>" +
@@ -62,7 +65,7 @@
   }
   document.addEventListener("click", function (e) {
     var b = e.target.closest("[data-c]"); if (!b || (!C.contains(b) && !(OV && OV.contains(b)))) return; var c = b.getAttribute("data-c");
-    if (c === "open") open("list"); else if (c === "close") close(); else if (c === "list") open("list");
+    if (c === "retry") load(); else if (c === "open") open("list"); else if (c === "close") close(); else if (c === "list") open("list");
     else if (c === "lesson") open("lesson", b.getAttribute("data-id")); else if (c === "quiz") open("quiz", S.id);
     else if (c === "pick") { S.pick[+b.getAttribute("data-q")] = +b.getAttribute("data-o"); draw(); }
     else if (c === "check" && !S.busy) {

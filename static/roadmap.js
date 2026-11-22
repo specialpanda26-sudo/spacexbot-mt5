@@ -8,11 +8,13 @@
   function art(k) { var I = window.IL2 || {}; return I[k] || ""; }
   var C = document.createElement("div"); C.className = "card"; C.id = "roadc"; C.hidden = true;
   var cc = document.getElementById("coursec"); if (cc && cc.parentNode === vh) vh.insertBefore(C, cc.nextSibling); else vh.insertBefore(C, vh.firstChild ? vh.firstChild.nextSibling : null);
-  var D = null, LH = "", OV = null, BUSY = false;
+  var D = null, ERR = false, LH = "", OV = null, BUSY = false;
   function bar(p) { return '<div style="height:8px;border-radius:8px;background:var(--surface2);overflow:hidden"><div style="height:100%;width:' + Math.max(0, Math.min(100, p)) + '%;background:var(--green)"></div></div>'; }
   function pct(a, b) { return b > 0 ? Math.round(100 * a / b) : 100; }
   function drawCard() {
     var u = me(), on = !!(u && u.verified && D && !D.exempt); C.hidden = !on; C.style.display = on ? "" : "none";
+    var msg = u && !on && !(D && D.exempt) ? (!u.verified ? "Verify your email to see your road to Real." : ERR ? "Could not load your road to Real." : "") : ""; if (msg) { C.hidden = false; C.style.display = ""; }
+
     var h = "";
     if (on) {
       var L = D.lessons, P = D.practice;
@@ -22,6 +24,7 @@
         '<p class="note">' + (D.real_open ? "The road is finished. Real mode is open. Demo works any time, and you type the word REAL to switch." : esc(D.why)) + "</p>" +
         '<button class="btn block" type="button" data-r="open">See my badges</button>';
     }
+    if (!on && msg) h = '<div class="card-head"><h2>Road to Real</h2></div><p class="note">' + esc(msg) + '</p>' + (u.verified ? '<button class="btn block" type="button" data-r="retry">Try again</button>' : '');
     if (h !== LH) C.innerHTML = LH = h;
   }
   function close() { if (OV && OV.remove) OV.remove(); OV = null; }
@@ -49,11 +52,11 @@
   }
   function load() {
     var u = me(); if (!(u && u.verified)) { D = null; drawCard(); return; } if (BUSY) return; BUSY = true;
-    SXA.api("/api/path").then(function (j) { BUSY = false; D = j; drawCard(); celebrate(); }).catch(function () { BUSY = false; });
+    SXA.api("/api/path").then(function (j) { BUSY = false; ERR = false; D = j; drawCard(); celebrate(); }).catch(function () { BUSY = false; ERR = true; drawCard(); });
   }
   document.addEventListener("click", function (e) {
     var b = e.target.closest("[data-r]"); if (!b || (!C.contains(b) && !(OV && OV.contains(b)))) return; var c = b.getAttribute("data-r");
-    if (c === "open" && D) badges(); else if (c === "close") close();
+    if (c === "retry") load(); else if (c === "open" && D) badges(); else if (c === "close") close();
   });
   window.sxRoad = { state: function () { return D; }, reload: load };
   load(); setInterval(load, 60000); setTimeout(load, 3000);

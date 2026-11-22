@@ -715,3 +715,9 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Owner wants the MT5 ANDROID app. That app can show positions but CANNOT run the EA. The bot on Deriv MT5 needs MT5 + EA on a Windows PC or VPS.
 - Owner choices: bot on all Deriv routes; Auto rule = market open and no news lock, then fewer open trades, then preferred account.
 - Next: D3 running positions, D4 several accounts per user, D5 switching + Auto, D6 tests/deploy. Then the learner steps (all four areas reported failing, not investigated yet).
+
+## L1 done
+- Learner cards (Learning path, Road to Real, How to use the bot) now say "Verify your email..." or "Could not load..." with a Try again button. Quiz Check answers needs every question answered.
+- Owner symptom "tap does nothing" could not be reproduced. Still unknown: is Render on the latest deploy, is his email verified, does it fail in the browser or only in the APK.
+- Flaky: tests/test_n4.py check 9 (pending order with its state) failed once in three runs on the same code. Passes on rerun.
+- Next: D3, a read-only "running trades (phone)" card built from signals he tapped Take on.

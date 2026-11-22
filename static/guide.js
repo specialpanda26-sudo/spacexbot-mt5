@@ -8,18 +8,21 @@
   function art(k) { var I = window.IL2 || {}; return I[k] || ""; }
   var C = document.createElement("div"); C.className = "card"; C.id = "guidec"; C.hidden = true;
   vh.insertBefore(C, vh.firstChild ? vh.firstChild.nextSibling : null);
-  var D = null, OV = null, N = 0, LH = "";
+  var D = null, ERR = false, OV = null, N = 0, LH = "";
   function drawCard() {
     var u = me(), on = !!(u && u.verified && D); C.hidden = !on; C.style.display = on ? "" : "none";
+    var msg = u && !on ? (!u.verified ? "Verify your email to see how to use the bot." : ERR ? "Could not load the guide." : "") : ""; if (msg) { C.hidden = false; C.style.display = ""; }
+
     var h = on ? '<div class="card-head"><h2>How to use the bot</h2><span class="chip info">' + D.total + ' steps</span></div>' +
       '<p class="note">Short cartoon steps: sign up, connect, demo or real, start, signals and safety.</p>' +
       '<button class="btn block" type="button" data-g="open">Show me how</button>' : "";
+    if (!on && msg) h = '<div class="card-head"><h2>How to use the bot</h2></div><p class="note">' + esc(msg) + '</p>' + (u.verified ? '<button class="btn block" type="button" data-g="retry">Try again</button>' : '');
     if (h !== LH) C.innerHTML = LH = h;
   }
   function load() {
     var u = me(); if (!(u && u.verified)) { D = null; drawCard(); return; }
     if (D) { drawCard(); return; }
-    SXA.api("/api/guide").then(function (j) { D = j; drawCard(); if (OV) draw(); }).catch(function () {});
+    SXA.api("/api/guide").then(function (j) { D = j; ERR = false; drawCard(); if (OV) draw(); }).catch(function () { ERR = true; drawCard(); });
   }
   function close() { if (OV && OV.remove) OV.remove(); OV = null; }
   function open(n) {
@@ -42,7 +45,7 @@
   }
   document.addEventListener("click", function (e) {
     var b = e.target.closest("[data-g]"); if (!b || (!C.contains(b) && !(OV && OV.contains(b)))) return; var c = b.getAttribute("data-g");
-    if (c === "open") open(0); else if (c === "close") close(); else if (c === "next") open(N + 1); else if (c === "back") open(N - 1);
+    if (c === "retry") { D = null; load(); } else if (c === "open") open(0); else if (c === "close") close(); else if (c === "next") open(N + 1); else if (c === "back") open(N - 1);
   });
   window.sxGuide = { open: function () { if (D) open(0); }, state: function () { return D; } };
   load(); setInterval(load, 60000); setTimeout(load, 2500);
