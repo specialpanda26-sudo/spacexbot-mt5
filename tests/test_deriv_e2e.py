@@ -103,7 +103,7 @@ T('23 ...and the bot cannot be started', c.post('/api/brokers/Deriv/bot', json={
 
 # ---- S1 wording: plain words, no false "connected", Binance is not called an MT5 broker ----
 idx = open(os.path.join(HERE, '..', 'static', 'index.html'), encoding='utf-8').read(); cn = J(c.get('/api/connections', headers=H('zed@x.com')))
-T('W1 MT5 popup gives three plain steps', 'Step 1 of 3' in idx and 'Connect your MT5 card' in idx)
+T('W1 MT5 popup is phone-first: no EA, no key', 'turn on Phone mode' in idx and 'No EA and no key needed.' in idx)
 T('W2 a saved MT5 tile says what was saved and never looks connected', 'Server name saved' in idx and 'kind!=="mt5"?" on"' in idx)
 T('W3 Deriv popup has the four steps', '4. Tap Start bot' in idx)
 T('W4 the MT5 card tells Deriv people to skip it', 'Using Deriv? You do not need this card' in idx)

@@ -110,7 +110,7 @@
   });
 
   var X = {
-    ready: ready, api: api, user: function () { return ME; }, resolved: function () { return done; }, configured: ok,
+    ready: ready, api: api, token: tok, user: function () { return ME; }, resolved: function () { return done; }, configured: ok,
     bind: function (fn) { sink = fn; if (done) { first = true; fire(); first = false; } },
     refresh: function () { return load().then(function (m) { fire(); return m; }); },
     /* GET with a saved copy: {data, stale, at}. Online it saves the fresh answer; offline it returns the last one. */

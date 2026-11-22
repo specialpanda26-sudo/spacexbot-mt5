@@ -79,9 +79,10 @@
   vb.insertBefore(C, vb.firstChild ? vb.firstChild.nextSibling : null);
 
   var D = null, R = { kind: "idle" }, WATCH = false, BUSY = false, ERR = "", LH = "", USED = null, CAP = null;
-  var STREAM = null, VID = null, TIMER = 0, UID = null;
+  var STREAM = null, VID = null, TIMER = 0, UID = null, NATIVE = false, TT = 0;
 
   function canShare() { return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia); }
+  function plug() { var c = window.Capacitor; return (c && c.isNativePlatform && c.isNativePlatform() && c.Plugins && c.Plugins.SxbScreen) || null; }   /* PH2: the Android app's own screen plugin */
   function draw() {
     var u = me(), admin = !!(u && u.admin);
     var show = !!(u && u.verified && D && (D.on || admin)); C.hidden = !show; C.style.display = show ? "" : "none";
@@ -95,10 +96,11 @@
         '<div class="sc2p"><div>' + pic + '</div><div class="sc2say"><b>' + esc(v.head) + "</b><p>" + esc(v.say) + "</p></div></div>" +
         (ls.length ? '<ul class="sc2l">' + ls.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" : "") +
         '<div class="sc2r">' +
-        (WATCH ? '<button type="button" class="btn" data-a="stop">Stop watching</button><button type="button" class="btn primary" data-a="now"' + (BUSY ? " disabled" : "") + ">Read now</button>"
+        (WATCH ? '<button type="button" class="btn" data-a="stop">' + (NATIVE ? "Stop bubble" : "Stop watching") + '</button><button type="button" class="btn primary" data-a="now"' + (BUSY ? " disabled" : "") + (NATIVE ? " hidden" : "") + ">Read now</button>"
                : '<button type="button" class="btn primary" data-a="watch"' + (can ? "" : " disabled") + ">Watch my screen</button>") + "</div>" +
         '<div class="seg" role="group" aria-label="What the screen assistant may do" style="justify-self:start;max-width:100%;overflow-x:auto;margin-top:10px">' +
         '<button type="button" aria-pressed="true">Explain</button><button type="button" aria-pressed="false" disabled>Suggest · soon</button><button type="button" aria-pressed="false" disabled>Auto · soon</button></div>' +
+        (NATIVE ? '<p class="note">The bubble is on. Open your MT5 app, then tap the bubble to read the chart. Android asks you to allow screen sharing each time.</p>' : "") +
         (ERR ? '<p class="err">' + esc(ERR) + "</p>" : "") +
         '<p class="note">This is a read of your screen, not advice. It is the bot, not the AI, that decides whether it could trade, and it places nothing here. ' +
         "Everything you can see on the shared screen goes to the AI service, so close private screens first. The picture is dropped right after the answer.</p>" +
@@ -114,6 +116,7 @@
     clearTimeout(TIMER); TIMER = 0;
     try { if (STREAM) STREAM.getTracks().forEach(function (t) { try { t.onended = null; t.stop(); } catch (e) {} }); } catch (e) {}
     STREAM = null; if (VID) { try { VID.srcObject = null; } catch (e) {} } VID = null; WATCH = false; BUSY = false;
+    if (NATIVE) { NATIVE = false; clearInterval(TT); var P0 = plug(); if (P0 && P0.stop) { try { P0.stop(); } catch (e) {} } }
     if (!quiet) draw();
   }
   function grab() {                          /* one JPEG as base64, or null. The picture exists only inside this call and the request. */
@@ -140,9 +143,22 @@
       draw(); later();
     });
   }
+  function refreshTok(P) { SXA.token().then(function (n) { if (n && P.setToken) P.setToken({ token: n }); }).catch(function () {}); }   /* sign-in tokens expire: hand over a fresh one */
+  function startNative(P) {
+    ERR = "";
+    SXA.token().then(function (t) {
+      if (!t) { ERR = "Please sign in first."; draw(); return; }
+      return P.start({ server: location.origin, token: t, context: "trade" }).then(function () {
+        NATIVE = true; WATCH = true; R = { kind: "idle" }; draw();
+        clearInterval(TT); TT = setInterval(function () { refreshTok(P); }, 600000);
+      });
+    }).catch(function (e) { ERR = (e && e.message) ? String(e.message) : "Could not start the screen bubble."; draw(); });
+  }
   function start() {
     if (WATCH) return;
-    if (!canShare()) { ERR = "This browser cannot share the screen. Use Chrome, Edge or Firefox on a computer. The phone app version comes later."; draw(); return; }
+    var P = plug();
+    if (P && P.start) { startNative(P); return; }          /* PH2: in the Android app use the floating bubble, not the browser's screen share */
+    if (!canShare()) { ERR = "This browser cannot share the screen. It works in the spaceXBot Android app (install the newest build) or in Chrome, Edge or Firefox on a computer."; draw(); return; }
     ERR = "";
     navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 1 }, audio: false }).then(function (s) {
       STREAM = s; VID = document.createElement("video"); VID.muted = true; VID.setAttribute("playsinline", ""); VID.srcObject = s;
@@ -170,7 +186,12 @@
     if (a === "watch") start(); else if (a === "stop") { R = { kind: "idle" }; stop(); } else if (a === "now") { clearTimeout(TIMER); readNow(); }
     else if (a === "admin1") admin("1"); else if (a === "admin0") admin("0");
   });
-  window.addEventListener("pagehide", function () { stop(true); });
+  window.addEventListener("pagehide", function () { if (!NATIVE) stop(true); });          /* the bubble must keep running while MT5 is on top */
+  if (document.addEventListener) document.addEventListener("visibilitychange", function () {
+    var P = NATIVE ? plug() : null; if (!P || document.hidden) return;
+    refreshTok(P);
+    if (P.status) P.status().then(function (s) { if (s && s.running === false) { NATIVE = false; WATCH = false; clearInterval(TT); R = { kind: "idle" }; draw(); } }).catch(function () {});
+  });
   load(); setInterval(load, 60000); setTimeout(load, 2500);
   window.SXSC.state = function () { return { watching: WATCH, busy: BUSY, hidden: C.hidden, html: LH }; };
 })();

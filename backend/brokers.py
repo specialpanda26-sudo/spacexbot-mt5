@@ -15,8 +15,8 @@ def canon(name):
     return next((k for k in CATALOG if k.lower() == n), None)
 # What each broker really does today, in plain words (shown on its tile and in its Connect card). Change these when the code changes.
 ABOUT = {
-    'mt5': {'tile': 'Via your MT5 app', 'works': 'Trades through your MT5 app and the SpaceXBridge EA.', 'not': 'This site does not check your key or read your balance. Your MT5 app does that.'},
-    'Deriv MT5': {'tile': 'Via your MT5 app', 'works': 'Trades on your Deriv MT5 account through the SpaceXBridge EA, next to FBS. Your positions show in your MT5 app.', 'not': 'The MT5 phone app cannot run the EA: MT5 must be open on a Windows PC or a VPS. Deriv may name markets differently (set Symbols or SymbolSuffix in the EA). This site does not read your Deriv MT5 balance.'},
+    'mt5': {'tile': 'Signals to your MT5 app', 'works': 'Sends you each signal with your lot size. You tap Take it and place it in your MT5 phone app. No EA and no key needed.', 'not': 'It does not place the trade inside MT5 for you, and this site does not read your MT5 balance. A PC with the EA is only an advanced option.'},
+    'Deriv MT5': {'tile': 'Signals to your MT5 app', 'works': 'Sends you each signal with your lot size. You tap Take it and place it in your Deriv MT5 phone app. No EA and no key needed.', 'not': 'It does not place the trade inside MT5 for you. Deriv may name markets differently, so check the symbol on your MT5 chart. For fully automatic trading use the Deriv tile.'},
     'Deriv': {'tile': 'Check, balance, demo bot', 'works': 'Token check, balance read, and the bot trading on your demo (virtual) account.', 'not': 'Real-money trading stays off unless the owner allows it and you switch to Real.'},
     'Binance': {'tile': 'Testnet demo bot', 'works': 'Key check, test balance read, and a demo bot that buys and sells Spot crypto on the Binance TESTNET (fake money). Long-only: it buys, then sells.', 'not': 'Real-money Binance trading is not available yet. Use a testnet key from testnet.binance.vision, never your real Binance key.'},
 }
