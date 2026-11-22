@@ -23,7 +23,11 @@ T('every cartoon is one the site already has (window.IL2)', all(re.search(r'IL2\
 T('wording says demo or real, and the word REAL is explained', 'Demo' in txt and 'Real' in txt and 'REAL' in txt)
 T('no profit promise', not re.search(r'guarantee|risk.free|sure profit|always win|make money', txt + js, re.I))
 T('names all three brokers and says Binance does not trade yet', all(b in txt for b in ('Deriv', 'MT5', 'Binance')) and 'does not place trades yet' in txt)
-T('brand line is Ogola Tech (double L)', j['brand'] == 'Powered by Ogola Tech' and 'Ogla' not in txt)
+T('brand line is Ogolla Tech (two L, the owner is Ogolla)', j['brand'] == 'Powered by Ogolla Tech')
+T('the one-L spelling is nowhere in the app files', not [f for f in glob.glob(os.path.join(ROOT, 'backend', '*.py')) + glob.glob(os.path.join(ROOT, 'static', '*.js')) + glob.glob(os.path.join(ROOT, 'emails', '*.html')) + [os.path.join(ROOT, 'static', 'index.html')] if 'Ogola' in open(f, encoding='utf-8').read()])
+import backend.course as course
+cm = {l['id']: l['art'] for l in course.LESSONS}; gm = {s['id']: s['art'] for s in guide.STEPS}
+T('cartoons follow what the site already shows for the same topic', gm['signup'] == 'rocket' and gm['subscribe'] == 'coin' and gm['connect'] == 'plug' and gm['alerts'] == 'push' and gm['mode'] == cm['accounts'] and gm['signal'] == cm['signal'] and gm['safety'] == cm['rules'] and gm['start'] == cm['meet'])
 T('page loads guide.js', '<script src="/static/guide.js"></script>' in ix)
 T('the page escapes text and calls the server route', 'function esc' in js and '/api/guide' in js and 'innerHTML' in js)
 T('no colours written, only site variables and classes', not re.search(r'#[0-9a-fA-F]{3,6}\b', js) and all(k in js for k in ('card-head', 'chip', 'btn', 'panel', 'note', 'muted')))

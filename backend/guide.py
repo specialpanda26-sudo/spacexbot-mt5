@@ -4,7 +4,7 @@ Plain words, no promise of profit. 'art' is the name of a cartoon in window.IL2 
 def S(i, t, art, intro, pts): return {'id': i, 'title': t, 'art': art, 'intro': intro, 'points': pts}
 
 STEPS = [
-    S('signup', 'Sign up', 'mail', 'Make your account in a minute.', [
+    S('signup', 'Sign up', 'rocket', 'Make your account in a minute.', [
         'Tap Log in, then Sign up. Use an email you can open.',
         'We send a link or a code. Open it to verify your email.',
         'Until your email is verified the bot stays locked.']),
@@ -17,7 +17,7 @@ STEPS = [
         'Deriv: paste your Deriv token. Binance: paste a key that can read, never one that can withdraw. Binance does not place trades yet.',
         'MT5: install the free bridge on your PC and paste your key.',
         'The tile says Connected only when the server really talks to your account.']),
-    S('mode', 'Demo or real', 'shield', 'Start with demo. Real is your choice.', [
+    S('mode', 'Demo or real', 'plug', 'Start with demo. Real is your choice.', [
         'Demo uses practice money. Real uses your own money.',
         'To switch to Real you type the word REAL, and you must finish the learning path first.',
         'Any switch stops the bot, so you start it again on purpose.']),
@@ -25,7 +25,7 @@ STEPS = [
         'Choose which platform trades: MT5, Deriv or Binance. Only one trades at a time.',
         'Tap Start. The Bot status card says in plain words if it is trading or why not.',
         'Tap Stop any time. Stop always works.']),
-    S('signal', 'Read a signal', 'doc', 'What a signal tells you.', [
+    S('signal', 'Read a signal', 'phone', 'What a signal tells you.', [
         'A signal shows the market, buy or sell, the entry, the stop loss and the take profit.',
         'The strategy name tells you why the bot liked it.',
         'A signal is an idea, not a promise. Some trades lose.']),
@@ -42,4 +42,4 @@ STEPS = [
         'The Connect tab checks your broker and gives the first fix.',
         'Still stuck? Tell the owner exactly what the screen showed.'])]
 
-def view(): return {'steps': STEPS, 'total': len(STEPS), 'brand': 'Powered by Ogola Tech'}
+def view(): return {'steps': STEPS, 'total': len(STEPS), 'brand': 'Powered by Ogolla Tech'}

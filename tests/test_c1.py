@@ -1,4 +1,4 @@
-"""Checks C1: demo-or-real wording and the Ogola Tech credit. Plain python. Run: python tests/test_c1.py"""
+"""Checks C1: demo-or-real wording and the Ogolla Tech credit. Plain python. Run: python tests/test_c1.py"""
 import os
 S = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'static', 'index.html'), encoding='utf-8').read()
 R = []
@@ -8,8 +8,8 @@ for bad in ('Open a demo account', 'Practice on a demo account first', 'Demo acc
 T('landing step says Open an account (demo or real)', 'Demo to practise or Real to trade, your choice.' in S)
 T('closing band says demo or real', '<h2>Trade on a demo or a real account.</h2>' in S)
 T('Platforms chip says Demo or Real', '<span class="chip info">Demo or Real</span>' in S)
-T('footer credit Ogola Tech (double L)', '2026 spaceXBot \u00b7 Powered by Ogola Tech</span>' in S)
-T('never the single-L spelling', 'Ogla' not in S and 'Powered by Ogola Tech' in S)
+T('footer credit Ogolla Tech (double L)', '2026 spaceXBot \u00b7 Powered by Ogolla Tech</span>' in S)
+T('never the single-L spelling', 'Ogola' not in S and 'Powered by Ogolla Tech' in S)
 T('risk wording kept: signals do not promise profit', 'do not promise profit' in S)
 print('%d/%d passed' % (sum(R), len(R)))
 raise SystemExit(0 if all(R) else 1)
