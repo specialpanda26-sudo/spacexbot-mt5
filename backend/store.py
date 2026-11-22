@@ -4,6 +4,8 @@ import os, time, sqlite3, threading, json
 from contextlib import closing, contextmanager
 URL = os.getenv('DATABASE_URL', '').strip()
 PG = bool(URL)
+if PG:          # IMP3: load the driver once, now, before any background thread exists
+    import psycopg2, psycopg2.extras, psycopg2.pool, psycopg2.extensions
 DB = os.getenv('DB_PATH', 'data/spacex.db')
 _lock = threading.Lock()
 if not PG: os.makedirs(os.path.dirname(DB) or '.', exist_ok=True)
@@ -108,7 +110,7 @@ def q(sql, a=(), one=False):
     if PG:
         from psycopg2.extras import RealDictCursor
         with _pgc() as c, c.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(_ph(sql), tuple(a)); rows = [dict(r) for r in cur.fetchall()]; c.commit()
+            cur.execute(_ph(sql), tuple(a) or None); rows = [dict(r) for r in cur.fetchall()]; c.commit()
     else:
         with closing(_c()) as c: rows = [dict(r) for r in c.execute(sql, a).fetchall()]
     return (rows[0] if rows else None) if one else rows
@@ -120,7 +122,7 @@ def x(sql, a=(), count=False):
         s = _ph(sql); ins = s.lstrip().upper().startswith('INSERT INTO SIGNALS')
         if ins: s += ' RETURNING id'
         with _pgc() as c, c.cursor() as cur:
-            try: cur.execute(s, tuple(a))
+            try: cur.execute(s, tuple(a) or None)
             except psycopg2.IntegrityError as e: raise sqlite3.IntegrityError(str(e))     # one exception type for callers (e.g. username taken)
             rc = cur.rowcount; rid = cur.fetchone()[0] if ins else None; c.commit()
         return rc if count else rid
