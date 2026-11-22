@@ -15,7 +15,7 @@ The idea, in plain words:
 Settings are saved per person in kv 'burst:<uid>' (uid '' = the owner's own bot). Group facts are kept in kv 'bg:<group id>'.
 Nothing here claims it makes more money. Only a demo run or tools/backtest.py can say that."""
 import json, time
-from . import store as st, links, risk, limits, multi, groupcap
+from . import store as st, links, risk, limits, multi, groupcap, burst_look
 
 HI = 30
 DEF = {'on': False, 'idle_min': 5, 'quick_n': 5, 'big_n': 15, 'quick_usd': 0.5, 'big_usd': 1.0, 'giveback': 40, 'stake_usd': 0.5}
@@ -222,7 +222,7 @@ def explain(uid='', now=None, admin=False):
 
 
 def view(uid='', now=None):
-    return {'settings': get(uid), 'enabled': enabled(), 'ceiling': ceiling(), 'big_score': big_score(), 'now': explain(uid, now)}
+    return {'settings': get(uid), 'enabled': enabled(), 'ceiling': ceiling(), 'big_score': big_score(), 'now': explain(uid, now), 'look': burst_look.last(uid, now)}
 
 
 def fixed_size(entry, sl, tp, bal, stake, mult):

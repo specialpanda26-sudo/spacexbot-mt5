@@ -850,3 +850,9 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Cap: owner setting burst_free_per_hour (default 2 per person per hour, 0 = off, max 12), on the admin page; counted in kv bfree:<uid>. Every burst rule still applies (quiet minutes, loss limits, ceiling, news lock, symbol gate).
 - Not a tested strategy. Demo only until tools/backtest.py or a demo run says how it does. Deriv still needs a stake of 1 USD or more (see SM1).
 - Tests: tests/test_bt4.py.
+
+
+## Section BT5 (burst card: last look) DONE (Nov 23)
+- backend/burst_look.py saves ONE plain sentence per person (kv blook:<uid>, cut to 240 characters) each time _burst_scan decides: no candles, no setup (the brain's own reason plus why the BT4 momentum burst also stayed out: off, hourly cap, no clear move), a chance blocked by the symbol gate or by no room, or a group opened. burst.view() returns 'look' {why, ago} (hidden after 6 hours); the Bot tab shows it after the state line as 'Last look (5 min ago): ...'.
+- Words only: it never changes what the bot does. The scan runs per market, so the last market looked at wins the sentence (it starts with the market name).
+- Tests: tests/test_bt5.py.

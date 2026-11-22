@@ -14,7 +14,7 @@ def _boom(e):
     import traceback; print('500', request.path, repr(e)[:300]); traceback.print_exc(); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 from . import btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
-from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck
+from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -172,7 +172,7 @@ def _burst_scan(sym, uid=''):
     if risk.weekday_skip(sym): return          # B1: Bitcoin weekends-only mode
     m5 = bars.get(sym, 'M5', uid); tf, hi = ('M5', 'M15') if m5 else ('M15', 'H1')
     m = m5 or bars.get(sym, 'M15', uid); h = bars.get(sym, hi, uid)
-    if not m: return
+    if not m: burst_look.note(uid, sym + ': no candles received yet.'); return          # BT5
     key = f'lastbar:{uid}:{sym}:burst'
     if st.get(key) == str(m[-1]['t']): return          # already looked at this candle
     st.put(key, m[-1]['t'])
@@ -183,17 +183,18 @@ def _burst_scan(sym, uid=''):
     off, solo, _mc = prefs.apply(uid, off, solo, 1)
     info = {}; s = brain.evaluate(m, h, 1, st.fget('rr'), off, solo=solo, info=info, off_reg=orf)
     if not s: s = burst_free.setup(uid, m)          # BT4: no strategy setup, so plain momentum, capped per hour
-    if not s: return
+    if not s: burst_look.note(uid, sym + ': ' + (info.get('text') or 'No strategy setup.') + ' ' + burst_look.free_words(uid, m)); return          # BT5
     ok, why = risk.symbol_gate(sym, s['side'], uid=uid, cool=False)
-    if not ok: print('burst skip', sym, s['side'], why); return
+    if not ok: print('burst skip', sym, s['side'], why); burst_look.note(uid, sym + ': a ' + s['side'] + ' chance was found but it stayed out. ' + botstate._words(why)); return          # BT5
     pl, why = burst.plan(uid, s['score'])
-    if not pl: print('burst skip', sym, why); return
+    if not pl: print('burst skip', sym, why); burst_look.note(uid, sym + ': a chance was found but ' + str(why) + '.'); return          # BT5
     s.setdefault('why', {})['burst'] = {'kind': pl['kind'], 'n': pl['n'], 'each': pl['each'], 'tf': tf}
     ids = burst.create(uid, sym, s, pl, rsn.pack(s))
     if s.get('free'): burst_free.mark(uid)          # BT4: counts toward the hourly cap
     sbauth.notify(f"BURST {s['side'].upper()} {sym}", si.alert_body(s['strategy'], s['entry'], s['sl'], s['tp']), key=f'sig{ids[0]}-new', only=uid or None)
     for i in ids: lag.created(i, m[-1]['t'], uid)
     print('burst', pl['kind'], sym, s['side'], pl['n'], 'entries', pl['each'], 'USD each')
+    burst_look.note(uid, '%s: opened a %s burst of %d %s entries%s.' % (sym, pl['kind'], pl['n'], s['side'], ' (no strategy setup, momentum only)' if s.get('free') else ''))          # BT5
     botstate.note(uid, sym, 'signal')
     learn.log(uid, 'signal', s['strategy'], sym, s['side'], data={'score': s['score'], 'adx': s['adx'], 'entry': s['entry'], 'burst': pl['kind'], 'n': pl['n']})
     if not uid: assist.announce(ids[0])
