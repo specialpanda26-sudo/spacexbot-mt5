@@ -791,3 +791,9 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Deriv group close: burst create() now also saves dtgt = entries x target each when the person has no group target; deriv_group.check uses tgt or dtgt. MT5 is unchanged (it ignores dtgt). A burst is still never cycled.
 - Bot tab: Burst card moved to the TOP with Stake per entry + a live line (6 entries x 1 USD ... closes at 6 USD). New card 'Find a setting' above it: type plain words, it scores every card in Bot, Profile, Connect, Trades, Home (title and text, plus a small word list: busy, scalp, stake, repeat...) and jumps to the card with a highlight. It is a keyword search, not an AI model. Profile cards only exist after the profile page was opened once, so a small built-in list covers Notifications, Security, Privacy and data, Account, Trading profile.
 - Tests: tests/test_bt2.py.
+
+
+## Section BT3 (Big burst numbers on the card) DONE (Nov 24)
+- static/index.html, Burst card: new part "Big burst (rare, strong setups)" with Big burst entries and Big target per entry ($), saved with Save numbers (big_n, big_usd, already supported by backend/burst.py). Block marker /*BT3*/.
+- The card says in plain words that a big burst needs N strategies to agree (N = owner setting burst_big_score, read from GET /api/burst big_score, not editable by users) and that Big entries must be MORE than the normal Entries, otherwise a big burst never happens (burst.plan needs big_n > quick_n). Fewer entries than normal is refused on the card; the same number shows a warning.
+- Entries inputs now use the owner ceiling as their max. Not checked on a real phone. Test: tests/test_bt3.py.
