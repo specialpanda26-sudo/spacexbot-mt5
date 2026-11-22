@@ -7,9 +7,9 @@ a = S.find('<style id="nav1">'); b = S.find('</style>', a) if a > -1 else -1; cs
 j = S.find('window.sxBanner=', b); js = S[j:S.find('</script>', j)] if j > -1 else ''
 T('the nav1 block exists once', S.count('<style id="nav1">') == 1 and S.count('window.sxBanner=') == 1)
 T('gradient uses userSpaceOnUse (line icons have no width or height)', 'id="sxNavG" gradientUnits="userSpaceOnUse"' in S and S.count('<stop ') >= 3 and S.find('id="sxNavG"') < a)
-T('active tab icon is filled and stroked with the gradient, Bot logo left alone', 'svg:not(.mk){fill:url(#sxNavG);stroke:url(#sxNavG)}' in css)
+T('active tab icon keeps its lines: no fill, line stroked with the gradient, Bot logo left alone', 'svg:not(.mk){fill:none;stroke:url(#sxNavG);stroke-width:2.6}' in css and 'fill:url(#sxNavG)' not in css)
 T('phone: the square highlight is gone', '@media (max-width:899px){.nav button[aria-current="page"]{background:none}}' in css)
-T('open-line icons (Market, Trades) stay lines, not filled shapes', '[data-go="market"][aria-current="page"] svg' in css and '[data-go="trades"][aria-current="page"] svg' in css and 'fill:none;stroke-width:2.9' in css)
+T('the lines draw themselves in when a tab is tapped (and not for reduce-motion phones)', '@keyframes sxNavDraw{from{stroke-dashoffset:80}to{stroke-dashoffset:0}}' in css and 'stroke-dasharray:80;animation:sxNavDraw' in css and 'reduce){.nav button[aria-current="page"] svg:not(.mk) *{animation:none}' in css)
 T('nav1 comes after the old nav rules so it wins', a > S.find('.nav button[aria-current="page"]{color:var(--green);background:var(--green-soft)}') > -1)
 T('banner has the site look (dark card, rainbow strip, chunky shadow, Nunito font)', all(x in css for x in ('#0C1B33', '#E5484D', '0 4px 0 rgba(0,0,0,.35)', 'var(--font)')))
 T('banner sits under the phone notch and above the toast', 'env(safe-area-inset-top' in css and 'z-index:60' in css)
