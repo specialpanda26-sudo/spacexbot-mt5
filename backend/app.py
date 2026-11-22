@@ -12,7 +12,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import risk_alerts, system_alerts, report_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
+from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -300,6 +300,7 @@ def push_test(u):
 @app.get('/api/me')
 @need()
 def me(u):
+    nudge_alerts.seen(u['uid'], bool(u.get('verified')))          # N6d: kind 45
     sc = _mine(u); a = st.acct(sc); online = time.time() - a.get('seen', 0) < 120
     out = {'uid': u['uid'], 'email': u['email'], 'verified': bool(u.get('verified')), 'admin': u['admin'], 'active': u['active'], 'plan_until': u['plan_until'], **accounts.view(u['uid'])}
     out['name'] = out['name'] or u.get('name') or u['email'].split('@')[0]
@@ -912,6 +913,6 @@ except Exception as e: print('[markets] loop not started', e)
 try: deriv.start(_scan, _paid)
 except Exception as e: print('deriv loop not started', e)
 try:
-    from . import live, market_alerts; market_alerts.register(); risk_alerts.register(); system_alerts.register(); report_alerts.register(); alerts.start()
+    from . import live, market_alerts; market_alerts.register(); risk_alerts.register(); system_alerts.register(); report_alerts.register(); nudge_alerts.register(); alerts.start()
     live.start()
 except Exception as e: print('[live] not started', e)

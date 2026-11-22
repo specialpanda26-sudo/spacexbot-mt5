@@ -315,3 +315,13 @@ Start now: tell me in one short line what you found in docs/HANDOFF.md, then giv
 - Tunables are the constants at the top of report_alerts.py (DAILY_HOUR, WEEKLY_WEEKDAY, MONTHLY_*, WINDOW_H, STREAKS, STREAK_FRESH, REVIEW_MIN_LOSSES). They are assumptions. The report only goes out if the server is awake in its one-hour window (free Render sleeps: ping /healthz).
 - NOT tested: a real phone, real FCM.
 - Next: N6d (nudges 45-49), N6e (security 50), 35 once decided.
+
+## Section N6d (setup nudges, kinds 45-49) DONE (Nov 22)
+- New backend/nudge_alerts.py + tests/test_n6d.py (37 checks, fake FCM, mutation-checked). One job on the ONE loop (nudge_alerts.register(), called in app.py before alerts.start()), every 30 min, only between 09:00 and 20:00 EAT. app.py /api/me also calls nudge_alerts.seen() (kind 45 only).
+- ONCE EVER per person per step (push_log key n<kind>-<uid>); push.allowed already limits nudges to ONE a day, so a person with two open steps gets the second the next day. Admins get none. Category 'tips' (the person's Tips switch applies).
+- 45 verify email: the server does NOT store 'verified' (it lives only in the sign-in token), so /api/me records people who are in the app unverified (in memory, lost on restart): unverified 2 h and seen in the app within the last hour. 46 connect broker: has a plan, 1 day after sign-up, no MT5 key, no saved broker (Deriv) and Phone mode off. 47 set risk: an MT5 key made 1+ day ago with no risk saved. 48 choose alerts: alerts never saved (notif empty) 2 days after the first phone registered. 49 finish profile: username, phone or country missing, 3 days after sign-up.
+- Tunables are the constants at the top of nudge_alerts.py (assumptions). NOT tested: a real phone, real FCM.
+- Next: N6e (security 50), 35 once decided.
+
+## Time zones (Nov 22)
+- requirements.txt now has tzdata. market_alerts.py (Tokyo/London/New York session alerts) uses zoneinfo, which needs a time zone database; Termux (and possibly Render) has none, so the job failed with "No time zone found with key Asia/Tokyo". tzdata is a free pip package that brings its own database. On Termux run: pip install tzdata
