@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(GoogleSignInPlugin.class);   // must come BEFORE super.onCreate
         registerPlugin(AppUpdatePlugin.class);
+        registerPlugin(ScreenPlugin.class);
         super.onCreate(savedInstanceState);
         makeChannels();
     }
