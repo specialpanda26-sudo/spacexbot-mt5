@@ -333,3 +333,22 @@ Start now: tell me in one short line what you found in docs/HANDOFF.md, then giv
 - tests/test_sbauth.py compared verify() to an exact dict; it now expects the new last_sign_in field. The four earlier N6 tests (n6a-n6d) now call alerts.stop() after importing the app: the app starts its alert loop at import and its first pass runs every job on the real clock, which could rarely race a test (seen once as 23/25 and once as a failed n6c). Any NEW test that imports the app should do the same.
 - NOT tested: real Supabase. The new-sign-in rule assumes last_sign_in_at changes on a sign-in and NOT on a token refresh. If people get a 'New sign-in' notice about once an hour, tell the next session: that assumption is wrong (the 6 h gap limits the damage).
 - Next: kind 35 once decided. After N6, the alerts list is complete except 35.
+
+## BTC WEEKEND PLAN (Nov 22, owner: one section per reply, owner says "go N")
+Why: the owner has only traded gold; he wants BTC because it trades on weekends. Fresh start, nothing below is built yet except what is marked.
+- Already in the code: backend/btc_switch.py (B1, one switch that adds BTCUSD to Symbols and exempts it from the weekend rule), risk.py weekend rule per market (W9), tests/test_btc1.py. These have no section above, this is their note.
+- Known limits: deriv.py builds names as 'frx'+symbol, so BTC does NOT work on Deriv. Strategies, stop distances (automode.max_stop) and lot size were built around gold, not tested on BTC. No backtest. Demo account first.
+
+Settings first pass (the app has 40; judged from code notes, not each one in running code):
+- Keep on top: bot on, risk per trade, markets, max open, daily and weekly loss limit, loss streak stop, news lock, take profit (RR), widest stop, the Burst numbers.
+- Hide under "Advanced": min_confluence, strategies_solo, strategies_off (Auto mode fixes them), auto_disable, regime_switch, multi_min_score, symbols_pool, auto_markets and its max, max_trades_day (0 = off).
+- "Big stake on strong setups" is ON by default and uses a bigger share of the balance on some trades. Suggest switching it off.
+- To add: a stop-loss field per position in Auto settings, and a profit target in USD per position.
+
+Sections:
+- 2: BTC candles (the feed), plus feed lines for all markets. Check which free source gives BTC candles (Deriv cannot).
+- 3: BTC-sized stops and lot size.
+- 4: settings cleanup: important ones on top, the rest under Advanced. Never remove a setting or command, only move/hide.
+- 5: Auto settings where the owner enters only the stop loss and the USD profit target. Each position closes at its target; the bot reopens only when a fresh valid signal agrees, never blindly.
+- 6: the weekend strategy from the owner's transcript (WAITING: transcript not received yet).
+Status: none done. Next: Section 2.
