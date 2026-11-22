@@ -81,7 +81,7 @@ final class ScreenLogic {
         Object b0 = m.get("bot");
         if (!(b0 instanceof Map)) return new Verdict("info", "I read the chart", s(rd.get("note")), SKY, false);
         Map<String, Object> b = (Map<String, Object>) b0; String code = s(b.get("code")), say = s(b.get("text"));
-        if ("agree".equals(code)) return new Verdict("ok", "I see a possible trade.", say + side(b), GREEN, false);
+        if ("agree".equals(code)) return new Verdict("ok", "I see a possible trade.", say + side(b) + sizeText(b), GREEN, false);
         if ("blocked".equals(code)) return new Verdict("watch", "I see a setup, but I cannot trade right now.", say, SUN, false);
         if ("disagree".equals(code)) return new Verdict("watch", "We do not agree, so I stay out.", say, SUN, false);
         if ("no_setup".equals(code)) return new Verdict("info", "Nothing to trade here yet.", say, MUTED, false);
@@ -96,6 +96,15 @@ final class ScreenLogic {
         Map<String, Object> x = (Map<String, Object>) g;
         if (!(x.get("entry") instanceof Number) || !(x.get("sl") instanceof Number) || !(x.get("tp") instanceof Number)) return "";
         return "  Entry " + num(x.get("entry")) + ", stop " + num(x.get("sl")) + ", target " + num(x.get("tp")) + " (the bot's own).";
+    }
+
+    /** PH3 Suggest: the lot size the server worked out from the person's own balance and risk, or its plain-words reason. Empty when the server sent none. */
+    @SuppressWarnings("unchecked")
+    private static String sizeText(Map<String, Object> bot) {
+        Object z0 = bot.get("size"); if (!(z0 instanceof Map)) return "";
+        Map<String, Object> z = (Map<String, Object>) z0;
+        if (z.get("lots") instanceof Number) return "  Suggested size " + num(z.get("lots")) + " lot" + (z.get("risk_usd") instanceof Number ? ", risk about $" + num(z.get("risk_usd")) : "") + ". Check it in your MT5 order screen.";
+        String w = s(z.get("why")); return w.length() > 0 ? "  " + w : "";
     }
 
     private static String num(Object o) {

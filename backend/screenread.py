@@ -81,6 +81,15 @@ def canon(name):
 
 def _v(code, text, sig=None): return {'code': code, 'text': text, 'signal': sig}
 
+def _size(uid, sym, sig):
+    # PH3 Suggest: how many lots fit THIS person's balance and risk (set in Phone mode). A number to look at; nothing is placed.
+    try:
+        from . import assist
+        a = assist.get(uid)
+        if a.get('balance') is None: return {'lots': None, 'why': 'Set your balance and risk in Phone mode to see a lot size.'}
+        return assist.size(sym, sig['entry'], sig['sl'], sig['tp'], a['balance'], a['risk'])
+    except Exception: return {'lots': None, 'why': 'No lot size right now.'}
+
 def ask_bot(uid, read, ctx):
     """Talk to the bot: a DRY RUN of its scan on the market in the picture. Nothing is saved or placed."""
     sym = canon(read.get('symbol'))
@@ -103,7 +112,10 @@ def ask_bot(uid, read, ctx):
     if ok and ctx != 'learn' and risk.weekday_skip(sym): ok, why = False, 'Bitcoin rests on weekdays'
     if ok: ok, why = risk.symbol_gate(sym, s['side'], uid=uid, cool=(ctx != 'learn'))
     if not ok: return _v('blocked', 'The bot sees a %s setup (%s) but this cannot work right now: %s. It does not trade.' % (s['side'], sig['strategy_name'], why), sig)
-    if bias == s['side']: return _v('agree', 'The bot agrees: its strategies (%s) also see a %s. Its own stop loss and target are shown.' % (sig['strategy_name'], s['side']), sig)
+    if bias == s['side']:
+        v = _v('agree', 'The bot agrees: its strategies (%s) also see a %s. Its own stop loss and target are shown.' % (sig['strategy_name'], s['side']), sig)
+        if ctx != 'learn': v['size'] = _size(uid, sym, sig)
+        return v
     if bias in ('buy', 'sell'): return _v('disagree', 'The AI leans %s but the bot\'s strategies see a %s. When they disagree the bot stays out.' % (bias, s['side']), sig)
     return _v('bot_only', 'The AI saw no clear direction, but the bot sees a %s setup (%s).' % (s['side'], sig['strategy_name']), sig)
 

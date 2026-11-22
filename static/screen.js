@@ -53,6 +53,8 @@
     if (read.bias === "buy" || read.bias === "sell") o.push("The AI leans " + read.bias + ".");
     var g = bot && bot.signal;
     if (g) o.push("The bot's own plan: " + g.side + " near " + g.entry + ", stop loss " + g.sl + ", target " + g.tp + (g.strategy_name ? " (" + g.strategy_name + ")" : "") + ".");
+    var z = g && bot.code === "agree" && bot.size;          /* PH3 Suggest: a lot size for THIS person's balance and risk */
+    if (z) o.push(typeof z.lots === "number" ? "Suggested size: " + z.lots + " lot (risks about $" + z.risk_usd + ", aims for about $" + z.win_usd + "). Assumes a USD account. Check it in your MT5 order screen." : String(z.why || "No lot size right now."));
     return o;
   }
   window.SXSC = { pick: pick, lines: lines, fit: fit, MAXB64: MAXB64, EVERY: EVERY };
@@ -99,7 +101,7 @@
         (WATCH ? '<button type="button" class="btn" data-a="stop">' + (NATIVE ? "Stop bubble" : "Stop watching") + '</button><button type="button" class="btn primary" data-a="now"' + (BUSY ? " disabled" : "") + (NATIVE ? " hidden" : "") + ">Read now</button>"
                : '<button type="button" class="btn primary" data-a="watch"' + (can ? "" : " disabled") + ">Watch my screen</button>") + "</div>" +
         '<div class="seg" role="group" aria-label="What the screen assistant may do" style="justify-self:start;max-width:100%;overflow-x:auto;margin-top:10px">' +
-        '<button type="button" aria-pressed="true">Explain</button><button type="button" aria-pressed="false" disabled>Suggest · soon</button><button type="button" aria-pressed="false" disabled>Auto · soon</button></div>' +
+        '<button type="button" aria-pressed="false" disabled>Explain</button><button type="button" aria-pressed="true" disabled>Suggest</button><button type="button" aria-pressed="false" disabled>Auto · soon</button></div>' +
         (NATIVE ? '<p class="note">The bubble is on. Open your MT5 app, then tap the bubble to read the chart. Android asks you to allow screen sharing each time.</p>' : "") +
         (ERR ? '<p class="err">' + esc(ERR) + "</p>" : "") +
         '<p class="note">This is a read of your screen, not advice. It is the bot, not the AI, that decides whether it could trade, and it places nothing here. ' +
