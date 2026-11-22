@@ -616,3 +616,17 @@ Next: SC1.
 - Honest limits: ask_bot copies the scan steps of app._scan_tf (it does not call it, to leave the live scan untouched), so if _scan_tf changes, ask_bot must be changed the same way. It reads the candles the server already holds for that market (the person's own, else the owner's feed); a market with no candles gets no_data. Only XAUUSD / BTCUSD aliases are mapped by name; other names must equal a symbol the server tracks. The learning path itself is unchanged: a read does not count as a lesson or a practice trade (owner can ask for that later).
 - Next: SC2 (website + app page: the "Screen assistant" card on the Bot tab and a "Ask the AI about this chart" step inside the learning path screens, desktop-browser capture, new IL2.eye cartoon).
 
+
+## SCREEN ASSISTANT PLAN v2 (Nov 22, owner's words; replaces the SC2-SC7 list above; SC1 stays DONE; one section per reply, owner says "go")
+Owner vision: the person taps a spot (bubble / button), the app jumps to a Deriv market, the bot reads the chart, the person comes back (or stays). A small panel opens over the Deriv screen: the site's cartoon character talks in a speech bubble ("I think I can trade here" / "nothing here yet" / trade placed, hooray). Every situation has its own cartoon (IL2 props, same dark-haired character). Use the cartoons wherever they fit.
+Owner decisions: do NOT use Anthropic (tokens not free); owner picks the AI model himself later (asked about Grok); for now keep the model code as it is (backend/screenread.py _anthropic).
+Facts checked in the zip: screenread.py has ONE provider (call_model = _anthropic); there is no IL2.eye prop yet; android-wrapper/native has no overlay or capture code.
+Honest limits: the app cannot tap inside the Deriv app. A trade is placed by the SERVER through the Deriv API, only via the normal gates (_place, risk.global_gate, limits.max_open, trade_on, bot switch, plan, demo first, Real needs the word REAL). The AI only READS; entry, stop and target are always the bot's own. A read is an opinion, never a promise.
+- SC2 the talking panel in the page: IL2.eye cartoon, Watch / Stop, level picker (Explain / Suggest / Auto locked), panel with speech bubble and one cartoon per state: scanning = eye, setup found = wait, trade placed = yay, no setup = sleep, limit hit = shield, cannot read = off. Desktop browser capture (getDisplayMedia). Tests in node + Chromium with a fake server.
+- SC1b model switch: admin picks the provider (Anthropic / Grok / Gemini / any OpenAI-style endpoint), keys only on Render, a test button, same JSON check. Do this before the first real read.
+- SC3 Android native: overlay bubble + screen capture + foreground service, posts frames itself (APK rebuild).
+- SC3b "Go to the market": the bubble opens the chosen Deriv market by link, scans, shows the panel over it, comes back. Find out first which Deriv link opens a given market.
+- SC4 Suggest: a matching read creates a screen signal card + push (the person places it by hand).
+- SC5 Auto, confirm-only, demo first, locked until SC6 numbers are seen; panel says it with the yay cartoon.
+- SC6 accuracy log in the Journal. SC7 polish + docs/PHONE_CHECKLIST.md + final check.
+Next: SC2.
