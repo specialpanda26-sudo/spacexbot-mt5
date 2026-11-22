@@ -352,3 +352,25 @@ Sections:
 - 5: Auto settings where the owner enters only the stop loss and the USD profit target. Each position closes at its target; the bot reopens only when a fresh valid signal agrees, never blindly.
 - 6: the weekend strategy from the owner's transcript (WAITING: transcript not received yet).
 Status: none done. Next: Section 2.
+
+## BTC Section 6 SPEC (weekend/BTC strategy from the owner's 3 transcripts; NOT built, build as 6A then 6B)
+Same rules as the top of this file: one new file in backend/, own tests/test_*.py, mutation-check, register in strategies.py, never edit existing strategy files. Tunables are assumptions at the top of the file. Never claim it works: only tools/backtest.py on real BTC candles can say that.
+Note: the bot only has M15 and H1 candles. Build the 8h candle by grouping 8 H1 candles (check that H1 history is long enough; if not, say so). Brain accepts stops 0.5-3.5 ATR(15m) and a fixed 2R target; BTC stops come from Section 3.
+
+### 6A backend/btc_range.py (video 1, ETM FX "Bitcoin Institutional Strategy")
+- BTC moves in supply/demand: price breaks structure, comes back INSIDE the old range, reaches for a demand/supply point, breaks the range again.
+- Range: a swing high and a swing low. A swing high is valid once price breaks it and then comes back inside the previous range; the new high is the top, the swing low that forced the move is the bottom.
+- Fib on the range: levels 0, 0.25, 0.5, 0.75, 1. Bottom quarter = discount (buy only here), top quarter = premium (sell only here). Bullish cycle: wait for price in discount; bearish cycle: mirror in premium. React, never anticipate.
+- Operating time frame = the one where swings are clear: start at 8h. If price moves fast (high volume) and no structure shows, lower the time frame step by step (8h, 4h, 1h, 30m) until structure appears.
+- Entry: price is back inside the range and reaches the extreme (discount/premium) level. Stop just beyond the swing (origin of the extreme level). TP1 = back to the previous range (the other end); TP2 = clear the liquidity beyond it.
+- Management: break-even after TP1 is optional and moderate (the video warns break-even too early gets you stopped out before the move).
+- 50% trade: price sometimes only reaches the 0.5 level and reacts. Make it a flag, not a separate entry.
+- Skip: price consolidating right after the reaction (video calls it a bad sign); no clear range; range too small for the BTC stop minimum.
+- Tests: range found from known candles, discount/premium zones, entry only in the zone, stop beyond the swing, nothing fires with no range or in the middle of the range, time frame drop when no structure shows.
+
+### 6B optional weekend filters (assumptions, from videos 2 and 3; each behind its own setting, default OFF)
+- Sunday-open bounce (video 2, Patrick Wieland, ES futures, he used an order book we do not have): after a big Friday sell-off, draw the fib from Friday high to low; look for a bounce at the Sunday open toward 0.382 / 0.5; take profit fast, stop to break-even, then stand down (he left when it chopped). Only the fib and the fast exit can be coded; NOT the order-book reading.
+- Short-or-do-nothing (video 3, Get Me Trading weekly forecast): when the BTC bias is down, never short at the lows; wait for a pullback to the 4h 50 MA (deep pullback = sell into strength; shallow = wait for the bear-flag breakdown). The stock-market link he talks about cannot be read by this bot.
+- Do NOT copy price levels from the videos (they are dated and not BTC-accurate).
+
+Status: 6A and 6B not started. Order: 2, 3, 4, 5, then 6A, then 6B.
