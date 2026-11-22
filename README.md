@@ -125,6 +125,9 @@ Check it: sign in as admin, open `#admin`, press **Send test alert**. It reports
 - Free Render sleeps after 15 minutes without a request. Alerts that fire on a timer need the server awake: ping `/healthz` every 10 minutes from a free uptime monitor, or use a paid plan.
 - Tests: `python tests/test_push1.py` (phone side), `python tests/test_push2.py` (delivery path).
 
+## AI screen assistant (SC1, server side)
+The AI only READS a chart picture; the bot's own strategies and safety rules answer (a dry run, nothing is placed). Set ANTHROPIC_API_KEY on Render, then `screen_on` = 1 in the admin settings. Paid plans use context `trade`, the learning path uses `learn`. The picture is never stored.
+
 ## Known limits
 - **SQLite on Render free is wiped on every redeploy.** Users, plans and payments reset. Move to Supabase Postgres before taking real money.
 - If the ForexFactory feed is unreachable and was never loaded, the news lock fails open (shown in the app).

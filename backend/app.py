@@ -4,7 +4,8 @@ from . import automode
 from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, reason as rsn, regime as rgm, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard, tradeview, pnlreset, connwhy
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
-st.init(); assist.init()
+from . import screenread
+st.init(); assist.init(); screenread.init()
 
 @app.errorhandler(Exception)
 def _boom(e):
@@ -544,7 +545,7 @@ def admin_set(u):
             try: v = float(j[k])
             except (TypeError, ValueError): return jsonify(error='%s must be a number' % k), 400
             if not lo <= v <= hi: return jsonify(error='%s must be between %g and %g' % (k, lo, hi)), 400
-    for k in ('btc_sunday_bounce', 'btc_short_pullback', 'orb_session'):          # BTC 6B switches: 0 or 1 only, checked before anything is saved
+    for k in ('btc_sunday_bounce', 'btc_short_pullback', 'orb_session', 'screen_on'):          # BTC 6B switches: 0 or 1 only, checked before anything is saved
         if k in j and str(j[k]) not in ('0', '1'): return jsonify(error='%s must be 0 or 1' % k), 400
     for k, v in j.items():
         if k in st.DEFAULTS and k != 'plans': st.put(k, v)          # plans have their own checked route (/api/admin/plans)
@@ -611,6 +612,20 @@ def trade_on_set(u):
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, 'platform': n})
     return jsonify(ok=True, **tradeon.view(u['uid'], bool(u['admin'])))
+
+@app.get('/api/screen/status')
+@need(verified=True)
+def screen_status(u):
+    """SC1: is the screen assistant on, and how many reads are left today (trade and learn)."""
+    return jsonify(screenread.status(u['uid'], bool(u['active'])))
+
+@app.post('/api/screen/read')
+@need(verified=True)
+def screen_read(u):
+    """SC1: one picture (base64 JPEG) in, the AI's read of the chart plus what the bot says about it out. Nothing is placed. The picture is never stored."""
+    if (request.content_length or 0) > screenread.MAX_BODY: return jsonify(error='That picture is too big. Send one under about 600 KB.'), 413
+    j = _j(); code, out = screenread.handle(u['uid'], str(j.get('context') or 'trade'), bool(u['active']), j.get('image'))
+    return jsonify(out), code
 
 @app.get('/api/course')
 @need(verified=True)
