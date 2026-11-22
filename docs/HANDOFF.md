@@ -709,3 +709,9 @@ Next: SC2.
 
 ### Next session: start here
 Owner attaches the latest repo zip (this session's copy is gone). First check the GS1 and D1 patches are in it (grep "gsc" and "def _login_ended"). Then ask the three questions above, then do D2.
+
+## D2 done: Deriv MT5 next to FBS (Nov 22)
+- 'Deriv MT5' is its own broker entry (kind mt5, server name only) beside FBS. Plain 'Deriv' stays the token bot. Patch: apply_d2_derivmt5.py, tests/test_d2.py (18 checks). test_brokers now expects 9 brokers.
+- Owner wants the MT5 ANDROID app. That app can show positions but CANNOT run the EA. The bot on Deriv MT5 needs MT5 + EA on a Windows PC or VPS.
+- Owner choices: bot on all Deriv routes; Auto rule = market open and no news lock, then fewer open trades, then preferred account.
+- Next: D3 running positions, D4 several accounts per user, D5 switching + Auto, D6 tests/deploy. Then the learner steps (all four areas reported failing, not investigated yet).

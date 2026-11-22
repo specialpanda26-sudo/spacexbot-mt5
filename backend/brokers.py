@@ -5,8 +5,9 @@ import os, re, time, json, base64, hashlib
 from . import store as st
 
 CATALOG = {'FBS': 'mt5', 'Exness': 'mt5', 'HFM': 'mt5', 'XM': 'mt5', 'IC Markets': 'mt5', 'Pepperstone': 'mt5',
-           'Deriv': 'token', 'Binance': 'keypair'}          # mt5 = only the server name is kept; the MT5 password stays inside MT5
+           'Deriv': 'token', 'Deriv MT5': 'mt5', 'Binance': 'keypair'}          # mt5 = only the server name is kept; the MT5 password stays inside MT5
 MAX_PER_USER = 10
+HINT = {'Deriv MT5': 'Type your Deriv MT5 server name. Copy it exactly from MT5 when you log in.'}
 _TOK = re.compile(r'^[A-Za-z0-9_.\-]{8,128}$'); _BKEY = re.compile(r'^[A-Za-z0-9]{16,128}$'); _SRV = re.compile(r'^[A-Za-z0-9 _.\-]{2,60}$')
 
 def canon(name):
@@ -15,6 +16,7 @@ def canon(name):
 # What each broker really does today, in plain words (shown on its tile and in its Connect card). Change these when the code changes.
 ABOUT = {
     'mt5': {'tile': 'Via your MT5 app', 'works': 'Trades through your MT5 app and the SpaceXBridge EA.', 'not': 'This site does not check your key or read your balance. Your MT5 app does that.'},
+    'Deriv MT5': {'tile': 'Via your MT5 app', 'works': 'Trades on your Deriv MT5 account through the SpaceXBridge EA, next to FBS. Your positions show in your MT5 app.', 'not': 'The MT5 phone app cannot run the EA: MT5 must be open on a Windows PC or a VPS. Deriv may name markets differently (set Symbols or SymbolSuffix in the EA). This site does not read your Deriv MT5 balance.'},
     'Deriv': {'tile': 'Check, balance, demo bot', 'works': 'Token check, balance read, and the bot trading on your demo (virtual) account.', 'not': 'Real-money trading stays off unless the owner allows it and you switch to Real.'},
     'Binance': {'tile': 'Testnet demo bot', 'works': 'Key check, test balance read, and a demo bot that buys and sells Spot crypto on the Binance TESTNET (fake money). Long-only: it buys, then sells.', 'not': 'Real-money Binance trading is not available yet. Use a testnet key from testnet.binance.vision, never your real Binance key.'},
 }
@@ -33,7 +35,7 @@ def save(uid, name, f):
     if not n: raise ValueError('Unknown broker')
     kind = CATALOG[n]; s = lambda k: str(f.get(k) or '').strip()
     if kind == 'mt5':
-        if not _SRV.match(s('server')): raise ValueError('Type your MT5 server name, for example ' + n + '-Demo.')
+        if not _SRV.match(s('server')): raise ValueError(HINT.get(n) or 'Type your MT5 server name, for example ' + n + '-Demo.')
         label, enc = s('server'), None
     else:
         lock = _lock()

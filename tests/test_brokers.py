@@ -16,7 +16,7 @@ c.get('/api/me', headers=H('free@x.com'))
 T('no plan cannot connect -> 402', c.post('/api/brokers/Deriv', json={'token': TOK}, headers=H('free@x.com')).status_code == 402)
 pay('amy@x.com')
 j = c.get('/api/brokers', headers=H('amy@x.com')).json
-T('list starts empty, catalog has 8 brokers, vault ready', j['brokers'] == [] and len(j['catalog']) == 8 and j['ready'] is True)
+T('list starts empty, catalog has 9 brokers, vault ready', j['brokers'] == [] and len(j['catalog']) == 9 and j['ready'] is True)
 r = c.post('/api/brokers/Deriv', json={'token': TOK}, headers=H('amy@x.com'))
 T('Deriv token saved, shown only as a short tail', r.status_code == 200 and r.json['brokers'][0]['label'] == '...7890' and TOK not in r.get_data(as_text=True))
 T('new connection starts in demo mode', r.json['brokers'][0]['mode'] == 'demo' and r.json['brokers'][0]['status'] == 'saved')
