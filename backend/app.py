@@ -146,6 +146,7 @@ def _scan_tf(sym, uid, tf, hi):
     sbauth.notify(f"{s['side'].upper()} {sym}", si.alert_body(s['strategy'], s['entry'], s['sl'], s['tp']), key=f'sig{sid}-new', only=uid or None)
     lag.created(sid, m15[-1]['t'], uid)
     if n <= 1: stake.mark(sid, uid, s.get('score'), s.get('adx'))          # Section 1: bigger Deriv stake on strong setups
+    if n <= 1: automode.mark(sid, uid, 1)          # Section 5: Auto mode USD target on a single position (a group of one)
     if n > 1:
         st.x('UPDATE signals SET grp=? WHERE id=?', (sid, sid))
         for _ in range(n - 1):
@@ -153,7 +154,7 @@ def _scan_tf(sym, uid, tf, hi):
                        (sym, s['side'], s['entry'], s['sl'], s['tp'], multi.share(base, n), s['strategy'], s['score'], 'pending', int(time.time()), uid or None, sid, rz))
             lag.created(sib, m15[-1]['t'], uid)
         print('multi-entry', sym, s['side'], n, 'entries sharing', base, 'percent')
-        groupcap.mark(sid, uid, n)          # group target / loss limit on: this setup goes to the EA as ONE basket
+        if not groupcap.mark(sid, uid, n): automode.mark(sid, uid, n)          # the person's own group target wins; else the Auto mode USD target (Section 5)
     botstate.note(uid, sym, 'signal')
     learn.log(uid, 'signal', s['strategy'], sym, s['side'], data={'score': s['score'], 'adx': s['adx'], 'entry': s['entry']})
     if not uid: assist.announce(sid)          # phone-mode people get the signal with their own lot size
@@ -256,6 +257,7 @@ def ea_report():
             title = f"{s['symbol']} {'burst ' if bg else ''}{'opened' if stt == 'open' else 'closed'}"
             body = f"{s['side'].upper()} lots {s['lots']}" if stt == 'open' else f"{'Burst ' if bg else ''}P/L {gp}"
             if bg and (burst.meta(bg) or {}).get('k') == 'multi': title = title.replace(' burst ', ' group '); body = body.replace('Burst ', 'Group ', 1)          # a normal group is not a burst
+            if bg and (burst.meta(bg) or {}).get('k') == 'multi' and int((burst.meta(bg) or {}).get('n') or 2) < 2: title = title.replace(' burst ', ' ').replace(' group ', ' '); body = body.replace('Group ', '', 1)          # a group of one reads as a plain trade
             sbauth.notify(title, body, key=kk, only=only)
             if stt == 'open': push.notify(1, kk, sym=s['symbol'], side=s['side'], entry=s['fill'] or s['entry'], sl=s['sl'], tp=s['tp'], risk=s['risk_pct'], strategy=s['strategy'], **aud)
             else: push.notify({'tp': 2, 'sl': 3}.get(str(d.get('reason')), 4), kk, sym=s['symbol'], pnl=gp, **aud)
@@ -530,7 +532,7 @@ def admin_set(u):
     for k, lo, hi in (('risk_pct', 0.1, 2.0), ('rr', 1.0, 4.0), ('max_stop_atr', 0.8, 5.0), ('auto_positions', 1, 5), ('stake_very_pct', 0, 50), ('stake_strong_pct', 0, 50), ('stake_max_risk_pct', 0.5, 25),
                      ('max_open', 1, 10), ('max_daily_loss_pct', 0.5, 20), ('max_weekly_loss_pct', 1, 40), ('max_losing_streak', 0, 20), ('streak_cooldown_h', 0, 72),
                      ('burst_ceiling', 2, 30), ('burst_big_score', 2, 10), ('min_confluence', 1, 6), ('multi_min_score', 2, 10), ('auto_disable_min_trades', 5, 500),
-                     ('auto_markets_max', 0, 10), ('max_trades_day', 0, 100)):          # the three auto-mode numbers: checked before anything is saved
+                     ('auto_markets_max', 0, 10), ('max_trades_day', 0, 100), ('auto_target_usd', 0, 1000)):          # the three auto-mode numbers: checked before anything is saved
         if k in j:
             try: v = float(j[k])
             except (TypeError, ValueError): return jsonify(error='%s must be a number' % k), 400

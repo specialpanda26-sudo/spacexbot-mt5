@@ -398,3 +398,12 @@ Status: 6A and 6B not started. Order: 2, 3, 4, 5, then 6A, then 6B.
 - Bot on in the card goes through POST /api/bot (same as Start/Stop, so Deriv follows), not through the raw setting.
 - Known: "Big stake on strong setups" is still ON by default; its switch now sits under Advanced. Per-position stop-loss and USD target fields belong to Section 5. Not tested: a real browser (page code runs in node against a fake page).
 - Next: Section 5 (Auto settings with stop loss + USD profit target per position; reopen only on a fresh valid signal).
+
+## BTC Section 5 (Auto settings: USD target per position) DONE (Nov 22)
+- apply_s5_usd.py edits backend/store.py, backend/automode.py, backend/app.py, static/index.html; tests/test_s5.py (25 checks, mutation-checked: single position not marked, target not times positions, Auto beating the person's own group target, no once-per-candle guard, target working with Auto mode off; each went red).
+- New setting auto_target_usd (0 = off, 0 to 1000; env AUTO_TARGET_USD). Only while Auto mode is on. After the signal is made, automode.mark() writes the group meta (kv bg:<id>, kind 'multi') with group target = USD x positions, so the EA gets the setup as ONE basket (the Section 3 burst basket code, no MQL5 change). A single position is a group of one (grp = its own id; every counter already uses COALESCE(grp,id)). A person's OWN group target (groupcap) still wins.
+- Stop loss: unchanged, still the ATR stop (0.5 to max_stop_atr, the brain's rule). In the Auto card the box is now called "Stop loss limit ATR". The normal take profit stays on every position as well: whichever is hit first closes it.
+- Admin Auto settings card: new "USD target per position" box next to Positions. Route /api/admin/settings range-checks it (0 to 1000).
+- No blind reopen: already true (one evaluation per new candle, key lastbar:*) and now proven by a test: a target close on the same candle opens nothing; a new candle with a fresh valid signal may open a new trade.
+- Honest limits: with 2+ positions the EA closes the WHOLE group when the total reaches USD x positions, not each position on its own (a single position is exact). Only the MT5 bridge enforces it; Deriv and phone mode cannot close by dollars. Not tested: a real MT5 account or real EA (the basket path was built in Section 3 and tested there). The alert for a group of one reads as a normal trade.
+- Next: Section 6A (backend/btc_range.py, see the SPEC above), then 6B.
