@@ -915,6 +915,12 @@ def burst_set(u):
     learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in burst.KEYS}})
     return jsonify(burst.view(_mine(u)))
 
+@app.get('/api/live/why')          # LIVE2: why is the phone notification not showing
+@need(verified=True)
+def live_why(u):
+    from . import live
+    ok, why = live.explain(u['uid']); return jsonify(ok=ok, why=why)
+
 @app.get('/api/groupcap')
 @need(verified=True)
 def gcap_get(u): return jsonify(groupcap.view(_mine(u)))

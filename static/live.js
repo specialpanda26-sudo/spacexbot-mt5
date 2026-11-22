@@ -248,3 +248,15 @@
   };
   window.SXA = X;
 })();
+
+/*LIVE2-start*/
+(function () {
+  "use strict";
+  if (typeof document === "undefined" || !document || !document.addEventListener) return;
+  document.addEventListener("click", function (e) {
+    var b = e.target && e.target.closest ? e.target.closest("#liveWhy") : null; if (!b || !window.SXA) return;
+    b.disabled = true;
+    SXA.api("/api/live/why").then(function (j) { if (window.sxToast) window.sxToast((j && j.why) || "No answer."); }, function () { if (window.sxToast) window.sxToast("Cannot reach the server."); }).then(function () { b.disabled = false; });
+  });
+})();
+/*LIVE2-end*/
