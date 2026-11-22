@@ -383,3 +383,10 @@ Status: 6A and 6B not started. Order: 2, 3, 4, 5, then 6A, then 6B.
 - Known: tests/test_feed.py (and the older copy too) very rarely fails 'feed off: nothing is downloaded' (background timing); run it again.
 - Honest limits: Yahoo BTC-USD is an aggregated spot price, a few dollars off a broker's BTCUSD; check levels on the broker chart. Yahoo may rate-limit a server (5 markets = 10 calls a round at most; H1 only every 10 min). Not tested: real Yahoo BTC candles. Candles for the 8h chart (Section 6A) come from the 60 days of H1 this feed downloads.
 - Next: Section 3 (BTC-sized stops and lot size).
+
+## BTC Section 3 (BTC-sized stops and lot size) DONE (Nov 22)
+- Stops needed NO change: brain.evaluate checks the stop in ATR of the 15-minute candles (0.5 to max_stop_atr), so it scales with price. tests/test_btc3.py proves the same verdicts on gold-sized and BTC-sized candles. The EA sizes lots from the broker's tick value (right for any market), so it is untouched.
+- Bug fixed (apply_btc3.py, backend/assist.py): phone-mode per_lot_loss treated BTCUSD like a forex pair (100,000 per lot), so BTC lot sizes were ~100,000x too small. A crypto market (BTCUSD, BTCUSDm, BTCUSD.a) now uses a contract size = BTC per 1.00 lot: setting btc_contract, else Render env BTC_CONTRACT, else 1.0 (bad value = 1.0). There is no screen for btc_contract. The owner must check his broker's contract size (MT5: Specification > Contract size).
+- tests/test_btc3.py: 19 checks, mutation-checked (4 deliberate breaks, each went red). Full suite green on a clean copy.
+- Known limits: LOT_STEP is 0.01 (a broker with 0.001 BTC steps still shows 0.01 steps); Deriv does not trade BTC (deriv.py builds 'frx' names); strategies are still not backtested on BTC; stake.py (Deriv big stake) is not used for BTC.
+- Next: Section 4 (settings cleanup: important ones on top, the rest under Advanced; never remove a setting).

@@ -5,7 +5,7 @@ app, then log how it ended. Nothing here places a trade, and nothing here needs 
 Needs the owner's own signal feed to be running (the owner's EA or desktop app online). No feed = no signals to hand out.
 Data: assist (one row per person: on/off, balance, risk) and assist_log (one row per person per signal: taken or skipped, result)."""
 import math, os, time, threading
-from . import store as st, links, strategy_info as si
+from . import store as st, links, strategy_info as si, risk
 
 WINDOW = 15 * 60                 # a signal can be taken for 15 minutes after it was found; later the price has probably moved
 FEED_AGE = 24 * 3600             # the app lists the owner's signals from the last 24 hours (so results can still be logged)
@@ -17,6 +17,12 @@ LOT_STEP, LOT_MIN, LOT_MAX = 0.01, 0.01, 50.0
 # value of a 1.00 price move for 1 standard lot, in USD (USD account assumed). Pairs not listed here get no size (honest, not a guess).
 _CONTRACT = {'XAUUSD': 100.0, 'XAGUSD': 5000.0}
 _FX = 100000.0
+
+def btc_contract():
+    """BTC per 1.00 lot. Many brokers use 1; check your own (MT5: symbol Specification > Contract size). Setting btc_contract, else env BTC_CONTRACT, else 1."""
+    try: x = float(st.get('btc_contract') or os.getenv('BTC_CONTRACT') or 1.0)
+    except (TypeError, ValueError): return 1.0
+    return x if math.isfinite(x) and 0 < x <= 1000 else 1.0
 
 def init():
     """Create the two tables. Same SQL on SQLite and Postgres; safe to run on every boot."""
@@ -31,6 +37,7 @@ def per_lot_loss(sym, entry, sl):
     """USD lost by 1.00 lot if price travels from entry to sl, or None when the symbol's contract is not known."""
     s = str(sym or '').upper(); d = abs(float(entry) - float(sl))
     if s in _CONTRACT: return d * _CONTRACT[s]
+    if risk.is_crypto(s): return d * btc_contract()                 # BTCUSD, BTCUSDm, BTCUSD.a: NOT a forex pair
     if len(s) == 6 and s.isalpha():
         if s[3:] == 'USD': return d * _FX                           # EURUSD, GBPUSD, AUDUSD: quote currency is USD
         if s[:3] == 'USD' and float(entry) > 0: return d * _FX / float(entry)       # USDJPY, USDCHF, USDCAD: loss is in the quote currency
