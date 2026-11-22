@@ -1233,7 +1233,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;
 
 
 /* ---- streaming candles (ported from the uploaded splash) ---- */
-function stream(cv,bgh){if(!cv)return;var x=cv.getContext("2d"),W=0,H=0,dpr=Math.min(window.devicePixelRatio||1,2),last=0,cs=getComputedStyle(document.documentElement),
+function stream(cv,bgh){if(!cv||!cv.getContext)return;var x=cv.getContext("2d"),W=0,H=0,dpr=Math.min(window.devicePixelRatio||1,2),last=0,cs=getComputedStyle(document.documentElement),
  UP=cs.getPropertyValue("--green-bright").trim()||"#3CCB68",DN=cs.getPropertyValue("--berry").trim()||"#E5484D",bg=bgh||cs.getPropertyValue("--bg").trim();
  var rgb=/^#[0-9a-f]{6}$/i.test(bg)?[1,3,5].map(function(i){return parseInt(bg.slice(i,i+2),16)}).join(","):"16,21,30",
  rm=false,
@@ -1301,10 +1301,10 @@ window.addEventListener("hashchange",function(){if(SXA.resolved()&&!U&&PROT.test
 function landing(){var h=$("#view-welcome");if(!h)return;[$(".hero .btn.primary",h),$(".ctaband .btn",h)].forEach(function(p,i){if(p){p.dataset.auth=U?"dash":"start";p.textContent=U?"Open dashboard":(i?"Create free account":"Get started free")}});var l=$(".hero .lnk",h);if(l&&l.parentNode)l.parentNode.hidden=!!U}
 function intro(){
  ovEl.className="ov pg gsp";
- ovEl.innerHTML='<div class="gpage"><canvas id="sc2"></canvas><div class="gtop"><div class="gb"><svg class="mk" width="34" height="34" aria-hidden="true"><use href="#mk"/></svg>spaceXBot</div>'+XB+'</div>'+
+ ovEl.innerHTML='<div class="gpage"><canvas id="gsc"></canvas><div class="gtop"><div class="gb"><svg class="mk" width="34" height="34" aria-hidden="true"><use href="#mk"/></svg>spaceXBot</div>'+XB+'</div>'+
  '<div class="gm"><h1><span style="--i:0">Control</span> <span style="--i:1">every</span> <span style="--i:2">trade</span> <span style="--i:3">in</span> <span style="--i:4">one</span> <span style="--i:5">place</span></h1><ul class="gl"><li style="--i:0"><i><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3CCB68" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5 11-11"/></svg></i>Reads the market for you</li><li style="--i:1"><i><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3CCB68" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5 11-11"/></svg></i>Checks every safety rule</li><li style="--i:2"><i><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3CCB68" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5 11-11"/></svg></i>Skips the news spikes</li></ul><p class="gn">Use a demo or a real account.</p></div>'+
  '<div class="gbot"><button class="btn primary big block" data-auth="signup">Get started</button><button class="btn big block ghost" data-auth="login">Log in</button></div></div>';
- ovEl.hidden=false;void ovEl.offsetWidth;ovEl.classList.add("open");$(".x",ovEl).onclick=closeOv;stream($("#sc2"),"#10151E");
+ ovEl.hidden=false;void ovEl.offsetWidth;ovEl.classList.add("open");$(".x",ovEl).onclick=closeOv;stream($("#gsc"),"#10151E");
 }
 function slot(){if(U&&typeof U.onboarded==="boolean"&&window.sxSetOnb)window.sxSetOnb(U.onboarded);landing();var a=$("#authSlot");if(!a)return;
  a.innerHTML=U?'<button class="avatar" id="avBtn" aria-label="Account">'+esc(U.name.charAt(0).toUpperCase())+'</button>':'<button class="btn login" data-auth="login" style="padding:10px 14px">Log in</button><button class="btn primary" data-auth="start" style="padding:10px 16px">Get started</button>'}
