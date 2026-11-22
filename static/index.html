@@ -422,7 +422,7 @@ body.scrolled .top::before{border-bottom-color:var(--line)}
 .ov .bd{position:fixed;inset:0;background:rgba(10,14,28,.55);backdrop-filter:blur(6px);opacity:0;transition:opacity .3s}
 .ov .panel{position:relative;width:100%;max-width:440px;background:var(--surface);border:1px solid var(--line);border-radius:28px;padding:22px;display:grid;gap:14px;box-shadow:var(--shadow-lg);transform:translateY(24px) scale(.97);opacity:0;transition:transform .5s var(--spring),opacity .25s}
 .ov.open .bd{opacity:1}.ov.open .panel{transform:none;opacity:1}
-.ov h2{font-size:28px}.ov .x{position:absolute;right:14px;top:14px}
+.ov h2{font-size:28px}.ov .x{position:absolute;right:14px;top:14px;z-index:5}
 .err{color:var(--bad);font-weight:800;font-size:13px;min-height:1em;margin:0}
 .or{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:12px;font-weight:800}.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
 .tabs{display:flex;gap:24px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
@@ -1678,7 +1678,7 @@ function payFail(why,ref,first,under){payPend(null);PAYW=null;
 function paySlow(ref,i,first){PAYW=null;
  payShow(IL2.wait+'<h2>Still waiting for confirmation</h2><p class="muted" style="text-align:center">We have not heard back yet. If you paid, your plan switches on by itself within a few minutes. You do not need to pay again.</p>'+payInfo(i,ref)+'<button class="btn primary big block" id="pgR">Check again</button><button class="btn block" id="pgX">Close</button>');
  $("#pgR").onclick=function(){payWatch(ref,i,first)};$("#pgX").onclick=function(){sxGo(first?"#onboard":null)}}
-window.sxLabHooks={pay:function(w){var sp=payPend(),sw=PAYW,i={name:"Test plan",amt:"KES 0",m:"mpesa",receipt:"TEST"};try{if(w==="ok")payDone(i,false);else if(w==="fail")payFail("timeout","TEST",false,false);else if(w==="slow")paySlow("TEST",i,false);else if(w==="cancel")cancelled(false)}finally{if(sp)payPend(sp);PAYW=sw}},stop:function(){closeOv()}};
+window.sxLabHooks={pay:function(w){var sp=payPend(),sw=PAYW,i={name:"Test plan",amt:"KES 0",m:"mpesa",receipt:"TEST"};try{if(w==="ok")payDone(i,false);else if(w==="fail")payFail("timeout","TEST",false,false);else if(w==="slow")paySlow("TEST",i,false);else if(w==="cancel"){ov(XB+BR,1);cancelled(false)}}finally{if(sp)payPend(sp);PAYW=sw}},stop:function(){closeOv()}};
 function payWatch(ref,i,first){var k=i.m==="mpesa",stop=false,tries=0,max=k?50:30,T=0,w={stop:function(){stop=true;clearTimeout(T)}},
   L=k?["Prompt sent to "+(i.mask||"your phone"),"Enter your M-Pesa PIN","Payment confirmed"]:["Payment approved","Confirming the payment","Payment confirmed"];
  if(PAYW)PAYW.stop();PAYW=w;
