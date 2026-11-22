@@ -16,7 +16,7 @@ s = open(os.path.join(ROOT, 'static', 'index.html'), encoding='utf-8').read()
 T('card present once', s.count('/*BT1-start*/') == 1 and s.count('/*BT1-end*/') == 1)
 blk = s.split('/*BT1-start*/')[1].split('/*BT1-end*/')[0]
 if shutil.which('node'):
-    js = "var vb={appendChild:function(){}};function card(){return 1}var E={};function $(q){return E[q]||(E[q]={setAttribute:function(k,v){this[k]=v},value:'',textContent:''})}function toast(){}var window={SXA:{api:function(){return Promise.resolve({settings:{on:true,idle_min:5,quick_n:5,quick_usd:0.5},enabled:true,now:{state:'waiting',why:'Watching.'}})}}};var SXA=window.SXA;" + blk + ";setTimeout(function(){console.log(E['#btChip'].textContent+'|'+E['#btNow'].textContent+'|'+E['#btOn']['aria-checked'])},20)"
+    js = "var vb={appendChild:function(){},insertBefore:function(){},firstChild:null};function card(){return 1}var E={};function $(q){return E[q]||(E[q]={setAttribute:function(k,v){this[k]=v},value:'',textContent:''})}function toast(){}var window={SXA:{api:function(){return Promise.resolve({settings:{on:true,idle_min:5,quick_n:5,quick_usd:0.5},enabled:true,now:{state:'waiting',why:'Watching.'}})}}};var SXA=window.SXA;" + blk + ";setTimeout(function(){console.log(E['#bswChip'].textContent+'|'+E['#bswNow'].textContent+'|'+E['#bswOn']['aria-checked'])},20)"
     out = subprocess.run(['node', '-e', js], capture_output=True, text=True)
     T('card code runs and shows On + the plain-words line', out.stdout.strip() == 'On|Watching.|true')
 bad = [n for n, ok in R if not ok]; print('%d/%d passed' % (len(R) - len(bad), len(R))); sys.exit(1 if bad else 0)

@@ -49,7 +49,7 @@ def check(sess, uid, acct, now=None):
     """One look at every open Deriv group of this person. -> a list with one entry per group that was closed: {'grp','total','next'} (next = ids of the new group, or None)."""
     now = now or time.time(); out = []
     for g in _open_groups(uid):
-        m = _meta(g); tgt = _f((m or {}).get('tgt')) or 0
+        m = _meta(g); tgt = _f((m or {}).get('tgt')) or _f((m or {}).get('dtgt')) or 0
         if tgt <= 0: continue
         mem = st.q('SELECT %s FROM signals WHERE grp=? AND COALESCE(uid,\'\')=? ORDER BY id' % COLS, (g, uid or ''))
         if any(r['status'] in ('pending', 'sent') for r in mem): continue          # not all entries are open yet, or one buy is unconfirmed: the total would be wrong

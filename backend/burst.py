@@ -18,7 +18,7 @@ import json, time
 from . import store as st, links, risk, limits, multi, groupcap
 
 HI = 30
-DEF = {'on': False, 'idle_min': 5, 'quick_n': 5, 'big_n': 15, 'quick_usd': 0.5, 'big_usd': 1.0, 'giveback': 40}
+DEF = {'on': False, 'idle_min': 5, 'quick_n': 5, 'big_n': 15, 'quick_usd': 0.5, 'big_usd': 1.0, 'giveback': 40, 'stake_usd': 0.5}
 KEYS = tuple(DEF)
 USD_LO, USD_HI = 0.05, 1000.0
 
@@ -64,7 +64,8 @@ def get(uid=''):
     return {'on': j.get('on') is True, 'idle_min': _clamp(j.get('idle_min'), 1, 60, DEF['idle_min']), 'quick_n': quick, 'big_n': big,
             'quick_usd': round(_clamp(j.get('quick_usd'), USD_LO, USD_HI, DEF['quick_usd'], float), 2),
             'big_usd': round(_clamp(j.get('big_usd'), USD_LO, USD_HI, DEF['big_usd'], float), 2),
-            'giveback': _clamp(j.get('giveback'), 0, 90, DEF['giveback'])}
+            'giveback': _clamp(j.get('giveback'), 0, 90, DEF['giveback']),
+            'stake_usd': round(_clamp(j.get('stake_usd'), 0, USD_HI, DEF['stake_usd'], float), 2)}
 
 
 def _whole(v, lo, hi, name):
@@ -96,6 +97,11 @@ def save(uid, d):
     if 'quick_usd' in d: new['quick_usd'] = _money(d['quick_usd'], 'Quick target')
     if 'big_usd' in d: new['big_usd'] = _money(d['big_usd'], 'Big target')
     if 'giveback' in d: new['giveback'] = _whole(d['giveback'], 0, 90, 'Give-back guard')
+    if 'stake_usd' in d:
+        try: sv = float('nan') if isinstance(d['stake_usd'], bool) else float(d['stake_usd'])
+        except (TypeError, ValueError): sv = float('nan')
+        if sv != sv or not (sv == 0 or 0.1 <= sv <= USD_HI): raise ValueError('Stake per entry must be 0 (normal sizing) or from 0.1 to %g USD' % USD_HI)
+        new['stake_usd'] = round(sv, 2)
     cur.update(new)
     st.put('burst:' + (uid or ''), json.dumps(cur))
     return get(uid)
@@ -165,7 +171,7 @@ def plan(uid, score, now=None):
         room = min(room, mt - used)
     n = min(want, room)
     if n < 2: return None, 'not enough room for a burst (%d free)' % max(0, room)
-    return {'kind': 'big' if big else 'quick', 'n': n, 'each': p['big_usd'] if big else p['quick_usd'], 'giveback': p['giveback'], 'score': int(score or 0)}, 'ok'
+    return {'kind': 'big' if big else 'quick', 'n': n, 'each': p['big_usd'] if big else p['quick_usd'], 'giveback': p['giveback'], 'score': int(score or 0), 'stake': p['stake_usd']}, 'ok'
 
 
 def create(uid, sym, s, pl, reason='', now=None):
@@ -179,9 +185,10 @@ def create(uid, sym, s, pl, reason='', now=None):
     ids = [first]
     for _ in range(n - 1):
         ids.append(st.x(sql, (sym, s['side'], s['entry'], s['sl'], s['tp'], rp, s['strategy'], s['score'], 'pending', now, uid or None, first, reason)))
-    gm = {'k': pl['kind'], 'n': n, 'each': pl['each'], 'gb': pl['giveback'], 't': now}
+    gm = {'k': pl['kind'], 'n': n, 'each': pl['each'], 'gb': pl['giveback'], 't': now, 'stake': pl.get('stake', 0)}
     gr = groupcap.rules(uid, n)          # the person's group target / loss limit, when they switched it on
     if gr: gm.update(tgt=gr['tgt'], loss=gr['loss'])
+    if not gr: gm['dtgt'] = round(float(pl['each']) * n, 2)          # BT2: the Deriv engine closes the group when the entries together reach entries x target each
     st.put('bg:%d' % first, json.dumps(gm))
     return ids
 
@@ -216,3 +223,14 @@ def explain(uid='', now=None, admin=False):
 
 def view(uid='', now=None):
     return {'settings': get(uid), 'enabled': enabled(), 'ceiling': ceiling(), 'big_score': big_score(), 'now': explain(uid, now)}
+
+
+def fixed_size(entry, sl, tp, bal, stake, mult):
+    """BT2: (stake, stop_loss_money, take_profit_money) or None. The person chose the stake of each burst entry (Deriv). Same multiplier maths as
+    deriv._size: the loss at the stop = stake x multiplier x stop distance, and it must stay under the stake. Deriv itself decides if the stake is big enough."""
+    try: entry, sl, tp, bal, stake, mult = float(entry), float(sl), float(tp), float(bal), float(stake), float(mult)
+    except (TypeError, ValueError): return None
+    if not entry or entry == sl or entry == tp or bal <= 0 or stake <= 0 or mult <= 0: return None
+    risk = round(stake * mult * abs(entry - sl) / entry, 2)
+    if stake > bal * 0.5 or risk <= 0 or risk >= stake: return None
+    return round(stake, 2), risk, round(risk * abs(tp - entry) / abs(entry - sl), 2)

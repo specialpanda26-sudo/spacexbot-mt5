@@ -784,3 +784,10 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - static/index.html: card "Burst mode" at the top of the Bot tab (block /*BT1-start*/ .. /*BT1-end*/). The switch saves at once (POST /api/burst {on}) and goes back if the save fails. Fields: Quiet minutes first, Entries, Target per entry ($) with Save numbers (blank = keep). Chip: Off / Off (owner) / On / Ready / Running, plus the plain-words line from burst.explain.
 - Notes on the card: Auto settings turns burst off, phone-only mode cannot close, Deriv refuses stakes under 1 USD (0.5 USD entries are rejected on Deriv).
 - Not built: big-burst numbers on the card; Deriv sub-1-USD stakes. Not checked on a real phone. Test: tests/test_bt1.py.
+
+
+## Section BT2 (burst stake, Deriv group close, Find a setting) DONE (Nov 23)
+- Burst setting stake_usd (default 0.5, 0 = normal sizing, else 0.1 to 1000) in backend/burst.py, saved in the group meta. deriv._place uses burst.fixed_size for a burst entry with a stake: stake = the chosen amount, stop loss money = stake x multiplier x stop distance (must stay under the stake), take profit = that x the setup's reward ratio. The old 'under 1 USD refused' rule still applies to NORMAL Deriv sizing; for burst entries Deriv itself decides the smallest stake (its refusal text is shown). NOT tried against the real Deriv API.
+- Deriv group close: burst create() now also saves dtgt = entries x target each when the person has no group target; deriv_group.check uses tgt or dtgt. MT5 is unchanged (it ignores dtgt). A burst is still never cycled.
+- Bot tab: Burst card moved to the TOP with Stake per entry + a live line (6 entries x 1 USD ... closes at 6 USD). New card 'Find a setting' above it: type plain words, it scores every card in Bot, Profile, Connect, Trades, Home (title and text, plus a small word list: busy, scalp, stake, repeat...) and jumps to the card with a highlight. It is a keyword search, not an AI model. Profile cards only exist after the profile page was opened once, so a small built-in list covers Notifications, Security, Privacy and data, Account, Trading profile.
+- Tests: tests/test_bt2.py.

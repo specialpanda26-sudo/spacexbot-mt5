@@ -258,15 +258,27 @@ def _size(entry, sl, tp, bal, risk_pct, mult):
     if stake < 1 or stake > bal * 0.5 or risk >= stake: return None        # too small for Deriv, too big for the account, or the stop would be wider than the stake
     return stake, round(risk, 2), round(risk * abs(tp - entry) / abs(entry - sl), 2)
 
+def _burst_stake(sig):
+    """BT2: the stake the person chose for each entry of a burst group (0 = none, use the normal sizing)."""
+    try:
+        from . import burst
+        g = sig['grp']; m = burst.meta(g) if g else None
+        return float(m.get('stake') or 0) if m and m.get('k') in ('quick', 'big') else 0.0
+    except Exception: return 0.0
+
 def _place(sess, sig, bal, cur):
     """Quote, then buy by the quote's own id (so one signal can never buy twice). Returns ('open', info) or ('rejected', reason)."""
     from . import stake as stk
+    bs = _burst_stake(sig)          # BT2: a burst entry with a stake the person chose
     ct = 'MULTUP' if sig['side'] == 'buy' else 'MULTDOWN'; sym = sig['symbol']
     order = ([_mult_ok[sym]] if sym in _mult_ok else []) + [m for m in MULTS() if m != _mult_ok.get(sym)]
     last = 'no multiplier fits this balance and stop distance'
     want = stk.pct(sig['id'])          # Section 1: the stake share set for this signal (0 = normal sizing)
     for m in order:
-        z = (want and stk.size(sig['entry'], sig['sl'], sig['tp'], bal, want, m)) or _size(sig['entry'], sig['sl'], sig['tp'], bal, sig['risk_pct'], m)
+        if bs:
+            from . import burst
+            z = burst.fixed_size(sig['entry'], sig['sl'], sig['tp'], bal, bs, m)
+        else: z = (want and stk.size(sig['entry'], sig['sl'], sig['tp'], bal, want, m)) or _size(sig['entry'], sig['sl'], sig['tp'], bal, sig['risk_pct'], m)
         if not z: continue
         stake, slm, tpm = z
         p = sess.ask({'proposal': 1, 'contract_type': ct, 'underlying_symbol': _frx(sym), 'currency': cur, 'amount': stake, 'basis': 'stake',
