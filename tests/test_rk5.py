@@ -17,7 +17,7 @@ for n in ('signin', 'verify', 'reset', 'alert', 'receipt'):
     for c in px:
         if near(c, (127, 97, 245)): cnt['violet'] += 1
         elif near(c, (255, 212, 59)) or near(c, (240, 168, 0), 45): cnt['yellow'] += 1
-        elif near(c, (47, 134, 224)): cnt['blue'] += 1
+        elif near(c, (47, 134, 224)) or near(c, (86, 182, 255)): cnt['blue'] += 1          # ART9b
     T(n + '.gif has violet outlines, a yellow cap and a blue body', cnt['violet'] > 800 and cnt['yellow'] > 200 and cnt['blue'] > 1500)
 T('legal page cartoons (doc, cookie) are swapped to the new art by fixArt', 'var ILM={plug:"plug",doc:"doc",cookie:"cookie"' in page and 'IL2.doc=' in page and 'IL2.cookie=' in page)
 print('\n%d/%d passed' % (sum(R), len(R))); sys.exit(0 if all(R) else 1)

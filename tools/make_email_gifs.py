@@ -21,7 +21,7 @@ def lay(a, shapes, t=(0, 0)):
     for step in (0, 1, 2):
         for sh in shapes:
             col = sh[-1]; tt = (t[0] + SH[0], t[1] + SH[1]) if step == 1 else t
-            fill = None if step == 2 else col[step]; stroke = K if step == 2 else None
+            fill = None if step == 2 else col[1 - step]; stroke = K if step == 2 else None          # ART9b
             if sh[0] == 'p': a.path(sh[1], tt, fill=fill, stroke=stroke, w=OW)
             elif sh[0] == 'r': a.rect(sh[1], sh[2], sh[3], sh[4], sh[5], tt, fill=fill, stroke=stroke, sw=OW)
             else: a.circ(sh[1], sh[2], sh[3], t=tt, fill=fill, stroke=stroke, sw=OW)
