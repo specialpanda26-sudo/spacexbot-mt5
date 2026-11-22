@@ -15,6 +15,7 @@ PLAIN = {
     'weekly loss limit hit': 'The weekly loss limit was reached. It stops until next week to protect the account.',
     'symbol cooldown': 'It just traded this market. It waits a while before the next one.',
     'plan ended': 'Your plan has ended. Renew it to trade.',
+    'learning path not finished': 'Real trading is locked until you finish the lessons and the practice trades. See Road to Real on Home. Demo trading is open.',
 }
 SCAN = {
     'nosetup': 'Looked at the market. No good setup yet, so it did not trade. That is normal.',

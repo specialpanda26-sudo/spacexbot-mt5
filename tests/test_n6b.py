@@ -9,6 +9,7 @@ for f in (DB, DB + '-wal', DB + '-shm'):
 sys.path.insert(0, ROOT)
 from backend.app import app
 from backend import store as st, push, alerts
+st.put('course_required', '0'); st.put('practice_trades_needed', '0')          # C3: this test is about something else, so the road to Real is open for its people
 alerts.stop()          # stop the background alert loop so it cannot race this test
 R = []
 def T(name, ok): R.append((name, bool(ok))); print('PASS' if ok else 'FAIL', name)

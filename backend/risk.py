@@ -1,7 +1,7 @@
 """Pre-trade gates (ideas from claude-trading-skills: drawdown-circuit-breaker, pre-trade-discipline-gate,
 exposure-coach). global_gate() runs before analysis, symbol_gate() after a side is known."""
 import time, datetime as dt
-from . import store as st, news, links, limits, brokers as bk
+from . import store as st, news, links, limits, brokers as bk, roadmap
 
 def _week_start(now):
     d = dt.datetime.utcfromtimestamp(now); m = d - dt.timedelta(days=d.weekday())
@@ -53,6 +53,7 @@ def global_gate(now=None, uid='', burst=False):
     if now - a.get('seen', 0) > 120: return False, 'EA offline'
     if uid:      # a subscriber's EA: anything that is not a confirmed demo account needs Real mode ON and live trading allowed in the EA
         if a.get('demo') is not True and not real_ok(uid, a): return False, 'real account needs Real mode and live trading allowed'
+        if a.get('demo') is not True and not roadmap.real_allowed(uid): return False, 'learning path not finished'          # C3: lessons + practice trades first
     elif a.get('demo') is False and not a.get('allow_live'): return False, 'live account not allowed in EA'
     if weekend_shut(now) and not crypto_open(): return False, 'weekend/Friday-night risk'          # a BTC market in Symbols keeps the bot looking; other markets are skipped per market (weekend_skip)
     if not burst and open_count(uid, a) >= limits.max_open(uid): return False, 'max open positions'          # burst mode has its own ceiling (burst.py)

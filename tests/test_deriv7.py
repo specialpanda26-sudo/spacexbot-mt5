@@ -8,6 +8,7 @@ if os.path.exists(os.environ['DB_PATH']): os.remove(os.environ['DB_PATH'])
 sys.path.insert(0, os.path.join(HERE, '..'))
 from backend.app import app, _scan
 from backend import store as st, brokers as bk, deriv, links, risk, botstate, bars
+st.put('course_required', '0'); st.put('practice_trades_needed', '0')          # C3: this test is about something else, so the road to Real is open for its people
 deriv.kick = lambda *a, **k: None
 c = app.test_client(); H = lambda e: {'Authorization': 'Bearer dev:' + e}
 R = []

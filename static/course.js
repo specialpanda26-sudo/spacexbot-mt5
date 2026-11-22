@@ -17,7 +17,7 @@
       var all = D.complete, pc = Math.round(100 * D.done / D.total);
       h = '<div class="card-head"><h2>Your learning path</h2><span class="chip ' + (all ? "ok" : "info") + '">' + D.done + " of " + D.total + "</span></div>" +
         '<div style="height:8px;border-radius:8px;background:var(--surface2);overflow:hidden"><div style="height:100%;width:' + pc + '%;background:var(--green)"></div></div>' +
-        '<p class="note">' + (all ? "All lessons done. Real trading is unlocked for you." : "Short lessons, about two minutes each. Demo trading is open now. Finishing the lessons unlocks Real.") + "</p>" +
+        '<p class="note">' + (all ? "All lessons done. See Road to Real below for what is left." : "Short lessons, about two minutes each. Demo trading is open now. The lessons are the first part of the road to Real.") + "</p>" +
         '<button class="btn primary block" type="button" data-c="open">' + (all ? "Review lessons" : D.done ? "Continue learning" : "Start learning") + "</button>";
     }
     if (h !== LH) C.innerHTML = LH = h;
@@ -55,7 +55,7 @@
       var r = S.res, nx = D.next;
       h = art(r.passed ? "yay" : "wait") + '<h2 style="text-align:center">' + (r.passed ? "Lesson done!" : "Almost there") + '</h2><p class="muted" style="text-align:center">You got ' + r.score + " of " + r.total + " right." + (r.passed ? "" : " You need 2. Read the lesson again and retry.") + "</p>" +
         r.results.map(function (x, i) { return '<p class="note">' + (x.ok ? "✓ " : "✗ ") + esc(l.quiz[i].q) + (x.ok ? "" : "<br>" + esc(x.why)) + "</p>"; }).join("") +
-        (r.passed ? (nx ? '<button class="btn primary big block" type="button" data-c="lesson" data-id="' + esc(nx) + '">Next lesson</button>' : '<p class="note"><b>All lessons done. Real trading is unlocked.</b></p>') : '<button class="btn primary big block" type="button" data-c="lesson" data-id="' + esc(l.id) + '">Read it again</button>') +
+        (r.passed ? (nx ? '<button class="btn primary big block" type="button" data-c="lesson" data-id="' + esc(nx) + '">Next lesson</button>' : '<p class="note"><b>All lessons done. See Road to Real on Home for what is left.</b></p>') : '<button class="btn primary big block" type="button" data-c="lesson" data-id="' + esc(l.id) + '">Read it again</button>') +
         '<button class="btn block" type="button" data-c="list">All lessons</button>';
     } else h = '<button class="btn block" type="button" data-c="close">Close</button>';
     p.innerHTML = h;

@@ -7,6 +7,7 @@ for f in glob.glob(DB + '*'): os.remove(f)
 sys.path.insert(0, ROOT)
 from backend.app import app
 from backend import store as st, brokers as bk, deriv, links
+st.put('course_required', '0'); st.put('practice_trades_needed', '0')          # C3: this test is about something else, so the road to Real is open for its people
 c = app.test_client(); H = lambda e: {'Authorization': 'Bearer dev:' + e}
 R = []
 def T(n, ok): R.append((n, bool(ok))); print('PASS' if ok else 'FAIL', n)

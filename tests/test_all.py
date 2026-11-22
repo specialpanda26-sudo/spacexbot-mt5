@@ -331,7 +331,7 @@ import backend.app as AP
 from backend import links, bars, push as PUSH, mailer as MAIL, accounts as ACC
 JU = 'dev-joe@x.com'
 def grant(): C.get('/api/me', headers=U); assert C.post('/api/admin/grant', json={'email': 'joe@x.com', 'days': 5}, headers=A).status_code == 200
-def link_reset(): st.x('DELETE FROM links'); st.x('DELETE FROM signals'); st.x('DELETE FROM kv'); bars._d.clear()
+def link_reset(): st.x('DELETE FROM links'); st.x('DELETE FROM signals'); st.x('DELETE FROM kv'); bars._d.clear(); st.put('course_required', '0'); st.put('practice_trades_needed', '0')  # C3: this test is about something else, so the road to Real is open for its people
 def uacct(uid, **k): a = {'balance': 1000, 'open': 0, 'demo': True, 'allow_live': False, 'seen': int(WED), **k}; st.x('UPDATE links SET acct=?,seen=? WHERE uid=?', (json.dumps(a), int(WED), uid))
 def sig(uid): return st.x("INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid) VALUES('XAUUSD','buy',2300,2295,2310,1,'ema_pullback',2,'pending',?,?)", (int(time.time()), uid))
 @T('link: a personal key is shown once, stored only as a hash, and a new key kills the old one')

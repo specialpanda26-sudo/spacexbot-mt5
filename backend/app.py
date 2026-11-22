@@ -12,7 +12,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import btc_switch, tradeon, course
+from . import btc_switch, tradeon, course, roadmap
 from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
 _last_scan = {}
 
@@ -379,6 +379,7 @@ def link_mode(u):
     j = _j(); m = j.get('mode')
     if m == 'real':
         if not u['active']: return jsonify(error='subscription required'), 402
+        if not roadmap.real_allowed(u['uid'], bool(u['admin'])): return jsonify(error=roadmap.why(u['uid'], bool(u['admin']))), 403          # C3: the road to Real
         if j.get('confirm') != 'REAL': return jsonify(error='Type REAL to confirm. Real mode trades real money.'), 400
     was = links.view(u['uid']).get('mode'); r = _link_edit(u, lambda: links.set_mode(u['uid'], m))
     if not isinstance(r, tuple): system_alerts.switched(u['uid'], was, m)          # N6b: kind 31
@@ -445,6 +446,7 @@ def brokers_mode(u, name):
     if not st.q("SELECT 1 FROM broker_links WHERE uid=? AND broker='Deriv'", (u['uid'],), True): return jsonify(error='Save your Deriv token first.'), 400
     if m == 'real':
         if not u['active']: return jsonify(error='subscription required'), 402
+        if not roadmap.real_allowed(u['uid'], bool(u['admin'])): return jsonify(error=roadmap.why(u['uid'], bool(u['admin']))), 403          # C3: the road to Real
         if j.get('confirm') != 'REAL': return jsonify(error='Type REAL to confirm. Real mode trades real money.'), 400
     was = bk.mode(u['uid'], n); bk.set_mode(u['uid'], n, m); bk.set_why(u['uid'], n, 'bot off'); system_alerts.switched(u['uid'], was, m)          # N6b: kind 31; learn.log(u['uid'], 'setting', data={'path': request.path, 'mode': m})
     try: deriv.refresh(u['uid'])
@@ -535,7 +537,7 @@ def admin_set(u):
     for k, lo, hi in (('risk_pct', 0.1, 2.0), ('rr', 1.0, 4.0), ('max_stop_atr', 0.8, 5.0), ('auto_positions', 1, 5), ('stake_very_pct', 0, 50), ('stake_strong_pct', 0, 50), ('stake_max_risk_pct', 0.5, 25),
                      ('max_open', 1, 10), ('max_daily_loss_pct', 0.5, 20), ('max_weekly_loss_pct', 1, 40), ('max_losing_streak', 0, 20), ('streak_cooldown_h', 0, 72),
                      ('burst_ceiling', 2, 30), ('burst_big_score', 2, 10), ('min_confluence', 1, 6), ('multi_min_score', 2, 10), ('auto_disable_min_trades', 5, 500),
-                     ('auto_markets_max', 0, 10), ('max_trades_day', 0, 100), ('auto_target_usd', 0, 1000)):          # the three auto-mode numbers: checked before anything is saved
+                     ('auto_markets_max', 0, 10), ('max_trades_day', 0, 100), ('auto_target_usd', 0, 1000), ('practice_trades_needed', 0, 100)):          # the three auto-mode numbers: checked before anything is saved
         if k in j:
             try: v = float(j[k])
             except (TypeError, ValueError): return jsonify(error='%s must be a number' % k), 400
@@ -622,6 +624,17 @@ def course_quiz(u):
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, 'lesson': str(j.get('lesson'))[:20], 'score': r['score']})
     return jsonify(r)
+
+@app.get('/api/path')
+@need(verified=True)
+def path_get(u):
+    """C3: the road to Real (lessons + practice trades), badges, and which ones are new."""
+    return jsonify(roadmap.view(u['uid'], bool(u['admin'])))
+
+@app.post('/api/path/seen')
+@need(verified=True)
+def path_seen(u):
+    return jsonify(ok=True, seen=roadmap.seen(u['uid']))
 
 def _deriv_bot(u, on):
     """The Bot tab's Start / Stop also drives Deriv when this person has a Deriv token. None if fine, or (message, status) if it cannot start."""
