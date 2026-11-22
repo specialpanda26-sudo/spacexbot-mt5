@@ -1023,7 +1023,7 @@ function openSheet(sym){
   requestAnimationFrame(function(){requestAnimationFrame(function(){w.classList.add("open");$("#rsiDot").style.left=p.rsi+"%";
     track(function(an){drawChart($("#sChart"),genSeries(p,60),{h:170,fmt:function(n){return n.toFixed(p.d>3?4:Math.min(p.d,2))},l0:"60 candles ago",l1:"Now"},an)},"sheet");$("#sheetBody").querySelector(".btn.block:last-of-type").focus({preventScroll:true})})});
 }
-function closeSheet(){var w=$("#sheet");if(w.hidden)return;w.classList.remove("open");charts=charts.filter(function(f){return f.key!=="sheet"});setTimeout(function(){w.hidden=true;if(lastFocus&&lastFocus.focus)lastFocus.focus({preventScroll:true})},reduce?0:400)}
+function closeSheet(){var w=$("#sheet");if(w.hidden)return;w.classList.remove("open");charts=charts.filter(function(f){return f.key!=="sheet"});setTimeout(function(){if(w.classList.contains("open"))return;w.hidden=true;if(lastFocus&&lastFocus.focus)lastFocus.focus({preventScroll:true})},reduce?0:400)}
 
 /* ---------- BOT settings ---------- */
 var GATES=[["news","News lock","Pause new trades 30 minutes before high-impact news."],["circuit","Drawdown circuit breaker","Stop the bot when losses from the peak pass your limit."],["loss","Daily loss limit","Stop for the day after losing your daily limit."],["checklist","Pre-trade checklist","Skip any trade with no stop loss or too much risk."],["session","London and New York hours only","Trade only while the big sessions are open."]];
@@ -1168,7 +1168,7 @@ function cmdAll(){var a=[
 function renderCmd(){var q=$("#cmdIn").value.trim().toLowerCase();cmdItems=cmdAll().filter(function(i){return!q||i.t.toLowerCase().indexOf(q)>=0});if(cmdSel>=cmdItems.length)cmdSel=0;
   $("#cmdList").innerHTML=cmdItems.map(function(i,n){return'<li><button type="button" class="cmd-i'+(n===cmdSel?" sel":"")+'" data-cmd="'+n+'"><span>'+esc(i.t)+'</span><kbd>'+esc(i.h)+'</kbd></button></li>'}).join("")||'<li class="cmd-empty">No results</li>'}
 function openCmd(){var w=$("#cmdk");if(!w.hidden)return;w.hidden=false;$("#cmdIn").value="";cmdSel=0;renderCmd();requestAnimationFrame(function(){w.classList.add("open");$("#cmdIn").focus()})}
-function closeCmd(){var w=$("#cmdk");if(w.hidden)return;w.classList.remove("open");setTimeout(function(){w.hidden=true},reduce?0:220)}
+function closeCmd(){var w=$("#cmdk");if(w.hidden)return;w.classList.remove("open");setTimeout(function(){if(w.classList.contains("open"))return;w.hidden=true},reduce?0:220)}
 function runCmd(n){var i=cmdItems[n];closeCmd();if(i)setTimeout(i.f,reduce?0:120)}
 $("#cmdIn").addEventListener("input",function(){cmdSel=0;renderCmd()});
 $("#cmdBd").addEventListener("click",closeCmd);
@@ -1263,9 +1263,9 @@ bootT=setTimeout(function(){endBoot(true)},5000);SXA.ready.then(function(){clear
 /* ---- overlay helper ---- */
 var ovEl=document.createElement("div");ovEl.className="ov";ovEl.hidden=true;document.body.appendChild(ovEl);
 function ov(html,pg){ovEl.className="ov"+(pg?" pg":"");ovEl.innerHTML=(pg?'<canvas class="fbg" id="sc3"></canvas>':'')+'<div class="bd"></div><div class="panel" role="dialog" aria-modal="true">'+html+'</div>';ovEl.hidden=false;void ovEl.offsetWidth;ovEl.classList.add("open");$(".bd",ovEl).onclick=closeOv;var x=$(".x",ovEl);if(x)x.onclick=closeOv;var f=$("input",ovEl);if(f)setTimeout(function(){f.focus({preventScroll:true})},300);if(pg)stream($("#sc3"))}
-function closeOv(){ovEl.classList.remove("open");setTimeout(function(){ovEl.hidden=true;ovEl.innerHTML=""},300)}
+function closeOv(){var n=ovEl.firstChild;ovEl.classList.remove("open");setTimeout(function(){if(ovEl.firstChild!==n||ovEl.classList.contains("open"))return;ovEl.hidden=true;ovEl.innerHTML=""},300)}/*X1: a newer overlay is never wiped*/
 document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!ovEl.hidden)closeOv()});
-function sxGo(h){if(h){if(location.hash!==h)location.hash=h;else window.dispatchEvent(new Event("hashchange"))}setTimeout(function(){ovEl.classList.remove("open");ovEl.hidden=true;ovEl.innerHTML=""},h?150:0)}
+function sxGo(h){if(h){if(location.hash!==h)location.hash=h;else window.dispatchEvent(new Event("hashchange"))}var n=ovEl.firstChild;setTimeout(function(){if(ovEl.firstChild!==n)return;ovEl.classList.remove("open");ovEl.hidden=true;ovEl.innerHTML=""},h?150:0)}
 var XB='<button class="icon-btn x" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
 
 /* ---- auth: sign up / create account / log in ---- */
@@ -1639,7 +1639,7 @@ function about(cb,back){var wd,wm,wy,dn=0,g="",last="";
  '<div class="field"><label>Date of birth</label><div class="whs"><div class="wh" id="wD"></div><div class="wh" id="wM"></div><div class="wh" id="wY"></div></div><p class="wsum" id="wS" aria-live="polite"></p></div>'+
  '<div class="field"><label>Gender</label><div class="gg" id="gG">'+["Female","Male","Non-binary","Prefer not to say"].map(function(x){return'<button type="button" class="pk gd" aria-pressed="false">'+x+'</button>'}).join("")+'</div></div>'+
  '<p class="err" id="wE" role="alert"></p><button class="btn primary big block" id="wGo">Continue</button>',1);
- $(".x",ovEl).onclick=function(){if(cb){back&&back();return}SXA.signOut();U=null;slot();auth("login")};
+ $(".x",ovEl).onclick=function(){if(cb){back&&back();return}closeOv()};/*X1: Back no longer signs out*/
  function age(){var t=new Date(),d=wd.i+1,m=wm.i,y=YR[wy.i];return t.getFullYear()-y-((t.getMonth()<m||(t.getMonth()===m&&t.getDate()<d))?1:0)}
  function sum(){if(!wd||!wm||!wy)return;var t=(wd.i+1)+" "+MON[wm.i]+" "+YR[wy.i]+" \u00b7 Age "+age(),e=$("#wS");if(t===last)return;last=t;e.textContent=t;e.classList.remove("pop");void e.offsetWidth;e.classList.add("pop")}
  function days(keep){var n=new Date(YR[wy.i],wm.i+1,0).getDate();if(n===dn&&wd)return;dn=n;wd=wheel($("#wD"),Array.from({length:n},function(_,i){return i+1}),Math.min(keep||0,n-1),sum)}
@@ -3465,7 +3465,8 @@ build()})();
 .sxbn .ic svg{width:28px;height:28px}
 .sxbn b{display:block;font-size:15px;font-weight:900;letter-spacing:-.01em}
 .sxbn p{margin:2px 0 0;font-size:13px;font-weight:700;color:#9AA5BF;line-height:1.3}
-.sxbn .x{border:0;background:none;color:#9AA5BF;font:900 22px/1 var(--font);width:34px;height:34px;border-radius:10px}
+.sxbn .x{border:0;background:none;color:#9AA5BF;font:900 22px/1 var(--font);width:44px;height:44px;margin:-6px -4px -6px 0;border-radius:12px;touch-action:manipulation}
+.sxbn,.icon-btn,.ov .x,.up-ov button,button.x{touch-action:manipulation}
 @media (prefers-reduced-motion:reduce){.sxbn{transition:none}}
 </style>
 <script>
@@ -3476,7 +3477,7 @@ window.sxBanner=function(o){o=o||{};var t=String(o.title||""),x=String(o.text||"
  if(!el){el=document.createElement("div");el.setAttribute("role","status");el.setAttribute("aria-live","polite");
   el.innerHTML='<span class="ic"><svg class="mk" aria-hidden="true"><use href="#mk"/></svg></span><div><b></b><p></p></div><button class="x" type="button" aria-label="Dismiss">\u00d7</button>';
   document.body.appendChild(el);
-  el.addEventListener("click",function(e){var g=el.dataset.go;hide();if(e.target.closest(".x")||!g)return;var n=document.querySelector('.nav [data-go="'+g+'"]');if(n)n.click()});
+  el.addEventListener("click",function(e){var g=el.dataset.go;hide();if(e.target.closest(".x")){e.stopPropagation();return}if(!g)return;var n=document.querySelector('.nav [data-go="'+g+'"]');if(n)n.click()});
   el.addEventListener("touchstart",function(e){y0=e.touches[0].clientY},{passive:true});
   el.addEventListener("touchend",function(e){if(e.changedTouches[0].clientY-y0<-30)hide()},{passive:true})}
  el.className="sxbn k-"+(/^(good|warn|bad)$/.test(o.kind)?o.kind:"info");el.dataset.go=o.go||"";
