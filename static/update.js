@@ -87,7 +87,7 @@
   function pic(k) { var I = window.IL2; return (I && I[k]) || art(); }
   function stage(c, o) {           /* o: {pic, title, text, bar, btns:[[label, fn, quiet]]}; returns {bar, text} so progress can move */
     while (c.firstChild) c.removeChild(c.firstChild);
-    var cart = el("div", "ucart"); cart.innerHTML = pic(o.pic); c.appendChild(cart);
+    var cart = el("div", "ucart"); cart.innerHTML = (o.pic === "download" ? art() : pic(o.pic)); c.appendChild(cart);          /* UPD8: "download" = the update cartoon (arrow), not the mail phone */
     var t = el("h2", "", o.title); t.id = "sxbUpdT"; c.appendChild(t);
     var p = el("p", "muted", o.text || ""); c.appendChild(p);
     var bar = null;
@@ -108,7 +108,7 @@
     }
     function start(err) {
       var ui = stage(c, err ? { pic: "off", title: "Update stopped", text: err, btns: [["Try again", function () { start(""); }], ["Open in browser", fallback, 1], ["Close", close, 1]] }
-                            : { pic: "phone", title: "Downloading update", text: "0%. Keep the app open.", bar: true });
+                            : { pic: "download", title: "Downloading update", text: "0%. Keep the app open.", bar: true });
       if (err) return;
       var h = null; try { h = P.addListener && P.addListener("progress", function (e) { var n = Math.max(0, Math.min(100, Math.round((e && e.pct) || 0))); if (ui.bar) ui.bar.style.width = n + "%"; ui.text.textContent = n + "%. Keep the app open."; }); } catch (e) {}
       function off() { try { if (h && h.then) h.then(function (x) { if (x && x.remove) x.remove(); }); else if (h && h.remove) h.remove(); } catch (e) {} }
