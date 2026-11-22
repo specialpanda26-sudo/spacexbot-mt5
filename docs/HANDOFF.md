@@ -797,3 +797,10 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - static/index.html, Burst card: new part "Big burst (rare, strong setups)" with Big burst entries and Big target per entry ($), saved with Save numbers (big_n, big_usd, already supported by backend/burst.py). Block marker /*BT3*/.
 - The card says in plain words that a big burst needs N strategies to agree (N = owner setting burst_big_score, read from GET /api/burst big_score, not editable by users) and that Big entries must be MORE than the normal Entries, otherwise a big burst never happens (burst.plan needs big_n > quick_n). Fewer entries than normal is refused on the card; the same number shows a warning.
 - Entries inputs now use the owner ceiling as their max. Not checked on a real phone. Test: tests/test_bt3.py.
+
+
+## Section AU1 (settings audit) DONE (Nov 24)
+- Audit: every key of store.DEFAULTS was checked against static/. 7 had no field anywhere: news_before_min, news_after_min, cooldown_min, max_ccy_exposure, multi_entries, regime_min_trades, practice_trades_needed. (The feed switch has its own card, /api/admin/feed.)
+- Now in the Admin panel with ranges, server-checked in backend/app.py admin_set: news before/after 0-240, cooldown 0-1440, same-currency trades 1-10, entries 1-10, regime trades 5-500, practice trades 0-100. News + cooldown + currency exposure are in Main settings (safety gates); the other three are in Advanced.
+- tests/test_au1.py also fails if a new server setting is added without a field.
+- Not touched: the Find a setting search does not cover Admin settings. Advanced is still a collapsed section (Admin panel); say if it should be opened by default.
