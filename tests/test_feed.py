@@ -51,7 +51,8 @@ def bad(js, tf='M15'):
 T('Yahoo error object gives a plain error', bad({'chart': {'result': None, 'error': {'description': 'Not Found'}}}))
 T('missing candles give a plain error', bad({'chart': {'result': [{}], 'error': None}}) and bad({}) and bad(None) and bad({'chart': {'result': [], 'error': None}}))
 T('all candles forming/holes gives a plain error', bad(yahoo('M15', 2, holes=(0, 1))))
-T('FEED_MAP default is gold only', feed.parse_map() == {'XAUUSD': 'GC=F'})
+T('FEED_MAP default has gold, forex and BTC (Section 2)', feed.parse_map() == feed.parse_map(feed.DEFAULT_MAP) and feed.parse_map()['XAUUSD'] == 'GC=F')
+os.environ['FEED_MAP'] = 'XAUUSD:GC=F'      # Section 2: the older checks below were written for a gold-only feed, so they pin it
 T('FEED_MAP parses several and ignores junk', feed.parse_map('XAUUSD:GC=F, eurusd:EURUSD=X ,junk,:x,y:') == {'XAUUSD': 'GC=F', 'EURUSD': 'EURUSD=X'})
 
 # ---- fetch ----
@@ -64,7 +65,7 @@ def raises(f):
 MODE['v'] = '429'; T('HTTP 429 says so', '429' in (raises(lambda: feed.fetch('XAUUSD', 'M15')) or ''))
 MODE['v'] = 'html'; T('a non-JSON reply says so', 'JSON' in (raises(lambda: feed.fetch('XAUUSD', 'M15')) or ''))
 MODE['v'] = 'net'; T('a network failure says so', 'network' in (raises(lambda: feed.fetch('XAUUSD', 'M15')) or ''))
-MODE['v'] = 'ok'; T('a symbol with no feed name is refused', raises(lambda: feed.fetch('USDJPY', 'M15')) is not None)
+MODE['v'] = 'ok'; T('a symbol with no feed name is refused', raises(lambda: feed.fetch('AUDNZD', 'M15')) is not None)
 
 # ---- tick ----
 scanned = []; scan = lambda s, u='': scanned.append((s, u))
@@ -101,7 +102,7 @@ try: feed.tick(boom, now=NOW + 60); T('a failing scan does not crash the round',
 except Exception: T('a failing scan does not crash the round', False)
 fresh(); st.put('feed_on', '1'); os.environ['FEED_MAP'] = 'XAUUSD:GC=F,EURUSD:EURUSD=X'; _g = feed.requests.get
 feed.requests.get = lambda url, params=None, **k: Resp({}, 429) if 'EURUSD' in url else _g(url, params=params, **k)
-feed.tick(scan, now=NOW + 60); feed.requests.get = _g; os.environ.pop('FEED_MAP')
+feed.tick(scan, now=NOW + 60); feed.requests.get = _g; os.environ['FEED_MAP'] = 'XAUUSD:GC=F'
 T('one symbol failing does not block the other', scanned == [('XAUUSD', '')] and 'EURUSD' in feed.status()['err'] and feed.status()['sym']['XAUUSD']['err'] == '')
 st.put('symbols', 'EURUSD'); fresh(); st.put('feed_on', '1'); st.put('symbols', 'EURUSD'); feed.tick(scan, now=NOW + 60)
 T('gold not in the symbols setting: nothing fetched', not CALLS and not scanned)

@@ -11,10 +11,11 @@ Honest limits:
 Env: FEED_ON (0/1), FEED_MAP (default XAUUSD:GC=F ; add e.g. ,EURUSD:EURUSD=X), FEED_EVERY (seconds, default 60)."""
 import os, time, threading
 import requests
-from . import store as st, bars
+from . import store as st, bars, risk
 
 STEP = {'M15': 900, 'H1': 3600}
 _RANGE = {'M15': ('15m', '10d'), 'H1': ('60m', '60d')}
+DEFAULT_MAP = 'XAUUSD:GC=F,EURUSD:EURUSD=X,GBPUSD:GBPUSD=X,USDJPY:USDJPY=X,BTCUSD:BTC-USD'   # Yahoo names; BTC-USD is the 24/7 crypto price (a few dollars off a broker's BTCUSD)
 H1_EVERY = 600                                   # the hour chart changes slowly: fetch it every 10 minutes only
 EA_LIVE = 120                                    # an EA that reported this recently owns the candle store
 URL = 'https://query1.finance.yahoo.com/v8/finance/chart/%s'
@@ -24,7 +25,7 @@ class FeedError(Exception): pass
 
 def parse_map(s=None):
     """'XAUUSD:GC=F,EURUSD:EURUSD=X' -> {'XAUUSD': 'GC=F', ...}. Junk entries are ignored."""
-    s = os.getenv('FEED_MAP', 'XAUUSD:GC=F') if s is None else s; out = {}
+    s = os.getenv('FEED_MAP', DEFAULT_MAP) if s is None else s; out = {}
     for part in str(s).split(','):
         if ':' not in part: continue
         a, b = part.split(':', 1); a, b = a.strip().upper(), b.strip()
@@ -70,6 +71,13 @@ def status():
     with _lock: s = dict(STATUS, sym={k: dict(v) for k, v in STATUS['sym'].items()})
     s['on'] = st.get('feed_on') == '1'; s['map'] = parse_map(); return s
 
+def rest_reason(sym, now=None):
+    """'' = download it; else why the bot is resting this market (only while a BTC market is listed, like the weekend rule in risk.py)."""
+    if not risk.crypto_open(): return ''
+    if risk.weekend_skip(sym, now): return 'weekend'
+    if risk.weekday_skip(sym, now): return 'weekdays'
+    return ''
+
 def symbols():
     have = {x.strip().upper() for x in (st.get('symbols') or '').split(',') if x.strip()}
     return [s for s in parse_map() if s in have]
@@ -92,6 +100,10 @@ def tick(scan, now=None):
         return status()
     done = []; errs = []
     for sym in symbols():
+        why = rest_reason(sym, now)
+        if why:
+            with _lock: STATUS['sym'].setdefault(sym, {}).update(err='', rest=why)
+            continue
         try:
             m15 = fetch(sym, 'M15', now); bars.merge(sym, 'M15', m15, uid='')
             if now - _h1.get(sym, 0) >= H1_EVERY:

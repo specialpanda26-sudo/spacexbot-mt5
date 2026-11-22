@@ -374,3 +374,12 @@ Note: the bot only has M15 and H1 candles. Build the 8h candle by grouping 8 H1 
 - Do NOT copy price levels from the videos (they are dated and not BTC-accurate).
 
 Status: 6A and 6B not started. Order: 2, 3, 4, 5, then 6A, then 6B.
+
+## BTC Section 2 (BTC candles + a feed line for every market) DONE (Nov 22)
+- apply_feed2.py edits backend/feed.py; tests/test_feed2.py (16 checks, no network, mutation-checked) and tests/test_feed.py (4 lines adjusted, see below).
+- Default FEED_MAP is now XAUUSD:GC=F, EURUSD:EURUSD=X, GBPUSD:GBPUSD=X, USDJPY:USDJPY=X, BTCUSD:BTC-USD (Yahoo names). A market is still fetched only when it is in the Symbols setting, so BTC starts flowing when the B1 switch adds BTCUSD. FEED_MAP on Render still overrides everything. More markets (e.g. XAGUSD) need a line in FEED_MAP.
+- While a BTC market is listed (risk.crypto_open()), feed.tick does not download a market the bot is resting: gold/forex at the weekend, BTC on weekdays in 'weekends only' mode. The admin status shows rest = 'weekend' / 'weekdays' for it instead of a red error. With no BTC listed nothing changes (Yahoo errors on a weekend as before).
+- tests/test_feed.py: the old default-map check now expects the new default; the older checks pin FEED_MAP to gold only (they were written for a gold-only feed); the 'no feed name' check uses AUDNZD (USDJPY now has one).
+- Known: tests/test_feed.py (and the older copy too) very rarely fails 'feed off: nothing is downloaded' (background timing); run it again.
+- Honest limits: Yahoo BTC-USD is an aggregated spot price, a few dollars off a broker's BTCUSD; check levels on the broker chart. Yahoo may rate-limit a server (5 markets = 10 calls a round at most; H1 only every 10 min). Not tested: real Yahoo BTC candles. Candles for the 8h chart (Section 6A) come from the 60 days of H1 this feed downloads.
+- Next: Section 3 (BTC-sized stops and lot size).
