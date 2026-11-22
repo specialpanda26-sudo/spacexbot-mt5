@@ -492,7 +492,7 @@ def assist_get(u):
     if not u['active']: why = 'Phone mode needs an active plan.'
     elif links.bot_on(u['uid']): why = 'Your MT5 bot is on. Stop it first to use phone mode.'
     out = {**s, 'active': u['active'], 'why': why}
-    if u['active'] and s['on']: out.update(feed=assist.feed(u['uid']), stats=assist.stats(u['uid']))
+    if u['active'] and s['on']: out.update(feed=assist.feed(u['uid']), stats=assist.stats(u['uid']), running=assist.running(u['uid']))
     return jsonify(out)
 
 def _assist_do(u, fn):

@@ -119,6 +119,15 @@ def stats(uid):
     return {'taken': len(taken), 'skipped': sum(1 for x in r if x['action'] == 'skipped'), 'won': w, 'lost': l, 'even': e, 'waiting': sum(1 for x in taken if not x['outcome']),
             'pnl': round(sum(x['pnl'] for x in taken if x['pnl'] is not None), 2), 'win_rate': round(w / (w + l) * 100, 1) if (w + l) else None}
 
+def running(uid, now=None):
+    # taken trades with no result logged yet (read-only; the server cannot see the MT5 app)
+    now = now or time.time()
+    rows = st.q('SELECT l.sid AS id,l.ts AS ts,l.lots AS lots,s.symbol AS symbol,s.side AS side,s.entry AS entry,s.sl AS sl,s.tp AS tp '
+                'FROM assist_log l JOIN signals s ON s.id=l.sid '
+                "WHERE l.uid=? AND l.action='taken' AND (l.outcome IS NULL OR l.outcome='') ORDER BY l.ts DESC LIMIT 20", (uid,))
+    return [{'id': r['id'], 'symbol': r['symbol'], 'side': r['side'], 'entry': r['entry'], 'sl': r['sl'], 'tp': r['tp'], 'lots': r['lots'],
+             'since': r['ts'], 'minutes': max(0, int((now - r['ts']) // 60))} for r in rows]
+
 # ---------- take / skip / result ----------
 def _signal(sid):
     try: sid = int(sid)

@@ -721,3 +721,12 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Owner symptom "tap does nothing" could not be reproduced. Still unknown: is Render on the latest deploy, is his email verified, does it fail in the browser or only in the APK.
 - Flaky: tests/test_n4.py check 9 (pending order with its state) failed once in three runs on the same code. Passes on rerun.
 - Next: D3, a read-only "running trades (phone)" card built from signals he tapped Take on.
+
+## D3 done
+- Phone mode: read-only "Your running trades (phone)" card. Lists signals the person tapped Take on with no result logged yet (symbol, side, entry, SL, TP, lots, time running). It cannot see the MT5 app and says so.
+- Backend: assist.running(uid) and a running field in GET /api/assist. Frontend: static/running.js (loaded after guide.js), shows Could not load + Try again on failure, hidden when the list is empty.
+- Tests: tests/test_d3.py (9), tests/test_d3b.py (9). Patches: apply_d3a_running.py, apply_d3b_card.py.
+- Checked with the related tests only (d3, d3b, c4, l1, and every test that mentions assist); the full run takes too long on a phone.
+- Not built: price-past-TP/SL hint (needs a recent candle price), reminder push for old taken trades (ask the owner before adding a notification kind).
+- Flaky: test_n4 check 9, test_feed. Known failure: test_rk5.
+- Next: D4, an account tag (FBS or Deriv MT5) on each Take. Still waiting on what the learner cards say on the live site.
