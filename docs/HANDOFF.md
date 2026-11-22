@@ -871,3 +871,10 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Cap: owner setting burst_minute_per_hour (default 30, 1 to 60, on the admin page), counted in kv bmin:<uid>. Loss limits, news lock, ceiling, symbol gate and max trades a day still apply. The Last look line says when the cap is reached.
 - Not a tested strategy: forcing trades pays the spread each time. Demo only until a run or tools/backtest.py says how it does. Journal lines per decision were NOT added (the card's Last look line shows the latest decision).
 - Tests: tests/test_bt7.py; three older tests updated for the new keys and counts (test_burst1, test_bt4, test_bt5).
+
+## Section BT8 (burst results line) DONE (Nov 23)
+- Asked for: a real win rate and loss rate of closed burst groups, to compare with the 25% loss rate wanted.
+- backend/burst_results.py: of the burst groups fully closed in the last 7 days (a group is closed when none of its entries is pending, sent, open or closing; a normal multi-entry group is not a burst) it counts won, lost and flat (a group's result = the sum of the profit of its closed entries; within half a cent of zero = flat), win and loss percent, net USD. The Bot tab shows it after the Last look line: 'Results (last 7 days): N closed groups, W won (P%), L lost (Q%). Net +$x. Your target is 25% losses or fewer: you are inside it.'
+- The target is owner setting burst_loss_target (default 25, 1 to 99, no admin page field yet). Under 10 closed groups the line says it is only a rough guide.
+- Words and numbers only. It does not change what the bot does. The profit of each entry is whatever the broker bridge saved (MT5 from the EA, Deriv from the sell), so a wrong figure there shows up here too.
+- Tests: tests/test_bt8.py.
