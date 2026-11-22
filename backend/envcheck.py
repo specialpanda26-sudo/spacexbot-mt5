@@ -86,7 +86,8 @@ def report(env=None):
 
     G = 'Deriv bot'
     need(G, 'BROKER_KEY', 'Not set. Nobody can link a Deriv or Binance key.', check=lambda v: len(v) >= 16, msg_bad='Shorter than 16 characters.')
-    need(G, 'DERIV_APP_ID', 'Not set. The Deriv bot cannot trade for anyone.')
+    if _g(e, 'DERIV_CLIENT_ID') and not _g(e, 'DERIV_APP_ID'): add(G, 'DERIV_CLIENT_ID', 'ok', 'Set. Used for Log in with Deriv and the Deriv bot.')
+    else: need(G, 'DERIV_APP_ID', 'Not set. The Deriv bot cannot trade for anyone.')
     if _g(e, 'DERIV_REAL') == '1': add(G, 'DERIV_REAL', 'warn', 'REAL Deriv accounts are allowed. Keep 0 until demo results are proven.')
     return out
 

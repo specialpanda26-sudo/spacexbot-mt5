@@ -967,7 +967,7 @@ def admin_revoke(u):
 def admin_health(u):
     h = pay.health(); bad = list(h.get('problems') or [])
     if not bk.ready(): bad.append('BROKER_KEY is missing (16+ characters). Nobody can link a Deriv or Binance key.')
-    if not deriv.APP(): bad.append('DERIV_APP_ID is missing. The Deriv bot cannot trade for anyone.')
+    if not deriv.ON(): bad.append('DERIV_APP_ID (or DERIV_CLIENT_ID) is missing. The Deriv bot cannot trade for anyone.')
     try: beat = int(st.get('deriv:beat') or 0)
     except ValueError: beat = 0
     rows = envcheck.report()

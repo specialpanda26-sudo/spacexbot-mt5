@@ -7,12 +7,14 @@ from . import store as st, brokers as bk, bars, links, push, sbauth, learn, lag
 
 BASE = lambda: os.getenv('DERIV_BASE', 'https://api.derivws.com').rstrip('/')
 APP = lambda: os.getenv('DERIV_APP_ID', '').strip()
+CID = lambda: os.getenv('DERIV_CLIENT_ID', '').strip()          # D1: the OAuth app id; Log in with Deriv may use it alone
+ON = lambda: bool(APP() or CID())          # D1: Deriv is switched on when either one is set
 _last = {}
 
 def _http(method, path, token):
     import requests
     r = requests.request(method, BASE() + path, data=b'' if method == 'POST' else None, timeout=15,
-                         headers={'Authorization': 'Bearer ' + token, 'Deriv-App-ID': APP(), 'Accept': 'application/json'})
+                         headers=dict({'Authorization': 'Bearer ' + token, 'Accept': 'application/json'}, **({'Deriv-App-ID': APP()} if APP() else {})))
     try: j = r.json()
     except ValueError: j = {}
     return r.status_code, j
@@ -55,7 +57,7 @@ def verify(uid, http=None, now=None, connect=None):
     now = now or time.time()
     if now - _last.get(uid, 0) < 8: return False, 'Wait a few seconds and try again.'
     _last[uid] = now
-    if not APP(): return False, 'Deriv trading is not switched on yet. Please try again soon.'
+    if not ON(): return False, 'Deriv trading is not switched on yet. Please try again soon.'
     sec = bk.secret(uid, 'Deriv')
     if not sec or not sec.get('token'): return False, 'Save your Deriv token first.'
     try:
@@ -79,7 +81,7 @@ def _snapshot(uid, token, acct, http=None, connect=None):
 
 def refresh(uid, http=None, connect=None):
     """Read the balance of the account type the person picked (Demo or Real) so the Account card shows it. Never trades. True if it worked."""
-    if not APP(): return False
+    if not ON(): return False
     r = st.q("SELECT status FROM broker_links WHERE uid=? AND broker='Deriv'", (uid,), True)
     sec = bk.secret(uid, 'Deriv') if r and r['status'] == 'verified' else None
     if not sec or not sec.get('token'): return False
@@ -143,6 +145,13 @@ def _bot(uid):
 def _pick(accts, want_real):
     return next((a for a in accts if a['demo'] != want_real), None)
 
+def _login_ended(uid, now):
+    """D1: Deriv refused the saved login (it lasts about 30 days, no refresh). Stop asking every minute: mark it, switch the bot off, tell the person once a day."""
+    _mark(uid, 'rejected'); bk.set_bot(uid, 'Deriv', False)
+    try: sbauth.notify('Deriv login ended', 'Tap Log in with Deriv on the Connect tab, then Start bot.', key='dend%s-%d' % (uid, int(now) // 86400), only=uid)
+    except Exception: pass
+    return 'login ended'
+
 def run_once(uid, scan, paid, connect=None, http=None, now=None):
     """One round for one customer (see _run_once). The result is also saved as a plain-words note on the Deriv tile, so a bot that
     does nothing always says why."""
@@ -153,7 +162,7 @@ def run_once(uid, scan, paid, connect=None, http=None, now=None):
 
 def _run_once(uid, scan, paid, connect, http, now):
     """One round for one customer: only if plan active, bot on, token verified. Reads candles, refreshes the account snapshot, runs the scan."""
-    if not APP(): return 'off'
+    if not ON(): return 'off'
     if not paid(uid): return 'plan ended'
     from . import tradeon
     if not tradeon.allows(uid, 'Deriv'): return 'other platform'          # 5A
@@ -163,7 +172,9 @@ def _run_once(uid, scan, paid, connect, http, now):
     sec = bk.secret(uid, 'Deriv')
     if not sec or not sec.get('token'): return 'no token'
     real = bk.mode(uid, 'Deriv') == 'real'
-    acct = _pick(accounts(sec['token'], http), real)
+    try: accts = accounts(sec['token'], http)
+    except PermissionError: return _login_ended(uid, now)
+    acct = _pick(accts, real)
     if not acct: return 'no real account' if real else 'no demo account'
     sess = Session((connect or _connect)(ws_url(sec['token'], acct['id'], http)))
     try:

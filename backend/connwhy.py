@@ -47,7 +47,7 @@ def mt5_row(uid, admin, paid, site, now):
 def deriv_row(uid, admin, paid, now):
     link = st.q("SELECT status FROM broker_links WHERE uid=? AND broker='Deriv'", (uid,), True)
     row = next((r for r in bk.view(uid) if r['name'] == 'Deriv'), {})
-    app, vault = bool(deriv.APP()), bk.ready()
+    app, vault = bool(deriv.ON()), bk.ready()
     miss = [n for n, v in (('DERIV_APP_ID', app), ('BROKER_KEY', vault)) if not v]
     status = (link or {}).get('status') or ''
     bal, t = row.get('balance'), row.get('bal_t')

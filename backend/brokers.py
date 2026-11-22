@@ -80,6 +80,7 @@ REASONS = {
     'not verified': 'Your token is not checked yet. Save it again to check it.',
     'no token': 'No token saved. Save your Deriv token again.',
     'no real account': 'Real mode is on but this token has no real account.',
+    'login ended': 'Your Deriv login ended. Tap Log in with Deriv on the Connect tab, then Start bot.',
     'no demo account': 'This token has no virtual (demo) account.',
     'no balance': 'Deriv did not give the balance. It will try again soon.',
     'no symbols': 'No markets are set to trade. The owner must set the symbols list.',
