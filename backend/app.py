@@ -14,7 +14,7 @@ def _boom(e):
     import traceback; print('500', request.path, repr(e)[:300]); traceback.print_exc(); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 from . import btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
-from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, binance_bot, stake, envcheck
+from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -927,6 +927,19 @@ def gcap_set(u):
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in groupcap.KEYS}})
     return jsonify(groupcap.view(_mine(u)))
+
+@app.get('/api/cycle')          # CY1: Auto-cycle choices
+@need(verified=True)
+def cycle_get(u): return jsonify(cycle.view(_mine(u)))
+
+@app.post('/api/cycle')
+@need(verified=True)
+def cycle_set(u):
+    j = _j()
+    try: cycle.save(_mine(u), j)
+    except ValueError as e: return jsonify(error=str(e)), 400
+    learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in cycle.KEYS}})
+    return jsonify(cycle.view(_mine(u)))
 
 @app.post('/api/admin/testprice')
 @need(admin=True)

@@ -737,3 +737,11 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Tests: tests/test_d4.py (9), tests/test_d4b.py (8). Patches: apply_d4a_acct.py, apply_d4b_picker.py, apply_d4c_fix.py (moved acctPick into the A4 block so tests/test_sigtext.py can run the card code alone).
 - Checked with the related tests only (every test that mentions assist, plus d3, d4).
 - Next: owner to confirm on the live site what the three learner cards say and whether the running card appears after a Take.
+
+
+## Section CY1 (Auto-cycle choices, server side) DONE (Nov 22)
+- Owner wish: when a group of entries (e.g. 6 positions) reaches a profit target for the WHOLE group (e.g. 0.70 USD), close them all and open the next group straight away, without waiting for a new signal. A switch, OFF by default. Deriv first, then MT5 and Binance.
+- backend/cycle.py: kv 'cycle:<uid>' {on, max_per_day 1..100, default 10}; get/save/rules(uid, n)/why_not/view. Builds on groupcap (group target USD) and prefs 'entries'. Active only when cycle on + group target on and > 0 + 2 or more entries.
+- GET/POST /api/cycle (signed in + verified). tests/test_cycle1.py (28 checks).
+- DESIGN for CY2 (decided, not built): only a group that closed at its PROFIT target starts the next one (never a stop loss, a loss limit or a manual close). The new group uses the same symbol, side and stop/target distances at the current price (Deriv: proposal_open_contract current_spot), still passes every risk gate, and stops for the day after max_per_day new groups. Deriv has NO group close today (groupcap is MT5-only). CY2 adds it: in deriv._track add up the open profit of a group, sell all members when the total reaches the target, record each as closed (closedby 'basket'), then queue the next group.
+- NOT built yet: Deriv engine (CY2), Bot tab card (CY3), MT5 EA and Binance (CY4). deriv._size refuses stakes under 1 USD, so '0.1 USD per entry' cannot open on Deriv as the code stands.
