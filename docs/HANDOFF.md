@@ -899,6 +899,12 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Next: SC3d (Go to the market).
 
 
+## Section BT9 (burst card for the owner on Deriv) DONE (Nov 23)
+- Found (owner on a phone, Deriv chosen, burst never opened anything): the app saved the OWNER's burst settings under scope '' (the owner's PC EA has no uid) but the owner's Deriv bot scans under the owner's own uid, so burst was 'off' where the scan looks. The card also judged the bot by the EA switch ('The bot is stopped. Tap Start bot.') while Deriv was running, and live burst numbers were not shown. Non-owners were never affected.
+- backend/burst_scope.py: scope(u) = the owner's own uid when Deriv or Binance is chosen on Trade on; '' for the owner on MT5 or with nothing chosen; the uid for everyone else. The first time, settings already saved under '' are copied once to the uid (never over settings already there). GET and POST /api/burst use it.
+- After the deploy the owner sees the same switches as before (copied). Other owner cards (group target and loss, limits, strategies) still use scope '': NOT checked, not changed here.
+- Tests: tests/test_bt9.py.
+
 ## STATUS BOARD Nov 23 (newest; read this first, then the sections above it)
 - Owner's rules (unchanged): phone only (Termux), new files as cat heredocs, edits to existing files as python heredocs with an edit() helper (replace only if the old text appears exactly once, skip when already done), one block that runs the tests, one git block. One section per reply, owner says "go". NO Claude attribution in commits (no Co-Authored-By, no Claude-Session lines).
 - Owner's wishes for the screen assistant (Nov 23, dictated): (1) the floating button is the SpaceX symbol (the purple, yellow and white icon, branding/ic_large_sxb.png), not a plain bubble; (2) every cartoon in the panel comes from the website's own set (window.IL2 in static/index.html), NEVER new ones drawn by the AI; (3) one section at a time.

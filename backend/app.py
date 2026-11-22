@@ -13,7 +13,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     import traceback; print('500', request.path, repr(e)[:300]); traceback.print_exc(); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
+from . import burst_scope, btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
 from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck
 _last_scan = {}
 
@@ -939,16 +939,17 @@ def prefs_set(u):
 
 @app.get('/api/burst')
 @need(verified=True)
-def burst_get(u): return jsonify(burst.view(_mine(u)))
+def burst_get(u): return jsonify(burst.view(burst_scope.scope(u)))          # BT9
 
 @app.post('/api/burst')
 @need(verified=True)
 def burst_set(u):
     j = _j()
-    try: out = burst.save(_mine(u), j)
+    sc = burst_scope.scope(u)          # BT9
+    try: out = burst.save(sc, j)
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in burst.KEYS}})
-    return jsonify(burst.view(_mine(u)))
+    return jsonify(burst.view(sc))
 
 @app.get('/api/live/why')          # LIVE2: why is the phone notification not showing
 @need(verified=True)
