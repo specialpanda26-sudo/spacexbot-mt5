@@ -18,7 +18,7 @@ def fake_get(url, headers=None, timeout=0):
     return Resp(401, {})
 sbauth.requests.get = fake_get
 u = sbauth.verify('good')
-T('valid token -> user', u == {'uid': 'uuid-1', 'email': 'a@b.com', 'name': 'Amy W', 'verified': True})
+T('valid token -> user', u == {'uid': 'uuid-1', 'email': 'a@b.com', 'name': 'Amy W', 'verified': True, 'last_sign_in': ''})
 T('sends the anon key', calls[0][1]['apikey'] == 'anon' and calls[0][0] == 'https://x.supabase.co/auth/v1/user')
 sbauth.verify('good'); T('second check is cached', len(calls) == 1)
 T('unconfirmed email -> verified False', sbauth.verify('unconfirmed')['verified'] is False)

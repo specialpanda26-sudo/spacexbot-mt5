@@ -12,7 +12,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
+from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -33,6 +33,7 @@ def user():
     h = request.headers.get('Authorization', '')
     u = sbauth.verify(h[7:]) if h.startswith('Bearer ') else None
     if not u: return None
+    security_alerts.signin(u['uid'], u.get('last_sign_in'))          # N6e: kind 50
     if not st.q('SELECT 1 FROM users WHERE uid=?', (u['uid'],), True):
         new = st.x('INSERT INTO users(uid,email,name,created,onboarded) VALUES(?,?,?,?,0) ON CONFLICT(uid) DO NOTHING', (u['uid'], u['email'], u['name'], int(time.time())), count=True)
         if new == 1 and u.get('verified'):      # welcome email: first sign-in only, verified email only (Section 9a)
@@ -327,7 +328,10 @@ def me_delete(u):
 
 @app.post('/api/me/signout-others')
 @need()
-def me_signout(u): return jsonify(ok=sbauth.revoke(u['uid']))
+def me_signout(u):
+    ok = sbauth.revoke(u['uid'])
+    if ok: security_alerts.notice(u['uid'], 'Your other devices were signed out')          # N6e
+    return jsonify(ok=ok)
 
 @app.get('/api/signals')
 @need(active=True)
@@ -351,7 +355,9 @@ def link_get(u):
 @need(verified=True, active=True)
 def link_key(u):
     if u['admin']: return jsonify(error='Admins use the main EA key (EA_KEY).'), 400
-    key = links.new_key(u['uid']); return jsonify(key=key, **links.view(u['uid']))      # the only time the key is shown
+    had = bool(links.get(u['uid'])); key = links.new_key(u['uid'])
+    security_alerts.notice(u['uid'], 'Your MT5 key was replaced' if had else 'An MT5 key was created')          # N6e (the notice never carries the key)
+    return jsonify(key=key, **links.view(u['uid']))      # the only time the key is shown
 
 def _link_edit(u, fn):
     if u['admin']: return jsonify(error='Admins use the main EA key (EA_KEY).'), 400
@@ -387,7 +393,9 @@ def link_risk(u): return _link_edit(u, lambda: links.set_risk(u['uid'], _j().get
 @app.delete('/api/link')
 @need(verified=True)
 def link_del(u):
-    if not u['admin']: links.drop(u['uid'])
+    if not u['admin']:
+        had = bool(links.get(u['uid'])); links.drop(u['uid'])
+        if had: security_alerts.notice(u['uid'], 'Your MT5 link was removed')          # N6e
     return jsonify(ok=True)
 
 # ---------------- broker connections (Deriv, Binance, MT5 brokers). Keys are encrypted; nothing secret is ever returned ----------------
@@ -401,6 +409,7 @@ def brokers_put(u, name):
     try: bk.save(u['uid'], name, _j())
     except ValueError as e: return jsonify(error=str(e)), 400
     except RuntimeError as e: return jsonify(error=str(e)), 503
+    security_alerts.notice(u['uid'], '%s was connected' % bk.canon(name))          # N6e
     return jsonify(brokers=bk.view(u['uid']))
 
 def _not_deriv(n, what):
@@ -458,7 +467,8 @@ def brokers_bot(u, name):
 def brokers_del(u, name):
     n = bk.canon(name)
     if not n: return jsonify(error='Unknown broker'), 400
-    bk.drop(u['uid'], n); return jsonify(brokers=bk.view(u['uid']))
+    if bk.drop(u['uid'], n): security_alerts.notice(u['uid'], '%s was disconnected' % n)          # N6e
+    return jsonify(brokers=bk.view(u['uid']))
 
 # ---------------- phone mode (assist): signals for people with only a phone ----------------
 @app.get('/api/assist')

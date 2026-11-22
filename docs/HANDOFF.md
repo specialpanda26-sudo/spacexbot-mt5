@@ -325,3 +325,11 @@ Start now: tell me in one short line what you found in docs/HANDOFF.md, then giv
 
 ## Time zones (Nov 22)
 - requirements.txt now has tzdata. market_alerts.py (Tokyo/London/New York session alerts) uses zoneinfo, which needs a time zone database; Termux (and possibly Render) has none, so the job failed with "No time zone found with key Asia/Tokyo". tzdata is a free pip package that brings its own database. On Termux run: pip install tzdata
+
+## Section N6e (security notice, kind 50) DONE (Nov 22)
+- New backend/security_alerts.py + tests/test_n6e.py. No loop job: app.py calls security_alerts.notice() AFTER the thing succeeded. Goes to all of the person's OWN phones, only about their own account, never with a key or secret in it. Category 'system'; push.BYPASS_KINDS is now {27, 30, 31, 50}, so quiet hours and the daily cap do not hold it. The person's own System switch still silences it (their choice; to make security notices unsilenceable, change push.allowed).
+- Sent for: MT5 key created or replaced (/api/link/key), MT5 link removed (DELETE /api/link, only if one existed), broker connected (POST /api/brokers/<name>) or disconnected (DELETE, only if one existed), 'sign out other devices', and a NEW SIGN-IN (sbauth.verify now returns last_sign_in from Supabase's last_sign_in_at; app.py user() passes it to signin(); the first stamp ever seen is only remembered; at most one sign-in notice per person per 6 h).
+- NOT detectable: password change and email change. Supabase does them in the browser and does not tell this server. A real fix needs a Supabase Auth hook or webhook (free), not built.
+- tests/test_sbauth.py compared verify() to an exact dict; it now expects the new last_sign_in field. The four earlier N6 tests (n6a-n6d) now call alerts.stop() after importing the app: the app starts its alert loop at import and its first pass runs every job on the real clock, which could rarely race a test (seen once as 23/25 and once as a failed n6c). Any NEW test that imports the app should do the same.
+- NOT tested: real Supabase. The new-sign-in rule assumes last_sign_in_at changes on a sign-in and NOT on a token refresh. If people get a 'New sign-in' notice about once an hour, tell the next session: that assumption is wrong (the 6 h gap limits the damage).
+- Next: kind 35 once decided. After N6, the alerts list is complete except 35.

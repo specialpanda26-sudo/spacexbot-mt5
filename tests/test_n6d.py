@@ -9,6 +9,7 @@ for f in (DB, DB + '-wal', DB + '-shm'):
 sys.path.insert(0, ROOT)
 from backend.app import app
 from backend import store as st, push, alerts, nudge_alerts as na
+alerts.stop()          # stop the background alert loop so it cannot race this test
 R = []
 def T(name, ok): R.append((name, bool(ok))); print('PASS' if ok else 'FAIL', name)
 SENT = []

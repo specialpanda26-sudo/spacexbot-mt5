@@ -26,7 +26,7 @@ def verify(token):
         if r.status_code != 200: return None
         d = r.json(); m = d.get('user_metadata') or {}
         u = {'uid': d['id'], 'email': d.get('email') or '', 'name': m.get('full_name') or m.get('name') or '',
-             'verified': bool(d.get('email_confirmed_at') or d.get('confirmed_at'))}
+             'verified': bool(d.get('email_confirmed_at') or d.get('confirmed_at')), 'last_sign_in': d.get('last_sign_in_at') or ''}
     except Exception as e:
         print('verify failed:', e); return None
     with _cl: _cache[k] = (now + 60, u)
