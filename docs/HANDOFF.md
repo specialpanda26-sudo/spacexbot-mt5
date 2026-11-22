@@ -451,3 +451,7 @@ Suggested fix, one section each: (a) take the backtest out of the go-live verdic
 ## Section FD1 (fake data fix a: sample backtest out of the go-live verdict and the Journal) DONE (Nov 22)
 - static/index.html only. In the Run check card the 'Backtest evidence' row is always 'Not tested' (the random sample result is no longer read), and the verdict can only say 'Conditions pass' when 30+ real closed trades beat break-even (otherwise 'nothing is proven yet'; a failed check or a losing real record still says 'Not now' / 'Not recommended'). The sample backtest card still runs as a demo, its note now says it is not saved and does not count, and it no longer writes 'Backtest ran: ...' into the Journal. tests/test_fd1.py. apply_fd1.py.
 - Fake data scan items 2-5 are still open (b Focus pair, c News list, d Weekly brief / Home chart labels). Owner picks which next.
+
+## Section FD2 (fake data fix b: Focus pair) DONE (Nov 22)
+- static/index.html only. The Session limits note under the switches no longer prints 'Focus pair now: XAUUSD (Buy setup, score 72)' (it came from the made-up price table P, not live data). It now says only 'Auto-switch is on. The bot moves to a pair when a live setup appears.' or the old 'Auto-switch is off...' sentence. The unused focus() function was left in place. tests/test_fd2.py. apply_fd2.py.
+- Fake data scan items 3-5 are still open (c News list, d Weekly brief / Home chart labels). Owner picks which next.
