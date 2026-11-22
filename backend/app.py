@@ -12,7 +12,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import btc_switch, tradeon, course, roadmap, guide
+from . import btc_switch, tradeon, course, roadmap, guide, deriv_oauth
 from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
 _last_scan = {}
 
@@ -624,6 +624,24 @@ def course_quiz(u):
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, 'lesson': str(j.get('lesson'))[:20], 'score': r['score']})
     return jsonify(r)
+
+@app.get('/api/deriv/login')
+@need(verified=True)
+def deriv_login(u):
+    """C-AUTH 1: the address of Deriv's own login page for this person (PKCE, trade scope only)."""
+    url, why = deriv_oauth.start(u['uid'])
+    if why: return jsonify(error=why), 503
+    return jsonify(url=url)
+
+@app.get('/auth/deriv/callback')
+def deriv_callback():
+    """Deriv sends the browser back here. The person is found from the one-time state, never from the address."""
+    ok, _ = deriv_oauth.finish(request.args.get('state', ''), request.args.get('code', ''), request.args.get('error', ''))
+    return redirect('/?deriv=' + ('ok' if ok else 'fail') + '#connect')
+
+@app.get('/api/deriv/login-status')
+@need(verified=True)
+def deriv_login_status(u): return jsonify(deriv_oauth.status(u['uid']))
 
 @app.get('/api/guide')
 @need(verified=True)
