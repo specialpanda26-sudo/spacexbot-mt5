@@ -373,7 +373,7 @@ Note: the bot only has M15 and H1 candles. Build the 8h candle by grouping 8 H1 
 - Short-or-do-nothing (video 3, Get Me Trading weekly forecast): when the BTC bias is down, never short at the lows; wait for a pullback to the 4h 50 MA (deep pullback = sell into strength; shallow = wait for the bear-flag breakdown). The stock-market link he talks about cannot be read by this bot.
 - Do NOT copy price levels from the videos (they are dated and not BTC-accurate).
 
-Status: 6A and 6B not started. Order: 2, 3, 4, 5, then 6A, then 6B.
+Status: 6A DONE (see 'BTC Section 6A' at the end of this file); 6B not started. Order was: 2, 3, 4, 5, then 6A, then 6B.
 
 ## BTC Section 2 (BTC candles + a feed line for every market) DONE (Nov 22)
 - apply_feed2.py edits backend/feed.py; tests/test_feed2.py (16 checks, no network, mutation-checked) and tests/test_feed.py (4 lines adjusted, see below).
@@ -407,3 +407,11 @@ Status: 6A and 6B not started. Order: 2, 3, 4, 5, then 6A, then 6B.
 - No blind reopen: already true (one evaluation per new candle, key lastbar:*) and now proven by a test: a target close on the same candle opens nothing; a new candle with a fresh valid signal may open a new trade.
 - Honest limits: with 2+ positions the EA closes the WHOLE group when the total reaches USD x positions, not each position on its own (a single position is exact). Only the MT5 bridge enforces it; Deriv and phone mode cannot close by dollars. Not tested: a real MT5 account or real EA (the basket path was built in Section 3 and tested there). The alert for a group of one reads as a normal trade.
 - Next: Section 6A (backend/btc_range.py, see the SPEC above), then 6B.
+
+## BTC Section 6A (backend/btc_range.py, the range / discount-premium entry) DONE (Nov 22)
+- New: backend/btc_range.py, tests/test_btc6a.py (51 checks, mutation-checked: zone, reaction candle, body size, first reaction only, bottom broken, came back inside, break required, min range, stop fit, RR, stay on the frame, closed candles, complete groups, min bars, wick-aware stop, bearish side, 15m-only each went red). apply_btc6a.py registers it: strategies.py (ALL, TREND, NOT SOLO) and strategy_info.py. No existing strategy file was edited.
+- Frames: 8h, 4h, 1h, 30m tried in that order. 4h/8h are GROUPED from the 1h candles (UTC boundaries), 30m from the 15m candles; a group counts only when all its small candles exist and it is closed. Fewer than MIN_BARS (12) candles = no structure = one frame lower. 8h needs about 100 hours of H1 history (the Section 2 feed downloads 60 days, enough).
+- Range: swing high broken by a CLOSE, top = highest high since, bottom = last swing low before the break; valid only after a close back below the broken high and while nothing has closed under the bottom. Entry = first green candle with a real body (0.3 ATR) that touches the bottom quarter; stop under the bottom swing (or the candle wick); target TP1 = the top. If a valid range exists on a frame, that frame is traded or nothing (it never drops lower to find another trade). Bearish = mirror.
+- setup(m, h) returns more than the signal: tp2 (top + 0.25 range), half flag, range, rr, frame. The 50% trade is the HALF_OK switch (default False); at the 0.5 level the reward is only about 1R with that stop, so it needs a lower RR_MIN and usually a wider SL_MAX to ever fire.
+- Honest limits: with BTC's 15m ATR, 8h and 4h ranges are usually far too wide for the brain's 0.5-3.5 ATR stop, so the trades will mostly come from the 1h and 30m frames (skipped, never reshaped). 'Consolidating after the reaction' (video) cannot be read at entry: a doji-like reaction candle (body under 0.3 ATR) is skipped instead. Break-even after TP1 is not coded. It is generic (it also runs on gold and forex candles). NOT backtested on real BTC candles: run tools/backtest.py --solo on real data before trusting it. Test chart is synthetic.
+- Next: Section 6B (optional weekend filters, each behind its own setting, default OFF), then 4C, N2, N6 and the S2-S6 list above.
