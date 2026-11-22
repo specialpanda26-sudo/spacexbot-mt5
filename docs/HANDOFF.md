@@ -630,3 +630,13 @@ Honest limits: the app cannot tap inside the Deriv app. A trade is placed by the
 - SC5 Auto, confirm-only, demo first, locked until SC6 numbers are seen; panel says it with the yay cartoon.
 - SC6 accuracy log in the Journal. SC7 polish + docs/PHONE_CHECKLIST.md + final check.
 Next: SC2.
+
+## Section SC2 (Screen assistant card + talking panel, website) DONE (Nov 22)
+- New static/screen.js (card "Screen assistant" at the top of the Bot tab, like static/trade_on.js), new IL2.eye cartoon in static/index.html (apply_sc2.py), tests/test_sc2.py. Server code untouched.
+- Flow: Watch -> getDisplayMedia (desktop browsers; a phone browser gets a plain-words "cannot share" message) -> one JPEG (long side 1280, quality 0.7/0.55/0.4 until under 780000 base64 chars) -> POST /api/screen/read {context:"trade"} now and every 20 s (never faster than the server gap + 1 s), or Read now -> the card answers. The picture is a local variable only: not in storage, not in the page, dropped after the reply.
+- Talking panel (cartoon + speech bubble + plain-word lines): idle/scanning = IL2.eye; bot agrees = IL2.ok "I see a possible trade."; blocked = IL2.shield (IL2.sleep when the reason is weekend/Friday night/Bitcoin rests); disagree, no setup, bot-only, no candles = IL2.wait; chart not readable = IL2.off; 429 = wait, 402 = coin, 403 = off, other errors = IL2.cx. Text under the bubble: market, timeframe, trend, support/resistance, patterns, AI lean, and the BOT'S OWN entry / stop / target (never the AI's).
+- Levels: Explain works; Suggest and Auto are shown as "soon" and disabled (SC4, SC5). Not yet in this section: the "Ask the AI about this chart" step in the learning path (context "learn"), nothing yet places a trade.
+- The card shows when the server switch screen_on is on, or for an admin; an admin sees "Switch it on / off" (POST /api/admin/settings {screen_on:"1"|"0"}). With it off, Watch is disabled and the chip says Off. No plan = chip "Plan needed".
+- Motion (magnifier sweeps, Watching chip pulses) only inside @media (prefers-reduced-motion:no-preference). CSS uses the site's variables only.
+- NOT tested: a real browser share, a real model reply (needs ANTHROPIC_API_KEY today; the model choice is the owner's, see SC1b).
+- Next: SC1b (model switch: Grok / Gemini / Anthropic / other), then SC3.

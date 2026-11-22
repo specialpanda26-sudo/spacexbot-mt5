@@ -1598,6 +1598,7 @@ IL2.shield=il('<g transform="translate(22 24)"><g class="sh">'+seq([['path d="M3
 IL2.cookie=il('<g transform="translate(16 28)">'+seq([['path d="M44 0a44 44 0 1 0 44 46 15 15 0 0 1-17-17A15 15 0 0 1 44 0z"',U]])+'<g fill="'+B[1]+'" stroke="none"><circle cx="28" cy="32" r="4"/><circle cx="48" cy="58" r="4"/><circle cx="26" cy="62" r="3.5"/><circle cx="58" cy="40" r="3.5"/></g></g>'+TK);
 IL2.sleep=il('<g transform="translate(22 30)">'+seq([['path d="M46 2a38 38 0 1 0 24 54A32 32 0 0 1 46 2z"',U]])+ln('M64 4h16L64 22h16',3.5,K,'zz')+ln('M80 28h12L80 42h12',3.5,K,'zz z2')+'</g>'+sp('M14 28v8M10 32h8')+sp('M104 108v8M100 112h8'));
 IL2.plug=il('<g transform="translate(8 44)">'+seq([['rect x="58" y="10" width="36" height="56" rx="10"',W]])+ln('M70 30v12M82 30v12')+'<g class="pg">'+ln('M14 38c-9 0-12 22-6 42',5)+seq([['rect x="14" y="16" width="36" height="44" rx="10"',S]])+ln('M50 28h8M50 48h8')+'</g></g>'+bd(118,38,G,CK)+sp('M78 30v10M73 35h10')+sp('M30 24v8M26 28h8'));
+IL2.eye=il('<g transform="translate(12 40)">'+seq([['rect x="0" y="34" width="12" height="40" rx="3"',G],['rect x="20" y="14" width="12" height="60" rx="3"',B],['rect x="40" y="40" width="12" height="34" rx="3"',G]])+ln('M6 24v10M6 74v8M26 4v10M26 74v6M46 30v10M46 74v8',3)+'</g>'+'<g class="mg">'+ln('M92 82l14 16',6)+seq([['circle cx="78" cy="62" r="22"',W]])+ln('M66 56q6-8 16-6',3.5,S[1])+'</g>'+sp('M96 22v10M91 27h10')+sp('M10 112v8M6 116h8'));
 })();
 var ILM={plug:"plug",doc:"doc",cookie:"cookie",guard:"shield",lock:"lock",sleep:"sleep",rocket:"rocket"};
 function fixArt(){$$("svg.ill").forEach(function(el){var u=el.querySelector("use"),id=u?(u.getAttribute("href")||"").replace("#ill-",""):"",k=ILM[id];if(!k||!IL2[k])return;var w=document.createElement("div");w.innerHTML=IL2[k];var n=w.firstChild;n.setAttribute("class","ill2 "+(el.classList.contains("sec-ill")?"sec2":"emp2"));el.replaceWith(n)});
@@ -3487,5 +3488,5 @@ window.sxBanner=function(o){o=o||{};var t=String(o.title||""),x=String(o.text||"
  void el.offsetWidth;el.classList.add("on");clearTimeout(tm);tm=setTimeout(hide,o.ms>0?o.ms:6000)};
 window.sxBannerHide=hide})();
 </script>
-<script src="/static/prefs_ui.js"></script><script src="/static/trade_on.js"></script><script src="/static/deriv_login.js"></script><script src="/static/test_lab.js"></script><script src="/static/course.js"></script><script src="/static/roadmap.js"></script><script src="/static/guide.js"></script><script src="/static/update.js"></script>
+<script src="/static/prefs_ui.js"></script><script src="/static/trade_on.js"></script><script src="/static/screen.js"></script><script src="/static/deriv_login.js"></script><script src="/static/test_lab.js"></script><script src="/static/course.js"></script><script src="/static/roadmap.js"></script><script src="/static/guide.js"></script><script src="/static/update.js"></script>
 </body></html>
