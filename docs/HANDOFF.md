@@ -760,3 +760,10 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Left alone on purpose: a pending/sent member makes the group wait; a member Deriv already sold is left to _track first; a refused sell leaves that entry open and never starts the next group; a burst group closes at its target but is never cycled.
 - NOT done: group LOSS limit on Deriv (groupcap loss_pct is still MT5-only); the Bot tab card (CY3); MT5 EA and Binance (CY4). deriv._size still refuses stakes under 1 USD, so 0.1 USD entries are rejected on Deriv. Nothing was tried against the real Deriv API: the sell message and the fields profit / current_spot / is_sold are assumed from the code that already reads them; run tools/deriv_probe.py first.
 - Tests: tests/test_cy2.py. Next: CY3 (card on the Bot tab: switch, new groups a day, why-not note from cycle.view + dg.why).
+
+
+## Section CY3 (Auto-cycle card on the Bot tab) DONE (Nov 22)
+- static/index.html: card "Auto-cycle" on the Bot tab, right under "Group target and loss" (block /*CY3-start*/ .. /*CY3-end*/): switch, New groups a day (blank = keep the saved number), Save -> POST /api/cycle, chip Off / Needs setup / On, plain-words note (cycle.why_not), "New groups opened today: x of y" and "Last time it did not open one: <reason>".
+- backend/cycle.py: GET/POST /api/cycle now also return today (deriv_group.used_today) and last (deriv_group.why, '' when the reason is just 'cycle off').
+- Not checked on a real phone. Tests: tests/test_cy3.py (server facts + the card code run in node against a fake page).
+- Still open: CY4 (MT5 EA + Binance engines), group LOSS limit on Deriv, run tools/deriv_probe.py to confirm the sell message.

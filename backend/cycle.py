@@ -78,4 +78,13 @@ def view(uid=''):
     """What the app shows: the cycle choices, the group target it builds on, the entries per setup, and a plain-words reason when it is not running."""
     gv = groupcap.view(uid); pos = gv['positions']
     return {'settings': get(uid), 'group': gv['settings'], 'positions': pos, 'note': why_not(uid, pos if pos else 2),
-            'limits': {'max_per_day': [MAX_LO, MAX_HI]}}
+            'limits': {'max_per_day': [MAX_LO, MAX_HI]}, **_facts(uid)}
+
+
+def _facts(uid):
+    """CY3: how many new groups the Deriv engine opened today, and its last plain-words reason for not opening one (empty when nothing to say)."""
+    try:
+        from . import deriv_group as dg
+        w = dg.why(uid or '')
+        return {'today': dg.used_today(uid or ''), 'last': '' if w == 'cycle off' else w}
+    except Exception: return {'today': 0, 'last': ''}
