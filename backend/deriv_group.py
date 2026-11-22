@@ -2,6 +2,7 @@
 Each round (called from deriv._run_once, right after _track) it looks at every group that is fully open on Deriv and has a group profit target (kv 'bg:<grp>', 'tgt' in USD, set by groupcap.py).
   1. total = profit already booked by members of the group + the live profit of the members still open.
   2. total >= target  ->  sell every open member at market (closedby 'basket'), one alert for the whole group.
+  2b. GL1: total <= minus the group loss limit (loss percent of the balance saved when the group opened)  ->  the same sale; a loss never starts the next group.
   3. only if the cycle is on (cycle.py), the group is a normal multi-entry group, it ended in profit and every member was sold:
      open the NEXT group of the same size: same symbol, side and stop/target distances, around the current price.
      The new entries are ordinary pending signals, so the same round opens them through the normal Deriv path (_trade).
@@ -45,12 +46,27 @@ def _sell(sess, cid, fallback):
     return round(v if v is not None else fallback, 2)
 
 
+def note_open_balance(grp, bal):
+    """GL1: save the account balance from just BEFORE this group's first entry was bought (kv 'bg:<grp>', 'bal0'). The group loss limit is a percent of it. Saved once.
+    -> True when saved, False when the group is unknown, the balance is not a positive number, or it was saved before."""
+    m = _meta(grp); b = _f(bal)
+    if not m or not b or b <= 0 or _f(m.get('bal0')): return False
+    m['bal0'] = round(b, 2); st.put('bg:%d' % int(grp), json.dumps(m)); return True
+
+
+def loss_limit(m):
+    """GL1: the group loss in USD at which the group is stopped (loss percent x the saved balance / 100), or 0 when there is no limit or no saved balance."""
+    lp = _f((m or {}).get('loss')) or 0; b0 = _f((m or {}).get('bal0')) or 0
+    return round(b0 * lp / 100.0, 2) if lp > 0 and b0 > 0 else 0.0
+
+
 def check(sess, uid, acct, now=None):
     """One look at every open Deriv group of this person. -> a list with one entry per group that was closed: {'grp','total','next'} (next = ids of the new group, or None)."""
     now = now or time.time(); out = []
     for g in _open_groups(uid):
         m = _meta(g); tgt = _f((m or {}).get('tgt')) or _f((m or {}).get('dtgt')) or 0
-        if tgt <= 0: continue
+        lim = loss_limit(m)
+        if tgt <= 0 and lim <= 0: continue
         mem = st.q('SELECT %s FROM signals WHERE grp=? AND COALESCE(uid,\'\')=? ORDER BY id' % COLS, (g, uid or ''))
         if any(r['status'] in ('pending', 'sent') for r in mem): continue          # not all entries are open yet, or one buy is unconfirmed: the total would be wrong
         opn = [r for r in mem if r['status'] == 'open' and r['ticket']]
@@ -65,7 +81,8 @@ def check(sess, uid, acct, now=None):
             live += pr; seen[r['id']] = (cid, pr); spot = spot or _f(p.get('current_spot'))
         if skip: continue
         booked = sum(_f(r['pnl']) or 0 for r in mem if r['status'] == 'closed')
-        if round(booked + live, 2) < tgt: continue
+        tot = round(booked + live, 2); hit_t = tgt > 0 and tot >= tgt; hit_l = lim > 0 and tot <= -lim
+        if not (hit_t or hit_l): continue
         done, fail = [], False
         for r in opn:
             cid, pr = seen[r['id']]
@@ -77,11 +94,11 @@ def check(sess, uid, acct, now=None):
         if not done: continue
         total = round(booked + sum(done), 2)
         try:
-            sbauth.notify('%s group closed' % opn[0]['symbol'], 'Total P/L %s' % total, key='grp%d-closed' % g, only=uid or None)
+            sbauth.notify('%s group %s' % (opn[0]['symbol'], 'stopped at its loss limit' if hit_l and not hit_t else 'closed'), 'Total P/L %s' % total, key='grp%d-closed' % g, only=uid or None)
             push.notify(2 if total > 0 else 4, 'grp%d-closed' % g, sym=opn[0]['symbol'], pnl=total, only=uid or None)
         except Exception: pass
         nxt = None
-        if not fail and total > 0 and (m or {}).get('k') == 'multi': nxt = reopen(uid, g, m, mem[0], spot, now)
+        if not fail and total > 0 and not (hit_l and not hit_t) and (m or {}).get('k') == 'multi': nxt = reopen(uid, g, m, mem[0], spot, now)
         out.append({'grp': g, 'total': total, 'next': nxt})
     return out
 

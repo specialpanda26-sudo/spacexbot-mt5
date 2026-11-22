@@ -812,3 +812,10 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - New: GET /api/regimes (verified user): owner, mine, auto, active, min_trades, the real ADX limits, the latest market reading from the last scan note, and rows per strategy per market type (weak, paused).
 - Bot tab: card "Strategy switching" right under Burst mode (block /*SW2-start*/ .. /*SW2-end*/). Explains the automatic part, shows the latest reading, the learned switch, and the per-market results.
 - Not built: choosing a fixed strategy per market type by hand (the Profile page lets a person pick which strategies may trade). The latest reading is the last market the bot looked at (any market), only shown when the last check left a market sentence. Not checked on a real phone. Tests: tests/test_sw2.py.
+
+
+## Section GL1 (group loss limit on Deriv) DONE (Nov 24)
+- Was open: groupcap loss_pct was MT5-only. Now Deriv too. deriv._trade_one saves the balance from BEFORE the first buy of a group (bg:<grp> bal0, once). deriv_group.check sells every open entry at market (closedby basket, alert "group stopped at its loss limit") when booked + live profit <= minus (loss_pct x bal0 / 100). A loss never starts the next group (cycle). Profit target unchanged; both may be set.
+- A group with no saved balance (opened before this update, or not through Deriv) is left alone: the limit is not guessed. Deriv multiplier contracts keep their own stop loss as before.
+- Card text on the Bot tab now says who closes the group on each platform. Binance still has no group close.
+- Nothing was tried against the real Deriv API (sell message and the profit fields are the same assumptions as CY2): run tools/deriv_probe.py first. Tests: tests/test_gl1.py.

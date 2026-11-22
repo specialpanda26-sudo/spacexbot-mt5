@@ -323,6 +323,10 @@ def _trade_one(sess, uid, acct, bal, now):
         lag.stamp(s['id'], 'opened')
         st.x("UPDATE signals SET status='open',ticket=?,lots=?,fill=?,note=?,broker='Deriv' WHERE id=?", (str(r['contract_id']), r['stake'], s['entry'], 'x%s' % r['mult'], s['id']))
         _report(uid, s['id'], 'open')
+        try:          # GL1: the group loss limit is a percent of the balance from before this group's first buy
+            if s['grp']:
+                from . import deriv_group; deriv_group.note_open_balance(s['grp'], bal)
+        except Exception as e: print('[deriv] group balance note failed', repr(e)[:80])
     else:
         st.x("UPDATE signals SET status='rejected',note=? WHERE id=?", (r[:120], s['id'])); _report(uid, s['id'], 'rejected', r)
     _resnap(sess, uid, acct)
