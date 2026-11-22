@@ -12,7 +12,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     print('500', request.path, repr(e)[:200]); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import btc_switch, tradeon
+from . import btc_switch, tradeon, course
 from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, groupcap, authmail, binance, stake, envcheck
 _last_scan = {}
 
@@ -607,6 +607,21 @@ def trade_on_set(u):
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, 'platform': n})
     return jsonify(ok=True, **tradeon.view(u['uid'], bool(u['admin'])))
+
+@app.get('/api/course')
+@need(verified=True)
+def course_get(u):
+    """C2: the learning path. Lessons unlock one by one; the right answers stay on the server."""
+    return jsonify(course.view(u['uid']))
+
+@app.post('/api/course/quiz')
+@need(verified=True)
+def course_quiz(u):
+    j = _j()
+    try: r = course.grade(u['uid'], str(j.get('lesson') or ''), j.get('answers'))
+    except ValueError as e: return jsonify(error=str(e)), 400
+    learn.log(u['uid'], 'setting', data={'path': request.path, 'lesson': str(j.get('lesson'))[:20], 'score': r['score']})
+    return jsonify(r)
 
 def _deriv_bot(u, on):
     """The Bot tab's Start / Stop also drives Deriv when this person has a Deriv token. None if fine, or (message, status) if it cannot start."""
