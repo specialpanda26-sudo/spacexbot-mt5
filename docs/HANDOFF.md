@@ -552,3 +552,8 @@ What I found (no code written yet):
 - Fix: `.ov .x{...;z-index:5}` (apply_x2.py, tests/test_x2.py: 11 checks, real mobile Chromium, all 8 platform cards, 1 tap each; removing the z-index makes 9 fail). Also fixed: Test Lab Payment: Cancelled threw an error when no screen was open.
 - NOT checked: other X buttons on screens that need a signed-in user (Plans, Admin panel, About you); if one still needs many taps, tell the AI which screen.
 - Render free plan SLEEPS after 15 minutes without a visit (first visit waits, bot scans stop). Fix: an outside ping every 5-10 min to /healthz, or a paid Render instance.
+
+
+## Section Rk6 (notification pictures) DONE (Nov 22)
+- backend/notifart.py already had the new look (ART9: violet outline, blue/white/yellow character); the old note "still in the old dark style" was stale. Rk6 adds 4 pictures: update, soon (plan ends), ended (plan ended), linked (connected) and maps them in backend/pushcopy.py: kind 29 update; 42 and 43 soon; 44 ended; 26 and 28 linked.
+- apply_rk6.py (idempotent), tests/test_rk6.py. The card behind the picture is still the dark navy. NOT seen on a real phone. Kinds with no picture of their own yet: session ended, server waking, something went wrong (no push kind for them).

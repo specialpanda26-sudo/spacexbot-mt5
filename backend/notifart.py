@@ -9,7 +9,7 @@ MUTE, SURF2 = (154, 165, 191), (35, 43, 63)           # outline colour, fill of 
 GREEN, BERRY, SKY, SUN = (76, 217, 123), (255, 115, 119), (91, 176, 255), (255, 203, 61)
 WHITE = (255, 255, 255)
 HAIR_BODY, HAIR_MID, HAIR_TOP = (29, 29, 32), SURF2, (52, 52, 58)
-NAMES = ('win', 'loss', 'even', 'risk', 'news', 'bill', 'off', 'hi')
+NAMES = ('win', 'loss', 'even', 'risk', 'news', 'bill', 'off', 'hi', 'update', 'soon', 'ended', 'linked')   # RK6: 4 new pictures
 _cache = {}
 _NUM = re.compile(r'[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?')
 
@@ -134,6 +134,19 @@ def scene(name):
         lay(a, [('c', 48, 72, 10, PG)], t); line(a, 'M43 72l3.5 3.5 6.5-7.5', t, col=(255, 255, 255), w=3)
     elif name == 'off':
         line(a, 'M16 70q36-34 72 0M30 84q22-20 44 0M44 98q8-8 16 0'); lay(a, [('c', 52, 110, 4, PW)]); line(a, 'M22 28L84 124', col=PB[0], w=5)
+    elif name == 'update':                                          # RK6: phone, download arrow, flame, sparkles (like the in-app update cartoon)
+        t = (14, 22); lay(a, [('p', 'M17 98q12 18 24 0z', PU)], t)
+        lay(a, [('r', 0, 0, 58, 96, 11, PW), ('r', 9, 24, 40, 28, 7, PS)], t); line(a, 'M22 10h14', t); line(a, 'M29 30v14M21 37l8 8 8-8', t, col=(255, 255, 255), w=3.5)
+        spark(a, 92, 24); spark(a, 12, 100); spark(a, 96, 90)
+    elif name in ('soon', 'ended'):                                 # RK6: calendar; a clock badge = plan ends soon, a cross badge = plan ended
+        t = (20, 30); lay(a, [('r', 0, 6, 70, 66, 9, PW), ('r', 0, 6, 70, 20, 9, PU)], t)
+        for d in ('M18 0v12', 'M52 0v12'): line(a, d, t, w=5)
+        for x, y in ((16, 40), (35, 40), (54, 40), (16, 56), (35, 56)): lay(a, [('c', x, y, 3, PS)], t)
+        if name == 'soon': badge(a, 'M0-6v6l5 3', PU, 70, 66)
+        else: badge(a, CROSS, PB, 70, 66)
+    elif name == 'linked':                                          # RK6: two chain links and a check badge (connected)
+        t = (20, 36); lay(a, [('r', 0, 18, 44, 28, 14, PS), ('r', 30, 18, 44, 28, 14, PW)], t); line(a, 'M30 32h14', t, w=5)
+        badge(a, CHECK, PG, 74, 18); spark(a, 96, 70); spark(a, 8, 20)
     elif name == 'hi':
         t = (24, 16); lay(a, [('p', 'M24 56q6 14 12 0z', PU)], t)
         lay(a, [('p', 'M30 0c14 10 18 30 12 52H18C12 30 16 10 30 0z', PW), ('p', 'M30 0C38 5 42 10 42 16H18C18 10 22 5 30 0z', PB),
