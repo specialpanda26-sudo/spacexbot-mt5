@@ -1,0 +1,22 @@
+name: Rebuild email GIFs
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  gifs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install Pillow
+      - run: python tools/make_email_gifs.py
+      - run: python tests/test_email_gifs.py
+      - name: Commit the new GIFs
+        run: |
+          git config user.name "github-actions"
+          git config user.email "pmuriithie@gmail.com"
+          git add static/email/*.gif
+          git diff --cached --quiet || git commit -m "Rk5: email cartoons repainted like the rocket"
+          git push
