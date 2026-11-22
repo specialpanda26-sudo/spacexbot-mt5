@@ -856,3 +856,10 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - backend/burst_look.py saves ONE plain sentence per person (kv blook:<uid>, cut to 240 characters) each time _burst_scan decides: no candles, no setup (the brain's own reason plus why the BT4 momentum burst also stayed out: off, hourly cap, no clear move), a chance blocked by the symbol gate or by no room, or a group opened. burst.view() returns 'look' {why, ago} (hidden after 6 hours); the Bot tab shows it after the state line as 'Last look (5 min ago): ...'.
 - Words only: it never changes what the bot does. The scan runs per market, so the last market looked at wins the sentence (it starts with the market name).
 - Tests: tests/test_bt5.py.
+
+
+## Section BT6 (live profit of open groups on Deriv) DONE (Nov 23)
+- Found: livestats.sources() set Deriv equity = balance (Deriv has no floating figure), so Home and the phone notification always showed Floating P/L $0.00 on Deriv, even with trades open.
+- backend/burst_live.py: deriv_group.check already reads the live profit of every open member of a group (only groups with a target or loss limit); it now saves it (kv glive:<grp>: t, live, tot, n, tgt). burst.view() returns 'group', one sentence for the burst card ('3 open, profit now +$0.30 of +$10.00 target (updated just now).', or 'live profit not read yet' when no fresh figure). livestats Deriv equity = balance + the fresh live profit of the person's open groups.
+- A figure older than 150 seconds is ignored, never guessed. Groups without a target or limit are not measured. MT5 is unchanged (the EA reports its own equity).
+- Not tried against the real Deriv API: run tools/deriv_probe.py first. Tests: tests/test_bt6.py.

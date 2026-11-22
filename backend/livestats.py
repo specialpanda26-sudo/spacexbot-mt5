@@ -9,7 +9,7 @@ Where the numbers come from (nothing is invented, nothing is sample data):
 Amounts are shown with $ like the live notification: the EA does not report the account currency (assumption).
 ASSUMPTIONS (tunable): FRESH seconds a Deriv balance counts as live; MT5_FRESH is the same limit the rest of the app uses for 'EA online'."""
 import time
-from . import store as st, links, brokers as bk, strategy_info as si, pnlreset as pr, tradeon
+from . import store as st, links, brokers as bk, strategy_info as si, pnlreset as pr, tradeon, burst_live
 
 FRESH = 180
 MT5_FRESH = 120
@@ -33,7 +33,7 @@ def sources(uid, admin, now):
         bal = _f(b.get('balance'))
         if bal is None: continue
         t = _f(b.get('bal_t')) or 0
-        out.append({'id': b['name'], 'name': b['name'], 'mode': _mode(b.get('acct_demo'), b.get('mode')), 'balance': round(bal, 2), 'equity': round(bal, 2), 'open': None,
+        out.append({'id': b['name'], 'name': b['name'], 'mode': _mode(b.get('acct_demo'), b.get('mode')), 'balance': round(bal, 2), 'equity': round(bal + (burst_live.floating(('' if admin else uid, uid), now) if b['name'] == 'Deriv' else 0.0), 2), 'open': None,          # BT6
                     'online': now - t < FRESH, 'age': int(max(0, now - t)) if t else None})
     lk = None if admin else links.get(uid)
     a = st.acct('') if admin else (st.acct(uid) if lk else {})

@@ -10,7 +10,7 @@ The new group still has to pass the risk gates (bot on, loss limits, daily trade
 and the cycle stops for the day after cycle.max_per_day new groups. A group that ended on a stop loss, by hand or on a failed sell never starts the next one.
 Nothing here claims it makes more money: repeating trades also repeats losses. Deriv still refuses a stake under 1 USD (deriv._size), a new entry that cannot be sized is rejected as usual."""
 import json, time
-from . import store as st, cycle, groupcap, risk, multi, links, limits, learn, sbauth, push
+from . import store as st, cycle, groupcap, risk, multi, links, limits, learn, sbauth, push, burst_live
 
 COLS = 'id,grp,symbol,side,entry,sl,tp,risk_pct,strategy,score,reason,ticket,status,pnl'
 
@@ -82,6 +82,7 @@ def check(sess, uid, acct, now=None):
         if skip: continue
         booked = sum(_f(r['pnl']) or 0 for r in mem if r['status'] == 'closed')
         tot = round(booked + live, 2); hit_t = tgt > 0 and tot >= tgt; hit_l = lim > 0 and tot <= -lim
+        burst_live.save(g, live, tot, len(opn), tgt, lim, now)          # BT6: the card and the floating figure read this
         if not (hit_t or hit_l): continue
         done, fail = [], False
         for r in opn:
