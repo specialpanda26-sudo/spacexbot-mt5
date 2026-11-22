@@ -84,7 +84,18 @@
   var STREAM = null, VID = null, TIMER = 0, UID = null, NATIVE = false, TT = 0;
 
   function canShare() { return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia); }
-  function plug() { var c = window.Capacitor; return (c && c.isNativePlatform && c.isNativePlatform() && c.Plugins && c.Plugins.SxbScreen) || null; }   /* PH2: the Android app's own screen plugin */
+  var PLUG = null;
+  function plug() {                          /* PH2/SC3c: the Android app's own screen plugin. A page loaded from Render may get only the native bridge, so try three ways (same as live.js) */
+    var c = window.Capacitor; if (!(c && c.isNativePlatform && c.isNativePlatform())) return null;
+    if (c.Plugins && c.Plugins.SxbScreen) return c.Plugins.SxbScreen;
+    if (PLUG) return PLUG;
+    if (c.registerPlugin) { try { var r = c.registerPlugin("SxbScreen"); if (r) return (PLUG = r); } catch (e) {} }
+    if (c.nativePromise) {                   /* sxb-screen-fallback */
+      var call = function (m) { return function (o) { return c.nativePromise("SxbScreen", m, o || {}); }; };
+      return (PLUG = { start: call("start"), stop: call("stop"), status: call("status"), setToken: call("setToken") });
+    }
+    return null;
+  }
   function draw() {
     var u = me(), admin = !!(u && u.admin);
     var show = !!(u && u.verified && D && (D.on || admin)); C.hidden = !show; C.style.display = show ? "" : "none";
