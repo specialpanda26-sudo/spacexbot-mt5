@@ -527,7 +527,10 @@ def admin_pass():
 @need(admin=True)
 def admin_set(u):
     j = _j()
-    for k, lo, hi in (('risk_pct', 0.1, 2.0), ('rr', 1.0, 4.0), ('max_stop_atr', 0.8, 5.0), ('auto_positions', 1, 5), ('stake_very_pct', 0, 50), ('stake_strong_pct', 0, 50), ('stake_max_risk_pct', 0.5, 25)):          # the three auto-mode numbers: checked before anything is saved
+    for k, lo, hi in (('risk_pct', 0.1, 2.0), ('rr', 1.0, 4.0), ('max_stop_atr', 0.8, 5.0), ('auto_positions', 1, 5), ('stake_very_pct', 0, 50), ('stake_strong_pct', 0, 50), ('stake_max_risk_pct', 0.5, 25),
+                     ('max_open', 1, 10), ('max_daily_loss_pct', 0.5, 20), ('max_weekly_loss_pct', 1, 40), ('max_losing_streak', 0, 20), ('streak_cooldown_h', 0, 72),
+                     ('burst_ceiling', 2, 30), ('burst_big_score', 2, 10), ('min_confluence', 1, 6), ('multi_min_score', 2, 10), ('auto_disable_min_trades', 5, 500),
+                     ('auto_markets_max', 0, 10), ('max_trades_day', 0, 100)):          # the three auto-mode numbers: checked before anything is saved
         if k in j:
             try: v = float(j[k])
             except (TypeError, ValueError): return jsonify(error='%s must be a number' % k), 400

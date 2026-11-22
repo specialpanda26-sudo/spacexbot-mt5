@@ -390,3 +390,11 @@ Status: 6A and 6B not started. Order: 2, 3, 4, 5, then 6A, then 6B.
 - tests/test_btc3.py: 19 checks, mutation-checked (4 deliberate breaks, each went red). Full suite green on a clean copy.
 - Known limits: LOT_STEP is 0.01 (a broker with 0.001 BTC steps still shows 0.01 steps); Deriv does not trade BTC (deriv.py builds 'frx' names); strategies are still not backtested on BTC; stake.py (Deriv big stake) is not used for BTC.
 - Next: Section 4 (settings cleanup: important ones on top, the rest under Advanced; never remove a setting).
+
+## BTC Section 4 (settings cleanup) DONE (Nov 22)
+- apply_s4_settings.py edits static/index.html (admin panel) and backend/app.py; tests/test_s4.py (34 checks, mutation-checked: dropped server range, Advanced open by default, no /api/bot call, main save sending advanced fields each went red).
+- Admin panel: new "Main settings" card at the top: Bot on, Risk per trade, Markets, Max open, Daily loss, Weekly loss, Loss streak stop + rest hours, News lock, Take profit x (rr), Widest stop (ATR), Burst on / ceiling / big-score. A collapsed "Advanced" block holds: min_confluence, multi_min_score, regime_switch, auto_disable (+ min trades), auto_markets (+ max), symbols_pool, max_trades_day, and the MOVED Big stake, Strategies and Results cards (same element ids, so test_strui and the A2/A3 code are untouched). NOTHING was removed or renamed. Code between /*S4S-start*/ and /*S4S-end*/ (NOT /*S4-start*/: that marker belongs to the older Bot-status card).
+- Server: /api/admin/settings now range-checks the new numbers BEFORE saving anything (max_open 1-10, daily loss 0.5-20, weekly 1-40, streak 0-20, cooldown 0-72 h, burst ceiling 2-30, burst big score 2-10, min_confluence 1-6, multi_min_score 2-10, auto_disable_min_trades 5-500, auto_markets_max 0-10, max_trades_day 0-100). One bad value refuses the whole save.
+- Bot on in the card goes through POST /api/bot (same as Start/Stop, so Deriv follows), not through the raw setting.
+- Known: "Big stake on strong setups" is still ON by default; its switch now sits under Advanced. Per-position stop-loss and USD target fields belong to Section 5. Not tested: a real browser (page code runs in node against a fake page).
+- Next: Section 5 (Auto settings with stop loss + USD profit target per position; reopen only on a fresh valid signal).
