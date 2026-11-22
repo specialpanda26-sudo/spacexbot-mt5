@@ -471,3 +471,10 @@ Suggested fix, one section each: (a) take the backtest out of the go-live verdic
 - Bug fixed in Rk3: after Rk2 the five Home state pictures no longer bobbed, because H7 art() looked for the tail path by its exact text; it now uses a pattern.
 - tests: test_rk1.py, test_rk2.py, test_rk3.py, test_motion6.py.
 - NOT done yet (next, Rk4): the notification large icon (round badge with the character's face; needs a Java change in LiveMessagingService.java and the test stub in test_push2.py, and works only where the app draws the notification, not for system-drawn pushes while the app is closed). The small status-bar icon stays a white logo silhouette (Android flattens it). Also not touched: the logo-style symbol cartoons on the legal pages and the 5 email GIFs.
+
+## Section Rk4 (notification large icon) DONE (Nov 22)
+- New android-wrapper/branding/ic_large_sxb.png (128 px round violet badge with the character's face, rocket look). prepare.py (patch_push) copies it to res/drawable-nodpi/. LiveMessagingService.java: largeIcon() loads it by name (no file = null) and sets it as the large icon of (1) alerts the app draws while it is open and (2) the pinned "Bot running" notification. The lock-screen public version has none on purpose.
+- The small status-bar icon (ic_stat_sxb) is unchanged: Android draws it as a flat white shape, so a cartoon cannot go there.
+- Limit: a push the system draws while the app is closed (FCM notification message) cannot carry this icon; only Firebase's small icon and colour can be set for those. To show it there the server would have to send data-only messages that the app draws itself (not done).
+- tests/test_push2.py: stubs know setLargeIcon/Bitmap/BitmapFactory, 3 new checks (needs javac, SKIP without). tests/test_rk4.py checks the PNG and the build copy.
+- NOT done yet: a real APK build and a look at the notification on a phone; the logo-style symbol cartoons on the legal pages and the 5 email GIFs (Rk5).

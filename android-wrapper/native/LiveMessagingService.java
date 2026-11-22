@@ -81,8 +81,18 @@ public class LiveMessagingService extends com.capacitorjs.plugins.pushnotificati
                 .setAutoCancel(true)
                 .setPriority(CH_LOW.equals(channel) ? NotificationCompat.PRIORITY_LOW : NotificationCompat.PRIORITY_HIGH);
         if (pi != null) b.setContentIntent(pi);
+        android.graphics.Bitmap lg = largeIcon(); if (lg != null) b.setLargeIcon(lg);
         if (tag != null && !tag.isEmpty()) nm.notify(tag, ALERT_ID, b.build());   // same tag = replaces, like the background banner
         else nm.notify((int) (System.currentTimeMillis() & 0x7ffffff), b.build());
+    }
+
+    /** Rk4: the round badge (res/drawable-nodpi/ic_large_sxb.png). No file = no large icon, never an error. */
+    private android.graphics.Bitmap largeIcon() {
+        try {
+            int id = getResources().getIdentifier("ic_large_sxb", "drawable", getPackageName());
+            if (id == 0) return null;
+            return android.graphics.BitmapFactory.decodeResource(getResources(), id);
+        } catch (Exception e) { return null; }
     }
 
     private void handleLive(Map<String, String> d) {
@@ -131,6 +141,7 @@ public class LiveMessagingService extends com.capacitorjs.plugins.pushnotificati
                 .setPublicVersion(pub.build())
                 .setTimeoutAfter(6 * 60 * 1000L);   // disappears by itself if the server stops sending
         if (pi != null) b.setContentIntent(pi);
+        android.graphics.Bitmap lg2 = largeIcon(); if (lg2 != null) b.setLargeIcon(lg2);
         nm.notify(NOTIF_ID, b.build());
     }
 }

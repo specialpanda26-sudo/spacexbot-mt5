@@ -78,6 +78,9 @@ def patch_push():
         s += "\napply plugin: 'com.google.gms.google-services'\n"; g.write_text(s, encoding='utf-8')
     d = MAIN / 'res' / 'drawable'; d.mkdir(parents=True, exist_ok=True)
     (d / 'ic_stat_sxb.xml').write_text(ICON_XML, encoding='utf-8')
+    lg = HERE / 'branding' / 'ic_large_sxb.png'   # Rk4: large icon for the alerts the app draws itself
+    if lg.exists():
+        (MAIN / 'res' / 'drawable-nodpi').mkdir(parents=True, exist_ok=True); shutil.copy(lg, MAIN / 'res' / 'drawable-nodpi' / 'ic_large_sxb.png')
     m = MAIN / 'AndroidManifest.xml'; s = m.read_text(encoding='utf-8')
     if 'POST_NOTIFICATIONS' not in s:
         s = s.replace('</manifest>', '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n</manifest>', 1)
