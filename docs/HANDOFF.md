@@ -835,3 +835,11 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Spot has no stop built in and the bot looks about once a minute, so a fast move can pass the target or the limit.
 - Not tried against the real Binance testnet. Run it there first: a group of 2-3 entries and a small group target, watch the Journal.
 - Tests: tests/test_cy5.py.
+
+
+## Section SM1 (Deriv small stakes) DONE (Nov 23)
+- Deriv's own pages say multipliers start from 1 USD (one Deriv blog says the minimum runs 0.35 to 1 USD by market). The Burst card's 'Stake per entry' DEFAULTS to 0.5 USD (burst.py DEF stake_usd), so burst entries on forex, gold and crypto are likely refused until the stake is 1 or more. NOT proven on the real API: tools/deriv_probe.py must run first.
+- deriv._place: a normal entry whose stake would be under 1 USD is now rejected as 'Stake would be about X USD; Deriv multipliers need at least 1 USD. Raise the risk percent or add funds.' (was the wrong 'no multiplier fits ...'). A burst stake under 1 is still SENT (Deriv decides, minimum can differ by market); if Deriv refuses it for the stake, the note says 'Burst stake X USD is under the 1 USD Deriv multipliers need. Raise Stake per entry.'
+- Burst card label: 'Stake per entry ($, Deriv needs 1 or more)'. The default is left at 0.5 on purpose (a saved setting must not change by itself): raise it to 1 on Deriv.
+- MT5 is unaffected: risk percent sets the lot size there, and the burst Stake per entry is not used. Binance has its own sizing (binance_trade.plan_buy refuses an order under Binance's minimum with its own message).
+- Tests: tests/test_sm1.py.

@@ -266,6 +266,15 @@ def _burst_stake(sig):
         return float(m.get('stake') or 0) if m and m.get('k') in ('quick', 'big') else 0.0
     except Exception: return 0.0
 
+def _low_stake(sig, bal, want, m):
+    """SM1: about what the stake would be, when that is under 1 USD (Deriv multipliers start at 1 USD). None when it is 1 or more or cannot be worked out."""
+    try: entry, sl, bal, m = float(sig['entry']), float(sig['sl']), float(bal), float(m)
+    except (TypeError, ValueError): return None
+    if not entry or entry == sl or bal <= 0 or m <= 0: return None
+    try: raw = bal * float(want) / 100.0 if want else bal * float(sig['risk_pct'] or 1) / 100.0 / (m * abs(entry - sl) / entry)
+    except (TypeError, ValueError, ZeroDivisionError): return None
+    return round(raw, 2) if 0 < raw < 1 else None
+
 def _place(sess, sig, bal, cur):
     """Quote, then buy by the quote's own id (so one signal can never buy twice). Returns ('open', info) or ('rejected', reason)."""
     from . import stake as stk
@@ -290,6 +299,10 @@ def _place(sess, sig, bal, cur):
         if not isinstance(by, dict) or not by.get('contract_id'): return 'rejected', _why(b)
         _mult_ok[sym] = m
         return 'open', {'contract_id': by['contract_id'], 'stake': stake, 'mult': m}
+    if last == 'no multiplier fits this balance and stop distance' and order:          # SM1: say the real cause when the stake was simply under Deriv's 1 USD minimum
+        low = _low_stake(sig, bal, want, min(order))
+        if low is not None: last = 'Stake would be about %s USD; Deriv multipliers need at least 1 USD. Raise the risk percent or add funds.' % low
+    elif bs and bs < 1 and any(w in last.lower() for w in ('stake', 'minimum', 'at least')): last = 'Burst stake %s USD is under the 1 USD Deriv multipliers need. Raise Stake per entry.' % bs
     return 'rejected', last
 
 def _report(uid, sid, stt, reason=''):
