@@ -663,3 +663,49 @@ Next: SC2.
 - Files: apply_d1_flow.py (edits deriv.py, brokers.py, app.py, connwhy.py, envcheck.py), tests/test_d1flow.py (16 checks), tools/deriv_probe.py (read-only: run once with your token; prints the real account, candle, symbol and quote shapes, never buys).
 - NOT confirmed yet (Deriv's docs do not show them): the field names inside an account, candle requests (ticks_history style candles, granularity), gold symbol spelling (frxXAUUSD), MULTUP with limit_order on gold. deriv_probe.py answers these; a real login also needs the callback address registered at Deriv and BASE_URL on Render.
 - Next: D2 (Deriv MT5 as a broker next to FBS), D3 (running positions), D4 (several accounts), D5 (bot switching), D6 (tests and deploy).
+
+## DERIV + MT5 PLAN: where we stopped (Nov 22, owner's words in "quotes")
+
+### How the owner works (follow this)
+- Owner pushes from Termux. Give each change as: `cat > path << 'EOF' ... EOF` (new files) or an `apply_*.py` patch (edits to big files like static/index.html, idempotent, STOP if text not found exactly once), then the `git add / git commit / git push` commands. NEVER use tmp paths. NEVER add Co-Authored-By or any Claude attribution to commits.
+- One section at a time. Each section: patch + tests/test_*.py + a HANDOFF section. Run the whole tests folder before handing over. KNOWN unrelated failure: tests/test_rk5.py (email GIF colours), fails on the original code too.
+- Browser check trick: serve static/index.html in Playwright with a stub window.SXA (live.js and /config.js blocked, requests routed to static/), then screenshot.
+
+### Done so far
+- GS1 (Getting Started candles): static/screen.js injects <style id="sc2">, the canvas also had id="sc2", so $("#sc2") returned the style tag and stream() crashed. Canvas is now id "gsc", stream() ignores non-canvas. Patch: apply_gs1_candles.py. (Owner was given the push command; confirm it is pushed.)
+- D1 (Deriv flow check): apply_d1_flow.py + tests/test_d1flow.py (16 checks) + tools/deriv_probe.py. DERIV_CLIENT_ID alone now switches Deriv on (deriv.ON()); an ended login (401) marks the token rejected, switches the bot off, shows "Your Deriv login ended", one alert a day. Confirm the owner ran it and pushed.
+- Owner's Deriv token is CONNECTED in the app and the balance shows. DERIV_APP_ID is set on Render. Owner also has a Deriv account that is connected to MT5 (Deriv MT5 exists).
+- Token scopes advised: Trade ONLY (not Payments, Account management, Application read, Admin).
+
+### NOT done / open items
+1. "The steps a learner of the bot should go through do not work." NOT investigated yet. Ask which steps fail and on which screen (Learn/Course, Guide, onboarding, roadmap). Code: static/course.js, guide.js, roadmap.js, backend/course.py, guide.py, roadmap.py.
+2. tools/deriv_probe.py has NOT been run. It is read-only (never buys). It answers what Deriv's docs do not show: account field names, candle request (ticks_history style candles + granularity), gold symbol (frxXAUUSD?), MULTUP with limit_order on gold. If Deriv answers differently, the bot gets no candles and never signals. Run: `export DERIV_APP_ID=...; python tools/deriv_probe.py` and send the printout.
+3. Owner wants "the bot to start making trades". Steps given: Bot tab > Trade on > Deriv; Deriv tile > Start bot; stay on Demo (Real needs the word REAL plus DERIV_REAL=1). Gold/forex is closed on weekends (reopens about 01:00 Monday EAT) and the bot only trades on a rule setup. The Deriv tile's why-note says why it is not trading. Not confirmed that it traded yet.
+4. The Deriv token bot trades multiplier contracts on Deriv's own platform, NOT inside MT5. Seeing trades in MT5 needs the MT5 route below.
+
+### The plan (owner: "see positions running on MT5", "bot can switch between FBS and Deriv")
+- D2 Deriv MT5 as a broker next to FBS (IN PROGRESS, nothing written yet).
+- D3 Running positions: the EA sends the list of open trades; server stores it; read-only "Running positions" card per account.
+- D4 Several accounts per user: each account gets its own bridge key and label (FBS / Deriv MT5), user picks the active one.
+- D5 Bot switching: manual switch FBS <-> Deriv MT5 plus an "Auto" choice. Switching stops the other account's bot first; never trade one idea twice; real-money rules unchanged (REAL word, loss limits, news lock).
+- D6 Tests, HANDOFF, deploy.
+
+### Facts found in the code (so nothing is re-read)
+- backend/brokers.py: CATALOG = {'FBS':'mt5','Exness':'mt5','HFM':'mt5','XM':'mt5','IC Markets':'mt5','Pepperstone':'mt5','Deriv':'token','Binance':'keypair'}; ABOUT texts per kind; mt5 brokers only keep the server name (MT5 password stays in MT5). 'Deriv' = the API token bot. A Deriv MT5 account needs its OWN entry, suggested name 'Deriv MT5' (kind mt5).
+- static/index.html: platform tiles list PL (line ~1518) = [["FBS","MT5 bridge"],...,["Deriv","API token"],...]; tile click handler at line ~1523 treats "MT5 bridge" as mt5; logo lookup window.sxLogo with alias map A (line 3), key = lowercase letters/digits, so "Deriv MT5" -> "derivmt5" needs alias derivmt5 -> deriv; onboarding broker choice list at line ~1146 (fbs, exness, hfm, other); backend/connwhy.py shows ONE MT5 row for all mt5 brokers.
+- backend/links.py: ONE bridge key per user (table links, uid unique). FBS + Deriv MT5 together needs several keys per user (D4). One MT5 terminal can only be logged into ONE account, so each account needs its own terminal + EA instance open (PC/VPS).
+- ea/SpaceXBridge.mq5: inputs ServerUrl, EAKey, Symbols, SymbolSuffix (handles broker symbol endings), Magic. It reports balance, equity, open COUNT, demo flag, allow_live, login via /api/ea/sync (PollServer). It does NOT report the list of positions (D3 adds it). backend/bridge.py describe() reads the snapshot (st.acct) and says online/offline (OFFLINE = 120 s).
+- backend/tradeon.py + static/trade_on.js (Section 5A): setting 'trade_on:<uid>' = MT5 | Deriv | Binance; choosing one switches the others off. D5 must extend this to MT5-FBS / MT5-Deriv.
+- Positions at once (R4), group cap, stake share, news lock, loss limits already exist and must keep working per account.
+- Deriv API facts (checked on developers.deriv.com): OAuth auth.deriv.com/oauth2/auth + /token, PKCE S256, no client secret, no refresh token, token about 30 days, redirect must match exactly (https), base https://api.derivws.com, accounts GET /trading/v1/options/accounts, OTP POST .../accounts/{id}/otp returns data.url (wss), OTP 120 s single use. A pasted personal token REQUIRES the Deriv-App-ID header; OAuth tokens do not. Scopes: trade, account_manage, application_read, payment.
+
+### D2 to do (small)
+- Add 'Deriv MT5':'mt5' to CATALOG, an ABOUT line, server-name hint (user types the server, e.g. a DerivSVG demo/real server; do not guess names), PL entry ["Deriv MT5","MT5 bridge"], logo alias, onboarding list, connwhy name text. Symbols: Deriv MT5 gold/forex names may differ; the owner must set SymbolSuffix or Symbols in the EA; consider a note. Add tests/test_d2*.py and a HANDOFF section.
+
+### Questions still to ask the owner
+1. Which Deriv do they want the bot on: the token bot (already connected) or Deriv MT5 through the EA (needed for "see positions in MT5")? Recommended: both exist; build Deriv MT5 so it can be switched with FBS.
+2. How should "Auto" choose between FBS and Deriv MT5? Suggested rule: account open for the symbol and no news lock first, then fewer open trades, then the one marked preferred.
+3. Which learner steps fail (open item 1)?
+
+### Next session: start here
+Owner attaches the latest repo zip (this session's copy is gone). First check the GS1 and D1 patches are in it (grep "gsc" and "def _login_ended"). Then ask the three questions above, then do D2.
