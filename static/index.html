@@ -3444,6 +3444,11 @@ document.addEventListener("click",function(e){if(e.target&&e.target.closest&&e.t
 })();
 /*AC1-end*/
 </script>
+<script>
+/*OF1-start*/
+try{if("serviceWorker" in navigator&&location.protocol==="https:")window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){})})}catch(e){}
+/*OF1-end*/
+</script>
 
 <script>
 /* ---- Phone mode card: signals for people with only a phone. Take or skip by hand in your MT5 phone app, then log the result. Uses /api/assist/*. ---- */

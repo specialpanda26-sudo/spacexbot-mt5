@@ -66,6 +66,14 @@ def need(admin=False, active=False, verified=False):
 @app.get('/')
 def home(): return send_from_directory('../static', 'index.html')
 
+@app.get('/sw.js')
+def sw_js():
+    """OF1: the offline worker. Never cached by the browser, allowed to cover the whole site."""
+    r = send_from_directory('../static', 'sw.js', mimetype='application/javascript'); r.headers['Cache-Control'] = 'no-cache'; r.headers['Service-Worker-Allowed'] = '/'; return r
+
+@app.get('/offline.html')
+def offline_html(): return send_from_directory('../static', 'offline.html')
+
 @app.get('/favicon.ico')
 def favicon(): return send_from_directory('../static/brand', 'favicon.ico')
 @app.get('/healthz')
