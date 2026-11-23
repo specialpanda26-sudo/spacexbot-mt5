@@ -14,7 +14,7 @@
     var msg = u && !on ? (!u.verified ? "Verify your email to see how to use the bot." : ERR ? "Could not load the guide." : "") : ""; if (msg) { C.hidden = false; C.style.display = ""; }
 
     var h = on ? '<div class="card-head"><h2>How to use the bot</h2><span class="chip info">' + D.total + ' steps</span></div>' +
-      '<p class="note">Short cartoon steps: sign up, connect, demo or real, start, signals and safety.</p>' +
+      '<p class="note">Quick guide: sign up, connect, demo or real, start, signals and safety.</p>' +
       '<button class="btn block" type="button" data-g="open">Show me how</button>' : "";
     if (!on && msg) h = '<div class="card-head"><h2>How to use the bot</h2></div><p class="note">' + esc(msg) + '</p>' + (u.verified ? '<button class="btn block" type="button" data-g="retry">Try again</button>' : '');
     if (h !== LH) C.innerHTML = LH = h;

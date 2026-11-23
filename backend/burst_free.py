@@ -8,6 +8,7 @@ import json, time
 from . import store as st, indicators as ind
 
 HOUR = 3600
+MIN_MINUTE = 10          # FX1: 'trade every minute' needs only this many candles; a no-signal burst without it still needs 30
 
 
 def per_hour(minute=False):
@@ -45,9 +46,9 @@ def side(m):
     return None
 
 
-def side_any(m):
+def side_any(m, need=30):
     """BT7: the direction of the last 5 candles, however small ('buy' up, 'sell' down). None only when the price did not move at all."""
-    if not m or len(m) < 30: return None
+    if not m or len(m) < max(7, need): return None
     mv = m[-1]['c'] - m[-6]['c']
     return 'buy' if mv > 0 else 'sell' if mv < 0 else None
 
@@ -56,7 +57,7 @@ def setup(uid, m, now=None, minute=False):
     """-> a setup dict shaped like brain.evaluate's, or None (cap reached, switched off, or no direction). Stop 1 ATR away, target 1 ATR away."""
     n = per_hour(minute)
     if n <= 0 or used(uid, now, minute) >= n: return None
-    sd = side(m) or (side_any(m) if minute else None)
+    sd = side(m) or (side_any(m, MIN_MINUTE) if minute else None)
     if not sd: return None
     entry = m[-1]['c']; a = ind.atr(m)[-1]; ax = ind.adx(m)[-1]
     sl = entry - a if sd == 'buy' else entry + a; tp = entry + a if sd == 'buy' else entry - a

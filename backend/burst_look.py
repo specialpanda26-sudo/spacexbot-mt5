@@ -33,5 +33,7 @@ def free_words(uid, m, minute=False):
     if n <= 0: return 'Burst without a strategy signal is off.'
     u = bf.used(uid, minute=minute)
     if u >= n: return 'Hourly cap reached (%d of %d groups).' % (u, n)
-    if bf.side(m) is None and not (minute and bf.side_any(m)): return 'No clear price move either.'
+    need = bf.MIN_MINUTE if minute else 30          # FX1
+    if len(m or []) < need: return 'Only %d candles so far; a chance without a strategy signal needs %d.' % (len(m or []), need)
+    if bf.side(m) is None and not (minute and bf.side_any(m, bf.MIN_MINUTE)): return 'No clear price move either.'
     return ''

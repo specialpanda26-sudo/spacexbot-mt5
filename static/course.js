@@ -36,7 +36,7 @@
     }
     draw();
   }
-  function draw() {
+  function draw(keep) {
     var p = document.getElementById("coursep"); if (!p || !D) return; var h = "", l = lesson(S.id);
     if (S.v === "list") {
       h = art("rocket") + '<h2 style="text-align:center">Your learning path</h2><p class="muted" style="text-align:center">Finish the lessons one by one to unlock Real trading. Demo is open any time.</p>' +
@@ -51,8 +51,10 @@
     } else if (S.v === "quiz" && l) {
       h = "<h2>" + esc(l.title) + ": quick quiz</h2>" + l.quiz.map(function (q, qi) {
         return "<p><b>" + (qi + 1) + ". " + esc(q.q) + "</b></p>" + q.o.map(function (o, oi) {
-          return '<button class="btn block" type="button" style="text-align:left;margin:4px 0" data-c="pick" data-q="' + qi + '" data-o="' + oi + '" aria-pressed="' + (S.pick[qi] === oi) + '">' + esc(o) + "</button>"; }).join("");
+          var on = S.pick[qi] === oi;          /* FX3: the chosen answer is clearly marked (green border, soft green fill, tick) */
+          return '<button class="btn block" type="button" style="text-align:left;margin:4px 0;' + (on ? "border-color:var(--green);background:var(--green-soft);box-shadow:0 3px 0 var(--green);font-weight:700" : "") + '" data-c="pick" data-q="' + qi + '" data-o="' + oi + '" aria-pressed="' + on + '">' + (on ? "\u2713 " : "") + esc(o) + "</button>"; }).join("");
       }).join("") + (S.err ? '<p class="err">' + esc(S.err) + "</p>" : "") +
+        (l.quiz.every(function (q, i) { return typeof S.pick[i] === "number"; }) ? "" : '<p class="note" style="text-align:center">Pick one answer for each question. ' + l.quiz.filter(function (q, i) { return typeof S.pick[i] !== "number"; }).length + " still to answer.</p>") +
         '<button class="btn primary big block" type="button" data-c="check"' + (l.quiz.every(function (q, i) { return typeof S.pick[i] === "number"; }) && !S.busy ? "" : " disabled") + '>Check answers</button><button class="btn block" type="button" data-c="lesson" data-id="' + esc(l.id) + '">Back to the lesson</button>';
     } else if (S.v === "result" && S.res && l) {
       var r = S.res, nx = D.next;
@@ -61,15 +63,15 @@
         (r.passed ? (nx ? '<button class="btn primary big block" type="button" data-c="lesson" data-id="' + esc(nx) + '">Next lesson</button>' : '<p class="note"><b>All lessons done. See Road to Real on Home for what is left.</b></p>') : '<button class="btn primary big block" type="button" data-c="lesson" data-id="' + esc(l.id) + '">Read it again</button>') +
         '<button class="btn block" type="button" data-c="list">All lessons</button>';
     } else h = '<button class="btn block" type="button" data-c="close">Close</button>';
-    p.innerHTML = h;
+    var top = p.scrollTop; p.innerHTML = h; p.scrollTop = keep ? top : 0;          /* FX3: a tap on an answer must not throw the screen back to the top */
   }
   document.addEventListener("click", function (e) {
     var b = e.target.closest("[data-c]"); if (!b || (!C.contains(b) && !(OV && OV.contains(b)))) return; var c = b.getAttribute("data-c");
     if (c === "retry") load(); else if (c === "open") open("list"); else if (c === "close") close(); else if (c === "list") open("list");
     else if (c === "lesson") open("lesson", b.getAttribute("data-id")); else if (c === "quiz") open("quiz", S.id);
-    else if (c === "pick") { S.pick[+b.getAttribute("data-q")] = +b.getAttribute("data-o"); draw(); }
+    else if (c === "pick") { S.pick[+b.getAttribute("data-q")] = +b.getAttribute("data-o"); draw(true); }
     else if (c === "check" && !S.busy) {
-      S.busy = true; var a = []; for (var i = 0; i < lesson(S.id).quiz.length; i++) a.push(S.pick[i]); draw();
+      S.busy = true; var a = []; for (var i = 0; i < lesson(S.id).quiz.length; i++) a.push(S.pick[i]); draw(true);
       SXA.api("/api/course/quiz", { method: "POST", body: { lesson: S.id, answers: a } })
         .then(function (j) { S.busy = false; D = j.view; S.res = j; S.v = "result"; drawCard(); draw(); })
         .catch(function (x) { S.busy = false; S.err = (x && x.message) || "Could not check the answers."; draw(); });
