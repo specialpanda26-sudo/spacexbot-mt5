@@ -6,7 +6,7 @@ The numbers always cover every closed trade of the chosen broker (up to MAX_ROWS
 ASSUMPTIONS (tunable): LIMIT rows are sent to the app; MAX_ROWS rows are used for the numbers. Amounts are plain numbers, the app shows them with $ like the live card.
 The EA reports only the profit of a closed trade, not why it closed, so there is no tp / sl / manual label here (it would be a guess)."""
 import re, time, math
-from . import store as st, strategy_info as si, reason as rsn
+from . import store as st, strategy_info as si, reason as rsn, burst_results
 
 LIMIT = 300
 MAX_ROWS = 5000
@@ -102,6 +102,31 @@ def by_pair(rows):
     return out
 
 
+def burst_groups(uid, admin, limit=30):
+    """BX2: the person's finished BURST groups (a normal multi-entry group is not a burst). A group's result = the sum of the profit of its closed entries.
+    A group with any entry still pending/open/closing is left out. -> {'stats': {...}, 'groups': newest first}. Words and numbers only."""
+    a, b = scope(uid, admin)
+    rows = st.q("SELECT id,grp,symbol,side,pnl,status,closed,created FROM signals WHERE grp IS NOT NULL AND COALESCE(uid,'') IN (?,?) ORDER BY grp DESC, id LIMIT 3000", (a, b)) or []
+    g = {}
+    for r in rows: g.setdefault(r['grp'], []).append(r)
+    out = []
+    for k, es in g.items():
+        if any(e['status'] in ('pending', 'sent', 'open', 'closing') for e in es): continue
+        done = [e for e in es if e['status'] == 'closed' and _num(e.get('pnl')) is not None]
+        if not done or not burst_results._burst(k): continue
+        t = round(sum(_num(e['pnl']) for e in done), 2)
+        out.append({'grp': k, 't': int(max(int(e.get('closed') or e.get('created') or 0) for e in done)), 'symbol': es[0]['symbol'], 'side': str(es[0]['side'] or '').lower(),
+                    'entries': len(done), 'pnl': t, 'result': 'win' if t > 0.005 else 'loss' if t < -0.005 else 'flat'})
+    out.sort(key=lambda o: (o['t'], o['grp']), reverse=True)
+    n = len(out); won = sum(1 for o in out if o['result'] == 'win'); lost = sum(1 for o in out if o['result'] == 'loss'); net = round(sum(o['pnl'] for o in out), 2)
+    run = mx = 0
+    for o in reversed(out):                      # oldest first
+        run = run + 1 if o['result'] == 'loss' else 0; mx = max(mx, run)
+    return {'stats': {'groups': n, 'won': won, 'lost': lost, 'flat': n - won - lost, 'win_rate': round(won * 100.0 / n, 1) if n else 0.0, 'net': net,
+                      'per_group': round(net / n, 2) if n else 0.0, 'best': max((o['pnl'] for o in out), default=0.0), 'worst': min((o['pnl'] for o in out), default=0.0), 'loss_streak': mx},
+            'groups': out[:max(1, int(limit))]}
+
+
 def snapshot(uid, admin=False, broker='', result='all', limit=LIMIT, now=None):
     allr = _closed(uid, admin); brokers = sorted({r['broker'] for r in allr}, key=lambda b: (b not in KNOWN, b))
     want = _canon(broker) or (str(broker or '').strip()[:20] if broker else '')
@@ -110,5 +135,5 @@ def snapshot(uid, admin=False, broker='', result='all', limit=LIMIT, now=None):
     shown = show[:max(1, int(limit))]
     for r in shown: _detail(r)
     for r in allr: r.pop('_raw', None)
-    return {'rows': shown, 'open': open_now(uid, admin), 'total': len(show), 'stats': numbers(rows), 'pairs': by_pair(rows), 'brokers': brokers, 'broker': want,
+    return {'rows': shown, 'open': open_now(uid, admin), 'total': len(show), 'stats': numbers(rows), 'pairs': by_pair(rows), 'brokers': brokers, 'broker': want, 'burst': burst_groups(uid, admin),          # BX2
             'result': result if result in ('win', 'loss') else 'all', 'ts': int(now or time.time())}

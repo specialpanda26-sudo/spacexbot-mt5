@@ -6,6 +6,7 @@ import json, time
 from . import store as st
 
 FRESH = 150          # seconds a saved figure still counts (the Deriv round runs about every 60 s)
+SKEW = 5             # a reading saved up to this many seconds AFTER the caller's clock was taken still counts (a slow caller)
 
 
 def _f(x):
@@ -31,7 +32,7 @@ def get(uid, now=None):
     try: j = json.loads(st.get('olive:%s' % (uid or '')) or 'null')
     except (TypeError, ValueError): return None
     if not isinstance(j, dict) or _f(j.get('t')) is None or not isinstance(j.get('p'), dict): return None
-    if not 0 <= now - float(j['t']) <= FRESH: return None
+    if not -SKEW <= now - float(j['t']) <= FRESH: return None
     return {int(k): float(v) for k, v in j['p'].items() if _f(v) is not None}
 
 

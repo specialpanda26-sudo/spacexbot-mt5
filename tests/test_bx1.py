@@ -45,6 +45,7 @@ PR = {901: {'profit': 1.5, 'is_sold': 0}, 902: {'profit': -0.4, 'is_sold': 0}, 9
 class S:
     def ask(s, q): return {'balance': {'balance': 1000, 'currency': 'USD'}} if 'balance' in q else {'proposal_open_contract': PR[q['contract_id']]}
 deriv._track(S(), UID, {'demo': True, 'currency': 'USD'})
+NOW = time.time()          # a slow phone spent seconds above; the reading was saved after the old NOW
 g = openlive.get(UID)
 T('every still-open trade gets its live profit saved', g == {a: 1.5, b: -0.4})
 T('a trade Deriv already sold is recorded as closed and not listed as floating', st.q('SELECT status FROM signals WHERE id=?', (d,), True)['status'] == 'closed' and d not in g)

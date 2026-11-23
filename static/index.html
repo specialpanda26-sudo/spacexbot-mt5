@@ -1913,7 +1913,10 @@ function sr(){var s=SXJ.stats,v,b=$("#sBody");
  else v="Your win rate is inside the luck range, so it cannot be told apart from chance.";
  b.innerHTML='<div class="stats">'+kp("Win rate",s.win_rate.toFixed(1)+"%")+kp("Break-even",s.break_even.toFixed(1)+"%")+kp("Per trade",m2(s.per_trade))+kp("Loss streak",s.loss_streak)+'</div>'+
  '<div class="note">Luck range '+(s.break_even-s.band).toFixed(1)+'% to '+(s.break_even+s.band).toFixed(1)+'% · Best '+m2(s.best)+' · Worst '+m2(s.worst)+' · Deepest dip '+m2(-s.max_drawdown)+'</div><div class="callout">'+v+'</div>'+
- '<b style="font-size:13px" class="muted">BY PAIR</b><ul class="list">'+SXJ.pairs.map(function(o){return'<li class="row"><span class="ic '+(o.pnl>=0?"up":"dn")+'">'+(o.pnl>=0?ICK:ICX)+'</span><span class="t">'+esc(o.symbol)+'</span><span class="r num '+(o.pnl>=0?"good":"bad")+'">'+m2(o.pnl)+'</span><span class="s">'+o.n+' trade'+(o.n>1?"s":"")+' · '+o.win_rate+'% won</span></li>'}).join("")+'</ul>'}
+ '<b style="font-size:13px" class="muted">BY PAIR</b><ul class="list">'+SXJ.pairs.map(function(o){return'<li class="row"><span class="ic '+(o.pnl>=0?"up":"dn")+'">'+(o.pnl>=0?ICK:ICX)+'</span><span class="t">'+esc(o.symbol)+'</span><span class="r num '+(o.pnl>=0?"good":"bad")+'">'+m2(o.pnl)+'</span><span class="s">'+o.n+' trade'+(o.n>1?"s":"")+' · '+o.win_rate+'% won</span></li>'}).join("")+'</ul>'+bxs()}
+function bxs(){/* BX2: finished burst groups, from SXJ.burst (GET /api/journal) */
+ var B=SXJ.burst,s=B&&B.stats;if(!s||!s.groups)return"";
+ return '<b style="font-size:13px" class="muted">BURST GROUPS</b><div class="stats">'+kp("Groups",s.groups)+kp("Won",s.won)+kp("Lost",s.lost)+kp("Win rate",s.win_rate.toFixed(0)+"%")+'</div><div class="note">Net '+m2(s.net)+' \u00b7 Per group '+m2(s.per_group)+' \u00b7 Best '+m2(s.best)+' \u00b7 Worst '+m2(s.worst)+' \u00b7 Losing run '+s.loss_streak+'</div><ul class="list">'+B.groups.slice(0,15).map(function(o){return'<li class="row"><span class="ic '+(o.pnl>=0?"up":"dn")+'">'+(o.pnl>=0?ICK:ICX)+'</span><span class="t">'+esc(o.symbol)+' '+esc(o.side)+'</span><span class="r num '+(o.pnl>=0?"good":"bad")+'">'+m2(o.pnl)+'</span><span class="s">'+o.entries+' entr'+(o.entries>1?"ies":"y")+' \u00b7 '+new Date(o.t*1000).toLocaleString()+'</span></li>'}).join("")+'</ul>'}
 
 /* ---------- pairs, analysis, backtest ---------- */
 var P=[["EURUSD",1.0842,58,1.0831,1.0809],["GBPUSD",1.2918,41,1.2933,1.2951],["USDJPY",151.42,67,150.96,150.31],["AUDUSD",.6561,52,.6558,.6563],["USDCAD",1.3602,36,1.3628,1.3649],["XAUUSD",2041.6,49,2043.1,2038.4],["BTCUSD",67420.5,61,66980,65800],["ETHUSD",3520.4,55,3498,3441]];
@@ -3366,7 +3369,7 @@ build()})();
   var WANT = "", BUSY = false, AGAIN = false, SIG = "", TK = 0;
   function me() { try { return SXA.user(); } catch (e) { return null; } }
   function paint() { try { renderTrades(); jr(); sr(); } catch (e) {} try { if (window.sxBotCards) window.sxBotCards(); } catch (e) {} try { if (window.sxOpenTrades) window.sxOpenTrades(); } catch (e) {} }
-  function reset(state) { SXJ.rows = []; SXJ.total = 0; SXJ.stats = null; SXJ.pairs = []; SXJ.brokers = []; SXJ.broker = ""; SXJ.state = state; }
+  function reset(state) { SXJ.rows = []; SXJ.total = 0; SXJ.stats = null; SXJ.pairs = []; SXJ.burst = null; SXJ.brokers = []; SXJ.broker = ""; SXJ.state = state; }
   function poll() {
     var u = me(); if (!u || !u.verified) return;
     if (BUSY) { AGAIN = true; return; }
@@ -3374,7 +3377,7 @@ build()})();
     if (SXJ.state === "idle" || SXJ.state === "out") { SXJ.state = "load"; paint(); }
     SXA.api("/api/journal" + (asked ? "?broker=" + encodeURIComponent(asked) : ""), { method: "GET" }).then(function (j) {
       if (asked !== WANT) return;      /* the person picked another broker while this was loading */
-      SXJ.rows = j.rows || []; SXJ.total = j.total || 0; SXJ.stats = j.stats || null; SXJ.pairs = j.pairs || []; SXJ.brokers = j.brokers || []; SXJ.broker = j.broker || ""; SXJ.open = j.open || []; SXJ.state = "ok";
+      SXJ.rows = j.rows || []; SXJ.total = j.total || 0; SXJ.stats = j.stats || null; SXJ.pairs = j.pairs || []; SXJ.brokers = j.brokers || []; SXJ.broker = j.broker || ""; SXJ.open = j.open || []; SXJ.burst = j.burst || null; SXJ.state = "ok";
     }, function () { if (SXJ.state !== "ok") SXJ.state = "err"; }).then(function () {
       BUSY = false; paint(); if (AGAIN) { AGAIN = false; poll(); }
     });
