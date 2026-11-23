@@ -13,7 +13,7 @@ def T(n, ok):
     print('PASS' if ok else 'FAIL', n)
 
 T('BTCUSD -> cryBTCUSD', ds.name('BTCUSD') == 'cryBTCUSD')
-T('ETHUSD -> cryETHUSD', ds.name('ETHUSD') == 'cryETHUSD')
+T('ETHUSD -> frxETHUSD (not in risk.CRYPTO)', ds.name('ETHUSD') == 'frxETHUSD')
 T('BTCUSDm suffix stripped -> cryBTCUSD', ds.name('BTCUSDm') == 'cryBTCUSD')
 T('BTCUSD.a suffix & spaces -> cryBTCUSD', ds.name('  btcusd.a ') == 'cryBTCUSD')
 T('XAUUSD -> frxXAUUSD', ds.name('XAUUSD') == 'frxXAUUSD')
