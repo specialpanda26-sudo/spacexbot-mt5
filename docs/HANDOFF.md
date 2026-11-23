@@ -920,6 +920,13 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Not built: a phone alert 'your group reached its old target, close it' (needs a new push kind); MT5 baskets already open when the switch is flipped keep the old target (their target lives in the EA).
 - Tests: tests/test_mc1.py.
 
+## Section BT10 (candles survive a restart, so burst is not idle after a deploy) DONE (Nov 23)
+- Found (owner screenshot): burst card on, 'Last look: Not enough candle history yet (20 of 120 candles). No clear price move either', plus 'MT5 is not talking to the server'. Candles lived only in server memory (backend/bars.py), so every Render deploy or restart emptied them; the MT5 EA sends 450 candles only on its FIRST push after it starts and 6 to 14 per push afterwards, so the history refilled one candle per 5 or 15 minutes. The strategies need 120 candles and the momentum burst needs 30.
+- backend/bars.py: the newest 300 candles of each (person, market, timeframe) are also saved in kv 'bars:<uid>:<sym>:<tf>' (at most every 2 minutes) and put back the first time that key is asked for after a restart (live candles win, saved ones older than 12 hours are ignored because a gap would fool the momentum look, broken saved data is ignored).
+- NOT fixed here: 'MT5 is not talking to the server' = the PC with MT5 or the SpaceX bridge EA is off or disconnected; the server cannot start it. Orders on MT5 only go through the EA. When MT5 is opened again the EA sends 450 candles at once.
+- Not changed: the EA, the burst rules, the 20-second scan gap. Cost: one small kv write per market per timeframe every 2 minutes.
+- Tests: tests/test_bt10.py.
+
 ## STATUS BOARD Nov 23 (newest; read this first, then the sections above it)
 - Owner's rules (unchanged): phone only (Termux), new files as cat heredocs, edits to existing files as python heredocs with an edit() helper (replace only if the old text appears exactly once, skip when already done), one block that runs the tests, one git block. One section per reply, owner says "go". NO Claude attribution in commits (no Co-Authored-By, no Claude-Session lines).
 - Owner's wishes for the screen assistant (Nov 23, dictated): (1) the floating button is the SpaceX symbol (the purple, yellow and white icon, branding/ic_large_sxb.png), not a plain bubble; (2) every cartoon in the panel comes from the website's own set (window.IL2 in static/index.html), NEVER new ones drawn by the AI; (3) one section at a time.
