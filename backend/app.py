@@ -14,7 +14,7 @@ def _boom(e):
     import traceback; print('500', request.path, repr(e)[:300]); traceback.print_exc(); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 from . import manual_close, burst_scope, btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
-from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck, presets
+from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck, presets, streakreq
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -969,6 +969,32 @@ def presets_set(u):
     try: out = presets.undo(sc) if j.get('undo') is True else presets.apply(sc, j.get('tier'))
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, 'preset': 'undo' if j.get('undo') is True else out['active']})
+    return jsonify(out)
+
+@app.get('/api/streak')
+@need(verified=True)
+def streak_get(u): return jsonify(streakreq.status(_mine(u)))          # the person's losing-streak pause and their request (backend/streakreq.py)
+
+@app.post('/api/streak/request')
+@need(verified=True)
+def streak_ask(u):
+    try: out = streakreq.request(_mine(u))
+    except ValueError as e: return jsonify(error=str(e)), 400
+    learn.log(u['uid'], 'setting', data={'path': request.path})
+    return jsonify(out)
+
+@app.get('/api/admin/streak')
+@need(admin=True)
+def streak_list(u): return jsonify(streakreq.listing())
+
+@app.post('/api/admin/streak')
+@need(admin=True)
+def streak_decide(u):
+    j = _j()
+    if not isinstance(j.get('uid'), str) or not isinstance(j.get('approve'), bool): return jsonify(error='Send uid and approve (true or false)'), 400
+    try: out = streakreq.decide(j['uid'], j['approve'], j.get('note', ''))
+    except ValueError as e: return jsonify(error=str(e)), 400
+    learn.log(u['uid'] or 'owner', 'setting', data={'path': request.path, 'approve': j['approve'], 'for': j['uid']})
     return jsonify(out)
 
 @app.get('/api/live/why')          # LIVE2: why is the phone notification not showing

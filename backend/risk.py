@@ -47,6 +47,18 @@ def weekday_skip(sym, now=None):
     """B1: 'weekends only' Bitcoin mode: a crypto market rests on weekdays (gold and forex trade then). Off when btc_mode is not 'weekend' or crypto_weekend = 0."""
     return is_crypto(sym) and st.get('crypto_weekend') != '0' and st.get('btc_mode') == 'weekend' and not weekend_shut(now)
 
+def streak_state(uid='', now=None):
+    """None, or the losing-streak pause that is on now: {'k', 'until', 'pnls' (the k last setup results), 'since' (when the last loss closed)}.
+    Only setups closed AFTER the admin's approval (kv 'streakok:<uid>', see streakreq.py) count, so an approval starts the count again."""
+    now = now or time.time(); k = limits.streak(uid)
+    if k <= 0: return None
+    try: ok_at = int(float(st.get('streakok:' + uid) or 0))
+    except (TypeError, ValueError): ok_at = 0
+    last = _setups(st.q("SELECT pnl,closed,grp FROM signals WHERE status='closed' AND pnl IS NOT NULL AND COALESCE(uid,'')=? AND closed>? ORDER BY closed DESC LIMIT ?", (uid, ok_at, k * 12)))[:k]
+    until = last[0]['closed'] + st.fget('streak_cooldown_h') * 3600 if last else 0
+    if len(last) == k and all(x['pnl'] < 0 for x in last) and now < until: return {'k': k, 'until': until, 'pnls': [x['pnl'] for x in last], 'since': last[0]['closed']}
+    return None
+
 def global_gate(now=None, uid='', burst=False):
     now = now or time.time(); a = st.acct(uid); d = dt.datetime.utcfromtimestamp(now)
     if not bot_on(uid): return False, 'bot off'
@@ -65,10 +77,8 @@ def global_gate(now=None, uid='', burst=False):
     bal = float(a.get('balance') or 0)
     if bal and _pnl_since(since, uid) <= -bal * st.fget('max_daily_loss_pct') / 100: return False, 'daily loss limit hit'
     if bal and _pnl_since(_week_start(now), uid) <= -bal * st.fget('max_weekly_loss_pct') / 100: return False, 'weekly loss limit hit'
-    k = limits.streak(uid)
-    last = _setups(st.q("SELECT pnl,closed,grp FROM signals WHERE status='closed' AND pnl IS NOT NULL AND COALESCE(uid,'')=? ORDER BY closed DESC LIMIT ?", (uid, k * 12)))[:k]
-    if k > 0 and len(last) == k and all(x['pnl'] < 0 for x in last) and now - last[0]['closed'] < st.fget('streak_cooldown_h') * 3600:
-        return False, f'{k} losses in a row: cooling down'
+    s = streak_state(uid, now)          # streakreq.py: an admin approval restarts the count
+    if s: return False, f"{s['k']} losses in a row: cooling down"
     return True, 'ok'
 
 def _legs(sym, side):
