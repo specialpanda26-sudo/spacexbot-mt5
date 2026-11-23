@@ -932,6 +932,7 @@ function genSeries(p,n){var rr=rng(p.s.charCodeAt(0)*31+p.s.charCodeAt(3)),a=ana
 PAIRS.forEach(function(p){p.series=genSeries(p,40)});
 var NEWS=[],NEWSST="load";/*FD3: the real calendar, filled by loadNews() from GET /api/news; nothing is invented*/
 var SXJ={rows:[],total:0,stats:null,pairs:[],brokers:[],broker:"",state:"idle"};/* the person's REAL closed trades, filled by the S6 block from GET /api/journal. state: idle | out (signed out) | load | ok | err. There is no sample data any more. */
+var SXAC={now:null,markets:[],items:[],state:"idle"};window.SXAC=SXAC;/* AC1: what the bot is doing now, from GET /api/activity */
 window.SXJ=SXJ;window.jmsg=jmsg;window.renderTrades=renderTrades;/* S2: share with the other script blocks (Journal, Stats, S6 loader) */
 function jmsg(){return SXJ.state==="out"?"Sign in to see your trades.":SXJ.state==="err"?"Cannot load your trades right now. Check your internet and try again.":SXJ.state==="ok"?"No trades yet. Your closed trades show up here after your broker closes some. Nothing on this screen is invented.":"Loading your trades..."}
 function jtime(t){return new Date(t*1000).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}
@@ -1889,7 +1890,8 @@ function ja(k,m,t){X.j.unshift({t:t||Date.now(),k:k,m:m});X.j.sort(function(a,b)
 var n0=X.j.length;X.j=X.j.filter(function(e){return e.k!=="trade"});if(X.j.length!==n0)sv();/* older builds saved 3 made-up trade lines here: drop them */
 if(!X.j.length){X.j.push({t:NOW,k:"note",m:"Journal started. Bot activity, rule changes and your notes are saved here."});X.j.sort(function(a,b){return b.t-a.t});sv()}
 window.jr=jr;window.sr=sr;/* S2: so the S6 loader can repaint these */
-function jall(){var T=SXJ.state==="ok"?SXJ.rows.map(function(r){return{t:r.t*1000,k:"trade",m:r.symbol+" "+(r.side==="buy"?"Buy":"Sell")+" closed "+m2(r.pnl)+" ("+r.broker+")"}}):[];return X.j.filter(function(e){var m=e.m||"";return!((e.k==="bot"&&/setup passed|RSI stretched|High-impact news in \d+ min|trend and RSI disagree/.test(m))||(e.k==="note"&&/^Backtest ran: profit factor/.test(m)))}).concat(T).sort(function(a,b){return b.t-a.t})}
+function acm(r){var h=function(s){var d=new Date(s*1000);return d.getHours()+":"+("0"+d.getMinutes()).slice(-2)};return r.m+(r.t-r.a>=120?" (same since "+h(r.a)+")":"")}
+function jall(){var AC=(window.SXAC&&window.SXAC.state==="ok")?window.SXAC:null,B=AC?AC.items.map(function(r){return{t:r.t*1000,k:"bot",m:acm(r)}}):[],T=SXJ.state==="ok"?SXJ.rows.map(function(r){return{t:r.t*1000,k:"trade",m:r.symbol+" "+(r.side==="buy"?"Buy":"Sell")+" closed "+m2(r.pnl)+" ("+r.broker+")"}}):[];return X.j.filter(function(e){var m=e.m||"";return!((AC&&e.k==="bot")||(e.k==="bot"&&/setup passed|RSI stretched|High-impact news in \d+ min|trend and RSI disagree/.test(m))||(e.k==="note"&&/^Backtest ran: profit factor/.test(m)))}).concat(T).concat(B).sort(function(a,b){return b.t-a.t})}
 function jsum(){var s=SXJ.stats,u=null,h="";try{u=SXA.user()}catch(e){}
  if(SXJ.state==="ok"&&s&&s.trades)h='<div class="stats">'+kp("Won",m2(s.won))+kp("Lost",m2(-s.lost))+kp("Net",m2(s.net))+kp("Win rate",s.win_rate.toFixed(1)+"%")+'</div><div class="note">'+s.wins+" wins · "+s.losses+" losses · "+s.trades+" closed trades</div>";
  if(u&&u.admin)h+='<div style="margin:8px 0"><button class="btn" id="jWipe">Clear all trades</button></div>';
@@ -1899,7 +1901,10 @@ document.addEventListener("click",function(e){var b=e.target&&e.target.closest?e
  if(!confirm("Last check: clear everything and start from zero?"))return;
  b.disabled=true;
  SXA.api("/api/admin/clear-trades",{method:"POST",body:{confirm:"CLEAR"}}).then(function(j){alert("Cleared "+((j&&j.trades)||0)+" trades. Starting from zero.");b.disabled=false;try{SXJ.rows=[];SXJ.stats=null;SXJ.total=0;SXJ.pairs=[];jr();sr();renderTrades()}catch(x){}},function(){alert("Could not clear. Are you signed in as the owner?");b.disabled=false})});
-function jr(){var f=X.jf,A=jall(),L=A.filter(function(e){return f==="all"||e.k===f});
+function jn(){var el=$("#jNow");if(!el)return;var a=window.SXAC,n=a&&a.now,g=function(s){s=Math.max(0,Math.round(Date.now()/1000-s));return s<60?"just now":s<3600?Math.floor(s/60)+" min ago":Math.floor(s/3600)+" h ago"};
+ if(!a||a.state!=="ok"||!n){el.innerHTML=!a||a.state==="out"?"":'<p class="note">'+(a.state==="err"?"Cannot load what the bot is doing right now.":"Loading what the bot is doing...")+"</p>";return}
+ el.innerHTML='<div class="callout"><b>'+esc(n.headline)+'</b><br>'+esc(n.detail)+(n.checked?'<br><small>Last market check '+g(n.checked)+'</small>':"")+'</div>'+(a.markets.length?'<b style="font-size:13px" class="muted">MARKETS IT LOOKED AT</b>'+a.markets.map(function(o){return'<div class="al"><time style="min-width:78px">'+g(o.t)+'</time><span><b class="jt bot">'+esc(o.symbol)+'</b>'+esc(o.m)+'</span></div>'}).join(""):"")}
+function jr(){jn();var f=X.jf,A=jall(),L=A.filter(function(e){return f==="all"||e.k===f});
  $$("#jF button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.f===f)});
  $("#jCount").textContent=A.length+" entries";
  $("#jList").innerHTML=jsum()+(L.slice(0,60).map(function(e){return'<div class="al"><time style="min-width:78px">'+tf(e.t)+'</time><span><b class="jt '+e.k+'">'+KL[e.k]+'</b>'+esc(e.m)+'</span></div>'}).join("")||'<p class="note">'+(f==="trade"||f==="all"&&SXJ.state!=="ok"?jmsg():"Nothing here yet.")+'</p>')}
@@ -1959,7 +1964,7 @@ function brief(){var rows=P.map(function(p,i){var c=series(p[1],7,p[0].charCodeA
 var vt=$("#view-trades");
 if(vt){$$(":scope>*",vt).forEach(function(k){k.dataset.t="closed"});
  var tb=document.createElement("div");tb.className="tabs";tb.setAttribute("role","tablist");tb.innerHTML=[["closed","Closed trades"],["journal","Journal"],["stats","Stats"]].map(function(t){return'<button role="tab" data-ut="'+t[0]+'">'+t[1]+'</button>'}).join("");vt.insertBefore(tb,vt.firstChild);
- vt.appendChild(card(["Journal",'<span class="chip info" id="jCount"></span>'],'<div class="jrow"><input class="inp" id="jNote" placeholder="Write a note about today" maxlength="200" aria-label="Journal note"><button class="btn primary" id="jAdd">Add</button></div><div class="seg" id="jF" role="group" aria-label="Filter" style="justify-self:start">'+[["all","All"],["bot","Bot"],["rule","Rules"],["trade","Trades"],["note","Notes"]].map(function(f){return'<button type="button" data-f="'+f[0]+'">'+f[1]+'</button>'}).join("")+'</div><div id="jList"></div><div class="jrow"><button class="btn" id="jCopy">Copy journal</button><button class="btn" id="jClr">Clear journal</button></div>',"journal"));
+ vt.appendChild(card(["Journal",'<span class="chip info" id="jCount"></span>'],'<div id="jNow"></div><div class="jrow"><input class="inp" id="jNote" placeholder="Write a note about today" maxlength="200" aria-label="Journal note"><button class="btn primary" id="jAdd">Add</button></div><div class="seg" id="jF" role="group" aria-label="Filter" style="justify-self:start">'+[["all","All"],["bot","Bot"],["rule","Rules"],["trade","Trades"],["note","Notes"]].map(function(f){return'<button type="button" data-f="'+f[0]+'">'+f[1]+'</button>'}).join("")+'</div><div id="jList"></div><div class="jrow"><button class="btn" id="jCopy">Copy journal</button><button class="btn" id="jClr">Clear journal</button></div>',"journal"));
  vt.appendChild(card(["Stats",'<span class="chip">Your win rate vs break-even</span>'],'<div id="sBody" style="display:grid;gap:14px"></div>',"stats"));
  var tabT=function(t){X.tt=t;sv();$$(":scope>[data-t]",vt).forEach(function(k){k.classList.toggle("th",k.dataset.t!==t)});$$("button",tb).forEach(function(b){b.setAttribute("aria-selected",b.dataset.ut===t)});if(t==="journal")jr();if(t==="stats")sr()};
  $$("button",tb).forEach(function(b){b.onclick=function(){tabT(b.dataset.ut)}});tabT(X.tt)}
@@ -3422,6 +3427,22 @@ build()})();
   paint();
 })();
 /*S6-end*/
+</script>
+<script>
+/*AC1-start*/
+(function(){"use strict";var vt=document.getElementById("view-trades");if(!vt||!window.SXA||!window.SXAC)return;
+var C=window.SXAC,BUSY=false,TK=0,SG="";
+function me(){try{return SXA.user()}catch(e){return null}}
+function shown(){var c=vt.querySelector('[data-t="journal"]');return vt.classList.contains("on")&&!document.hidden&&c&&!c.classList.contains("th")}
+function paint(){try{if(window.jr)window.jr()}catch(e){}}
+function poll(){var u=me();if(!u||!u.verified||BUSY)return;BUSY=true;if(C.state==="idle"||C.state==="out"){C.state="load";paint()}
+ SXA.api("/api/activity",{method:"GET"}).then(function(j){C.now=j.now||null;C.markets=j.markets||[];C.items=j.items||[];C.state="ok"},function(){if(C.state!=="ok")C.state="err"}).then(function(){BUSY=false;paint()})}
+setInterval(function(){var u=me(),sg=u&&u.verified?u.uid:"";TK++;
+ if(sg!==SG){SG=sg;C.now=null;C.markets=[];C.items=[];C.state=sg?"idle":"out";paint()}
+ if(sg&&shown()&&(TK%10===0||C.state==="idle"))poll()},1000);
+document.addEventListener("click",function(e){if(e.target&&e.target.closest&&e.target.closest('[data-ut="journal"]'))setTimeout(poll,60)});
+})();
+/*AC1-end*/
 </script>
 
 <script>

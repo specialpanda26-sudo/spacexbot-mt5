@@ -9,6 +9,10 @@ OLD = 6 * 3600          # a look older than this is not shown
 
 def note(uid, text, now=None):
     st.put('blook:' + (uid or ''), json.dumps({'t': int(now or time.time()), 'why': str(text)[:240]}))
+    try:
+        from . import activity
+        activity.log(uid, 'Burst: ' + str(text), 'check', now)          # AC1
+    except Exception as e: print('activity note failed', str(e)[:80])
 
 
 def ago(sec):

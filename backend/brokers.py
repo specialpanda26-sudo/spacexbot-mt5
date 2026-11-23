@@ -91,9 +91,18 @@ REASONS = {
 def bot_flag(uid, name):
     """True / False once the person has used the switch, None if never used (then the old MT5 link switch decides)."""
     v = st.get('bot:%s:%s' % (uid, name)); return None if v is None else v == '1'
-def set_bot(uid, name, on): st.put('bot:%s:%s' % (uid, name), '1' if on else '0')
+def set_bot(uid, name, on):
+    st.put('bot:%s:%s' % (uid, name), '1' if on else '0')
+    try:
+        from . import activity
+        activity.log(uid, 'Bot switched %s on %s.' % ('ON' if on else 'OFF', name), 'bot')          # AC1
+    except Exception as e: print('activity note failed', str(e)[:80])
 def set_why(uid, name, reason, now=None):
     st.put('why:%s:%s' % (uid, name), json.dumps({'r': str(reason)[:30], 't': int(now or time.time())}))
+    try:
+        from . import activity
+        activity.log(uid, '%s: %s' % (name, 'Connected and watching.' if reason == 'ok' else REASONS.get(reason, 'Not trading: %s' % reason)), 'check' if reason == 'ok' else 'wait', now)          # AC1
+    except Exception as e: print('activity note failed', str(e)[:80])
 def _why(uid, name):
     try: j = json.loads(st.get('why:%s:%s' % (uid, name)) or '')
     except ValueError: return {}

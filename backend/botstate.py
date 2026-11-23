@@ -26,6 +26,18 @@ def note(uid, sym, code, why=''):
     """Called by the scanner after each candle. code: nosetup | signal | gate | skip."""
     try: st.put('scan:%s:%s' % (uid or '', sym), json.dumps({'t': int(time.time()), 'c': code, 'w': str(why)[:300]}))
     except Exception as e: print('scan note failed', str(e)[:80])
+    try:
+        from . import activity
+        t = scan_text({'c': code, 'w': why})
+        activity.log(uid, ('Checked %s: ' % sym if code == 'nosetup' else '%s: ' % sym) + t, 'trade' if code == 'signal' else 'wait' if code in ('gate', 'skip') else 'check')
+    except Exception as e: print('activity note failed', str(e)[:80])
+
+def scan_text(j):
+    """AC1: one scanner note in plain words (also used for the Journal 'markets' list)."""
+    c, w = j.get('c'), str(j.get('w') or '').strip()
+    if c == 'signal': return 'Found a setup and sent it.'
+    if c == 'nosetup': return 'No good setup yet.' + (' ' + w if w else '')
+    return _words(w)
 
 def _last(uid):
     best = None

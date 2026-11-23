@@ -1,7 +1,7 @@
 import os, re, time, json, hmac, threading, functools
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
 from . import automode
-from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, reason as rsn, regime as rgm, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard, tradeview, pnlreset, connwhy
+from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, stats, accounts, push, links, assist, learn, payments as pay, adminpass as ap, strategy_info as si, reason as rsn, regime as rgm, feed, alerts, brokers as bk, deriv, livestats, limits, journal, bridge, pnlcard, tradeview, pnlreset, connwhy, activity
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 from . import screenread
@@ -768,6 +768,12 @@ def bot_switch(u):
 def live_api(u):
     """Section 3: the person's own live numbers (balance, equity, today, open trades). No secrets in the answer."""
     return jsonify(livestats.snapshot(u['uid'], bool(u['admin'])))
+
+@app.get('/api/activity')
+@need(verified=True)
+def activity_api(u):
+    """AC1: what the bot is doing right now + the live feed of its checks, for the Journal tab."""
+    return jsonify(activity.snapshot(u['uid'], bool(u['admin']), _paid(u['uid'])))
 
 @app.get('/api/journal')
 @need(verified=True)

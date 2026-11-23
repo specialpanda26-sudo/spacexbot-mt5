@@ -31,7 +31,12 @@ def risk(uid):
 def set_mode(uid, m):
     if m not in ('demo', 'real'): raise ValueError('mode must be demo or real')
     st.x('UPDATE links SET mode=?,bot=0 WHERE uid=?', (m, uid))       # any switch stops the bot: the person starts it again on purpose
-def set_bot(uid, on): st.x('UPDATE links SET bot=? WHERE uid=?', (1 if on else 0, uid))
+def set_bot(uid, on):
+    st.x('UPDATE links SET bot=? WHERE uid=?', (1 if on else 0, uid))
+    try:
+        from . import activity
+        activity.log(uid, 'Bot switched %s on MT5.' % ('ON' if on else 'OFF'), 'bot')          # AC1
+    except Exception as e: print('activity note failed', str(e)[:80])
 def set_risk(uid, v):
     try: v = float(v)
     except (TypeError, ValueError): raise ValueError('risk must be a number')
