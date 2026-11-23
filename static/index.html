@@ -700,7 +700,7 @@ body.scrolled .top::before{border-bottom-color:var(--line)}
       <div style="display:grid;gap:18px;align-content:start;min-width:0">
         <div class="card"><div class="card-head"><h2>Risk limits</h2></div>
           <div class="inp-row">
-            <div class="field"><label for="riskPct">Risk per trade (%)</label><input class="inp" id="riskPct" type="number" min="0.1" max="5" step="0.1" inputmode="decimal"></div>
+            <div class="field"><label for="riskPct">Risk per trade (%)</label><input class="inp" id="riskPct" type="number" min="0.1" max="2" step="0.1" inputmode="decimal"></div>
             <div class="field"><label for="dayLoss">Max daily loss (%)</label><input class="inp" id="dayLoss" type="number" min="0.5" max="20" step="0.5" inputmode="decimal"></div>
             <div class="field"><label for="maxOpen">Max open trades</label><input class="inp" id="maxOpen" type="number" min="1" max="10" step="1" inputmode="numeric"></div>
             <div class="field"><label for="maxDD">Stop at drawdown (%)</label><input class="inp" id="maxDD" type="number" min="2" max="50" step="1" inputmode="decimal"></div>
@@ -1125,7 +1125,7 @@ $("#backdrop").addEventListener("click",closeSheet);
 document.addEventListener("keydown",function(e){if(e.key==="Escape")closeSheet()});
 $("#q").addEventListener("input",renderCards);
 var imap={riskPct:"risk",dayLoss:"dayLoss",maxOpen:"maxOpen",maxDD:"maxDD"};
-Object.keys(imap).forEach(function(id){$("#"+id).addEventListener("input",function(){var n=parseFloat(this.value);if(n>0){S[imap[id]]=n;save();renderBot();renderGoals();calc()}})});
+Object.keys(imap).forEach(function(id){$("#"+id).addEventListener("input",function(){var n=parseFloat(this.value);if(n>0){var lo=parseFloat(this.min),hi=parseFloat(this.max);if(lo==lo&&n<lo)n=lo;if(hi==hi&&n>hi){n=hi;this.value=hi}S[imap[id]]=n;save();renderBot();renderGoals();calc()}})});
 ["cBal","cSl","cPair"].forEach(function(id){$("#"+id).addEventListener("input",calc)});
 window.addEventListener("hashchange",function(){show(location.hash.slice(1),true)});
 
