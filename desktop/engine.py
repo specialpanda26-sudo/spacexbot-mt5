@@ -3,7 +3,7 @@
 Differences from the EA, all on the safe side: it refuses a signal while the bot is off in the app, queues reports on disk if the
 internet drops (so a close is never lost), and tells the server whether a trade ended on TP or SL."""
 import math, time
-from . import config
+from . import config, basket
 from .client import AuthError, ServerError
 from .broker import BrokerError
 
@@ -52,7 +52,8 @@ class Engine:
         cur = {}
         for p in self.b.positions(self.cfg['magic']):             # BrokerError here means "unknown", never "closed"
             cm = p['comment'] or ''
-            if cm.startswith('SXB') and cm[3:].isdigit(): cur[int(cm[3:])] = p['pid']
+            sid = basket.sid_of(cm)          # DK1: 'SXB12' and the burst form 'SXB12G5'
+            if sid: cur[sid] = p['pid']
         for sid, pid in cur.items(): self.known.setdefault(sid, pid)       # also adopts trades opened before a restart
         for sid in [s for s in self.known if s not in cur]:
             info = self.b.close_info(self.known[sid])
@@ -157,6 +158,8 @@ class Engine:
         if res.get('expired'): return self._end('expired', 'Your plan has ended. Renew it in the app.', acct, res)
         sig = res.get('signal')
         if isinstance(sig, dict): self._execute(sig, acct, res.get('bot') is True)
+        bk = res.get('basket')          # DK1: a burst group arrives as one basket
+        if isinstance(bk, dict): basket.run(self, bk, acct, res.get('bot') is True)
         try: self._flush()
         except AuthError: pass
         msg = 'Waiting for the clock (a few seconds)...' if self.offset is None else 'Running. Bot is %s in the app.' % ('ON' if res.get('bot') else 'OFF')
