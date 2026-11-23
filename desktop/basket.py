@@ -47,6 +47,9 @@ def _open(e, bk, ids, acct, bot):
     if i['tick_value'] <= 0 or i['tick_size'] <= 0: return 'no tick value'
     n = len(ids); step = i['vol_step'] or 0.01; nd = max(0, -int(math.floor(math.log10(step) + 1e-9)))
     raw = acct['balance'] * risk / 100.0 / ((abs(price - sl) / i['tick_size']) * i['tick_value'])      # risk = ONE entry's share
+    try: fl = float(bk.get('lot') or 0)          # LOT1: the person chose the lot of each entry
+    except (TypeError, ValueError): fl = 0.0
+    if fl > 0: raw = max(fl, i['vol_min'])
     lots = math.floor(raw / step + 1e-9) * step; want = n
     if lots < i['vol_min'] - 1e-12:
         want = int(math.floor(raw * n / i['vol_min'] + 1e-9)); lots = i['vol_min']

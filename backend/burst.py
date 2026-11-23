@@ -72,7 +72,8 @@ def get(uid=''):
             'big_usd': round(_clamp(j.get('big_usd'), USD_LO, USD_HI, DEF['big_usd'], float), 2),
             'giveback': _clamp(j.get('giveback'), 0, 90, DEF['giveback']),
             'stake_usd': round(_clamp(j.get('stake_usd'), 0, USD_HI, DEF['stake_usd'], float), 2),
-            'loss_usd': round(_clamp(j.get('loss_usd'), 0, USD_HI, 0.0, float), 2),          # BT13
+            'loss_usd': round(_clamp(j.get('loss_usd'), 0, USD_HI, 0.0, float), 2), 'lot': round(_clamp(j.get('lot'), 0, 100.0, 0.0, float), 2),          # LOT1
+                      # BT13
             'minute': j.get('minute') is True, 'minute_n': _clamp(j.get('minute_n'), 2, c, DEF['minute_n'])}          # BT7
 
 
@@ -119,6 +120,11 @@ def save(uid, d):
         except (TypeError, ValueError): lv = float('nan')
         if lv != lv or not (lv == 0 or 0.1 <= lv <= USD_HI): raise ValueError('Most a burst group may lose must be 0 (no limit) or from 0.1 to %g USD' % USD_HI)
         new['loss_usd'] = round(lv, 2)
+    if 'lot' in d:          # LOT1: lots for each burst entry on MT5 (0 = automatic)
+        try: tv = float('nan') if isinstance(d['lot'], bool) else float(d['lot'])
+        except (TypeError, ValueError): tv = float('nan')
+        if tv != tv or not (tv == 0 or 0.01 <= tv <= 100): raise ValueError('Lot per entry must be 0 (automatic) or from 0.01 to 100')
+        new['lot'] = round(tv, 2)
     cur.update(new)
     st.put('burst:' + (uid or ''), json.dumps(cur))
     return get(uid)
@@ -205,7 +211,7 @@ def create(uid, sym, s, pl, reason='', now=None):
     ids = [first]
     for _ in range(n - 1):
         ids.append(st.x(sql, (sym, s['side'], s['entry'], s['sl'], s['tp'], rp, s['strategy'], s['score'], 'pending', now, uid or None, first, reason)))
-    gm = {'k': pl['kind'], 'n': n, 'each': pl['each'], 'gb': pl['giveback'], 't': now, 'stake': pl.get('stake', 0)}
+    gm = {'k': pl['kind'], 'n': n, 'each': pl['each'], 'gb': pl['giveback'], 't': now, 'stake': pl.get('stake', 0), 'lot': get(uid)['lot']}
     gr = groupcap.rules(uid, n)          # the person's group target / loss limit, when they switched it on
     if gr: gm.update(tgt=gr['tgt'], loss=gr['loss'])
     if not gr: gm['dtgt'] = round(float(pl['each']) * n, 2)          # BT2: the Deriv engine closes the group when the entries together reach entries x target each
@@ -227,7 +233,7 @@ def basket(s, uid=''):
     if not ids: return None
     return {'gid': int(g), 'symbol': s['symbol'], 'side': s['side'], 'sl': s['sl'], 'tp': s['tp'], 'risk_pct': s['risk_pct'],
             'each': groupcap.each_for(m, len(ids)) if m.get('tgt') or m.get('k') == 'multi' else m.get('each'), 'gb': m.get('gb', 0),
-            'tgt': float(m.get('tgt') or 0), 'loss': float(m.get('loss') or 0), 'kind': m.get('k'), 'ids': ','.join(str(i) for i in ids)}
+            'tgt': float(m.get('tgt') or 0), 'loss': float(m.get('loss') or 0), 'lot': float(m.get('lot') or 0), 'kind': m.get('k'), 'ids': ','.join(str(i) for i in ids)}
 
 
 # ---------------- what the app shows ----------------
