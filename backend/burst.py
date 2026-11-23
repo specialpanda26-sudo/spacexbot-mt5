@@ -15,9 +15,10 @@ The idea, in plain words:
 Settings are saved per person in kv 'burst:<uid>' (uid '' = the owner's own bot). Group facts are kept in kv 'bg:<group id>'.
 Nothing here claims it makes more money. Only a demo run or tools/backtest.py can say that."""
 import json, time
-from . import store as st, links, risk, limits, multi, groupcap, burst_look, burst_live, burst_results
+from . import store as st, links, risk, limits, multi, groupcap, burst_look, burst_live, burst_results, automode
 
 HI = 30
+AUTO_WHY = 'Auto mode is on, and Auto mode turns burst off'          # BX1: the scanner always stopped here, the card never said so
 DEF = {'on': False, 'idle_min': 5, 'quick_n': 5, 'big_n': 15, 'quick_usd': 0.5, 'big_usd': 1.0, 'giveback': 40, 'stake_usd': 0.5, 'minute': False, 'minute_n': 2}
 KEYS = tuple(DEF)
 USD_LO, USD_HI = 0.05, 1000.0
@@ -150,6 +151,7 @@ def due(uid='', now=None):
     now = now or time.time(); p = get(uid)
     if not enabled(): return False, 'burst mode is switched off by the owner'
     if not p['on']: return False, 'burst mode is off'
+    if automode.on(): return False, AUTO_WHY          # BX1
     ok, why = risk.global_gate(now, uid=uid, burst=True)
     if not ok: return False, why
     mm = p.get('minute') is True          # BT7: trade every minute: a new group every minute, even while the last one is still open
@@ -162,7 +164,7 @@ def due(uid='', now=None):
 def look(uid='', now=None):
     """due() for the scanner. When the bot cannot trade right now (stopped, MT5 offline, a loss limit...) the quiet timer starts again from this moment."""
     now = now or time.time(); ok, why = due(uid, now)
-    if not ok and not (why.startswith('quiet for') or why in ('a burst is already running', 'burst mode is off', 'burst mode is switched off by the owner')): closed(uid, now)
+    if not ok and not (why.startswith('quiet for') or why in ('a burst is already running', 'burst mode is off', 'burst mode is switched off by the owner', AUTO_WHY)): closed(uid, now)
     return ok, why
 
 
@@ -222,6 +224,7 @@ def explain(uid='', now=None, admin=False):
     if not p['on']: return {'state': 'off', 'why': 'Burst mode is off.'}
     if active(uid): return {'state': 'running', 'why': 'A burst is running. It closes at the profit target, or when the profit starts to go away.'}
     ok, why = due(uid, now)
+    if why == AUTO_WHY: return {'state': 'waiting', 'blocked': 'auto', 'why': 'Paused: Auto mode is ON, and Auto mode turns burst off. Switch Auto mode off (admin page, or AUTO_MODE=0 on Render) and burst starts.'}          # BX1
     if ok: return {'state': 'ready', 'why': 'Quiet long enough. It looks for a quick chance on the next candle check.'}
     if why.startswith('quiet for'): return {'state': 'waiting', 'why': 'Watching. The bot has been %s without a trade; after that it looks for a quick small-profit chance.' % why[len('quiet for '):]}
     return {'state': 'waiting', 'why': botstate._words(why)}

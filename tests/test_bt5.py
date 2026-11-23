@@ -42,5 +42,5 @@ T('one person never sees another person look', (bl.note('u2', 'mine'), bl.last('
 s = open(os.path.join(HERE, '..', 'static', 'index.html'), encoding='utf-8').read()
 T('the card shows the last look once', s.count('j.look.ago') == 1)
 src = open(os.path.join(HERE, '..', 'backend', 'app.py'), encoding='utf-8').read()
-T('five notes in the scanner', src.count('burst_look.note(uid') == 6)
+T('five notes in the scanner', src.count('burst_look.note(uid') == 7)
 n = sum(1 for _, ok in R if ok); print('%d/%d passed' % (n, len(R))); sys.exit(0 if n == len(R) else 1)

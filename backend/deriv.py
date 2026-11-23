@@ -369,11 +369,12 @@ def _closed_by(r, pnl):
 
 def _track(sess, uid, acct):
     """Ask Deriv about every open trade of this customer; when one has been sold (stop, target or by hand) record the result."""
-    done = False
+    done = False; live = {}          # BX1: the profit Deriv just reported for every trade that is still open
     for r in st.q("SELECT id,ticket,lots,note,entry,sl,tp FROM signals WHERE uid=? AND status='open' AND ticket IS NOT NULL ORDER BY id LIMIT 20", (uid,)):
         try: cid = int(r['ticket'])
         except (TypeError, ValueError): continue
         p = sess.ask({'proposal_open_contract': 1, 'contract_id': cid}).get('proposal_open_contract')
+        if isinstance(p, dict) and str(p.get('is_sold')).lower() not in ('1', 'true'): live[r['id']] = p.get('profit')          # BX1
         if not isinstance(p, dict) or str(p.get('is_sold')).lower() not in ('1', 'true'): continue
         try: pnl = round(float(p.get('profit')), 2)
         except (TypeError, ValueError): continue
@@ -384,4 +385,6 @@ def _track(sess, uid, acct):
                 except (TypeError, ValueError): continue
                 if 0 < x < 1e9: st.put('exitpx:%d' % r['id'], x); break
             _report(uid, r['id'], 'closed', 'tp' if pnl > 0 else 'sl' if pnl < 0 else 'other'); done = True
+    try: from . import openlive; openlive.save(uid, live)          # BX1: the banner and Home card read this
+    except Exception as e: print('[deriv] live profit not saved', repr(e)[:80])
     if done: _resnap(sess, uid, acct)

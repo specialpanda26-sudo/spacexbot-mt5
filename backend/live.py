@@ -38,7 +38,8 @@ def snapshot(now=None, uid=''):
     now = now or time.time(); admin = _is_admin(uid)
     ls = livestats.snapshot(uid, admin, now); srcs = ls.get('sources') or []
     a = {'balance': ls['balance'], 'equity': ls['equity'], 'open': ls['open'], 'label': ' (%s %s)' % (srcs[0]['id'], srcs[0]['mode']) if ls.get('platform') and len(srcs) == 1 else ''} if srcs else {}
-    return {'on': _running(uid, admin, srcs), 'a': a, 'today': ls['today'], 'open': list(ls.get('trades') or []), 'now': now}
+    return {'on': _running(uid, admin, srcs), 'a': a, 'today': ls['today'], 'open': list(ls.get('trades') or []), 'now': now,
+            'float': ls.get('floating'), 'w': ls.get('today_w', 0), 'l': ls.get('today_l', 0), 'recent': ls.get('recent') or [], 'burst': _burst(uid, admin, now)}          # BX1
 
 def explain(uid, now=None):
     """LIVE2: (ok, plain words) for the person: is the notification being sent to their phone, and if not, the first thing to fix."""
@@ -55,18 +56,38 @@ def explain(uid, now=None):
     if not snapshot(now, uid)['on']: return False, 'The bot is not running, or no account has answered in the last 2 to 3 minutes. Start the bot and keep Deriv or the MT5 EA connected.'
     return True, 'Everything is in place. It appears within a minute. If it does not, allow notifications for this app in your phone settings.'
 
+def _burst(uid, admin, now):
+    """BX1: one short line about burst for the banner, or '' when burst is off for this person."""
+    try:
+        from . import burst, burst_scope, burst_live
+        sc = burst_scope.scope({'uid': uid, 'admin': admin}); ex = burst.explain(sc, now)
+        if ex['state'] == 'off': return ''
+        if ex.get('blocked'): return 'paused, Auto mode is on'
+        if ex['state'] == 'running':
+            g = burst_live.group(sc, now); return 'running. ' + g if g else 'running'
+        return 'on, ready for a chance' if ex['state'] == 'ready' else 'on, watching'
+    except Exception: return ''
+
 def build(admin, s):
     a = s['a']; bal, eq = a.get('balance'), a.get('equity'); n = int(a.get('open') or len(s['open']) or 0)
+    fl = s.get('float')
+    if fl is None and bal is not None and eq is not None: fl = float(eq) - float(bal)
+    w, l = int(s.get('w') or 0), int(s.get('l') or 0)
     title = 'Bot running' + ('  |  ' + _m(bal) if admin and bal is not None else '')
-    text = 'Today ' + _m(s['today'], True) + '  |  ' + (str(n) + ' open' if n else 'no open trades')
+    text = 'Float ' + _m(fl, True) + '  |  Today ' + _m(s['today'], True) + '  |  W' + str(w) + ' L' + str(l) + '  |  ' + (str(n) + ' open' if n else 'none open')
     lines = []
     if admin and bal is not None: lines.append('Balance ' + _m(bal) + (a.get('label') or '') + ('   Equity ' + _m(eq) if eq is not None else ''))
-    if admin and bal is not None and eq is not None: lines.append('Floating P/L ' + _m(float(eq) - float(bal), True))
-    lines.append('Today ' + _m(s['today'], True))
+    lines.append('Floating P/L ' + _m(fl, True))
+    lines.append('Today ' + _m(s['today'], True) + '   Wins ' + str(w) + '   Losses ' + str(l) + ('   Win rate %d%%' % round(w * 100.0 / (w + l)) if w + l else ''))
+    if s.get('burst'): lines.append('Burst: ' + s['burst'])
     if s['open']:
         lines.append('Open trades:')
-        for o in s['open']: lines.append('  ' + str(o['side']).upper() + ' ' + str(o['symbol']) + ' at ' + str(o.get('fill') or o.get('entry') or o.get('price') or '--'))
+        for o in s['open']:
+            lines.append('  ' + str(o['side']).upper() + ' ' + str(o['symbol']) + ' at ' + str(o.get('fill') or o.get('entry') or o.get('price') or '--') + ('   ' + _m(o['pnl'], True) if o.get('pnl') is not None else ''))
     else: lines.append('No open trades right now')
+    if s.get('recent'):
+        lines.append('Last results:')
+        for r in s['recent']: lines.append('  ' + ('Win  ' if r['pnl'] > 0 else 'Loss ' if r['pnl'] < 0 else 'Flat ') + str(r['symbol']) + '  ' + _m(r['pnl'], True))
     return {'type': 'live', 'title': title, 'text': text, 'big': '\n'.join(lines), 'ts': int(s['now'])}
 
 def tick(now=None):
