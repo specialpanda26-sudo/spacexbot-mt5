@@ -173,7 +173,7 @@ long CmGid(const string cm){ int p = StringFind(cm, "G", 3); return (StringFind(
 string GV(const string k, long gid){ return "SXB_" + k + (string)gid; }
 void RejectAll(const long &ids[], string why){ for(int i = 0; i < ArraySize(ids); i++) Reject(ids[i], why); }
 
-void ExecuteBasket(long gid, string canon, string side, double sl, double tp, double riskPct, double each, int gb, string idsCsv, double grpTgt, double lossPct)
+void ExecuteBasket(long gid, string canon, string side, double sl, double tp, double riskPct, double each, int gb, string idsCsv, double grpTgt, double lossPct, double fixedLot = 0)
 {
    string idl[]; int n = StringSplit(idsCsv, ',', idl); if(n <= 0) return;
    long ids[]; ArrayResize(ids, n); for(int i = 0; i < n; i++) ids[i] = (long)StringToInteger(idl[i]);
@@ -195,6 +195,7 @@ void ExecuteBasket(long gid, string canon, string side, double sl, double tp, do
    double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * riskPct / 100.0;
    double lotsRaw = riskMoney / ((MathAbs(price - sl) / ts) * tv);
    double step = SymbolInfoDouble(sym, SYMBOL_VOLUME_STEP), mn = SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN), mx = SymbolInfoDouble(sym, SYMBOL_VOLUME_MAX);
+   if(fixedLot > 0) lotsRaw = MathMax(fixedLot, mn);          // LOT2: the person chose the lot of each entry
    double lots = MathFloor(lotsRaw / step + 1e-9) * step; int want = n;
    if(lots < mn)
    {  // one entry's share is below the smallest lot: open only as many minimum-lot entries as the TOTAL risk of the group allows
@@ -344,7 +345,7 @@ void PollServer()
    {
       ExecuteBasket(bgid, JStr(res, "symbol"), JStr(res, "side"), StringToDouble(JStr(res, "sl")), StringToDouble(JStr(res, "tp")),
                     StringToDouble(JStr(res, "risk_pct")), StringToDouble(JStr(res, "each")), (int)StringToInteger(JStr(res, "gb")), JStr(res, "ids"),
-                    StringToDouble(JStr(res, "tgt")), StringToDouble(JStr(res, "loss")));
+                    StringToDouble(JStr(res, "tgt")), StringToDouble(JStr(res, "loss")), StringToDouble(JStr(res, "lot")));
       return;
    }
    long id = (long)StringToInteger(JStr(res, "id"));
