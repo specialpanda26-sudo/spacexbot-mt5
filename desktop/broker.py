@@ -43,7 +43,7 @@ class MT5Broker:
 
     def rates(self, sym, tf, count):
         """CLOSED candles only (start 1 skips the forming one), oldest first: [time, o, h, l, c, tick_volume]. Time is broker-server time."""
-        m = self._mt(); r = m.copy_rates_from_pos(sym, {'M15': m.TIMEFRAME_M15, 'H1': m.TIMEFRAME_H1}[tf], 1, count)
+        m = self._mt(); r = m.copy_rates_from_pos(sym, {'M5': m.TIMEFRAME_M5, 'M15': m.TIMEFRAME_M15, 'H1': m.TIMEFRAME_H1}[tf], 1, count)
         return [] if r is None else [[int(x['time']), float(x['open']), float(x['high']), float(x['low']), float(x['close']), int(x['tick_volume'])] for x in r]
 
     def freshest_tick(self, syms):

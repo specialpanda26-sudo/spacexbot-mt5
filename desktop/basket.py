@@ -164,3 +164,12 @@ def pause(e, stop, secs):
             try: manage(e)
             except Exception as x: e.log('group watch error: %s' % x.__class__.__name__)
         stop.wait(min(1.0, max(0.05, left)))
+
+
+# ---------------- DK3: 5-minute candles ----------------
+def rates_m5(e, name, off):
+    """The 5-minute candles for the server's burst scan (the EA sends them too: 450 on the first push, then the newest 14). [] when MT5 cannot give them,
+    so the 15-minute and 1-hour candles still go."""
+    try: r = e.b.rates(name, 'M5', 450 if e.first_push else 14)
+    except Exception as x: e.log('%s 5-minute candles: %s' % (name, x)); return []
+    return [[q[0] - off] + q[1:] for q in (r or [])]

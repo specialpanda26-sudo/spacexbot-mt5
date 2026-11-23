@@ -86,7 +86,10 @@ class Engine:
             if not n: continue
             try: m15, h1 = self.b.rates(n, 'M15', 450 if self.first_push else 6), self.b.rates(n, 'H1', 320 if self.first_push else 4)
             except Exception as e: self.log('%s candles: %s' % (canon, e)); continue
-            if m15: out[canon] = {'M15': [[r[0] - off] + r[1:] for r in m15], 'H1': [[r[0] - off] + r[1:] for r in h1]}
+            if m15:
+                out[canon] = {'M15': [[r[0] - off] + r[1:] for r in m15], 'H1': [[r[0] - off] + r[1:] for r in h1]}
+                m5 = basket.rates_m5(self, n, off)          # DK3
+                if m5: out[canon]['M5'] = m5
         return out or None
 
     # ---------- 3: placing a signal ----------
