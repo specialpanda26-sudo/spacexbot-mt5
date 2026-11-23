@@ -56,6 +56,12 @@ def explain(uid, now=None):
     if not snapshot(now, uid)['on']: return False, 'The bot is not running, or no account has answered in the last 2 to 3 minutes. Start the bot and keep Deriv or the MT5 EA connected.'
     return True, 'Everything is in place. It appears within a minute. If it does not, allow notifications for this app in your phone settings.'
 
+def _lv(label, v):
+    """BX4: '  SL 2640.5' for a price level, '' when the trade has none."""
+    try: x = float(v)
+    except (TypeError, ValueError): return ''
+    return '' if x != x or x == 0 else '  %s %s' % (label, format(round(x, 5 if abs(x) < 100 else 2), 'g'))
+
 def _burst(uid, admin, now):
     """BX1: one short line about burst for the banner, or '' when burst is off for this person."""
     try:
@@ -83,7 +89,7 @@ def build(admin, s):
     if s['open']:
         lines.append('Open trades:')
         for o in s['open']:
-            lines.append('  ' + str(o['side']).upper() + ' ' + str(o['symbol']) + ' at ' + str(o.get('fill') or o.get('entry') or o.get('price') or '--') + ('   ' + _m(o['pnl'], True) if o.get('pnl') is not None else ''))
+            lines.append('  ' + str(o['side']).upper() + ' ' + str(o['symbol']) + ' at ' + str(o.get('fill') or o.get('entry') or o.get('price') or '--') + _lv('SL', o.get('sl')) + _lv('TP', o.get('tp')) + ('   ' + _m(o['pnl'], True) if o.get('pnl') is not None else ''))          # BX4
     else: lines.append('No open trades right now')
     if s.get('recent'):
         lines.append('Last results:')
