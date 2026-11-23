@@ -1,3 +1,4 @@
+from backend import deriv_sym
 """Deriv adapter, step 1: check a customer's token. READ-ONLY, it never trades.
 Uses Deriv's new API: REST with the token + the Deriv-App-ID header (DERIV_APP_ID is OUR app, same for everyone; the token is the customer's own).
 Reply shapes are read loosely on purpose (not yet confirmed with deriv_probe.py), and nothing here ever puts a token in a message."""
