@@ -587,7 +587,7 @@ def admin_set(u):
 @need(active=True)
 def status(u):
     """Everything the Bot tab's gates card shows, from the real gate code."""
-    sc = _mine(u); a = st.acct(sc); now = time.time(); bal = float(a.get('balance') or 0); since = st.day_start()
+    sc = _mine(u); a = st.acct(sc); now = time.time(); bal = float(a.get('balance') or 0); since = risk.day_since(sc)
     dpnl = st.q("SELECT COALESCE(SUM(pnl),0) p FROM signals WHERE closed>=? AND COALESCE(uid,'')=?", (since, sc), True)['p']
     ok, why = risk.global_gate(uid=sc)
     nh = news.next_high(now)
@@ -826,6 +826,36 @@ def clear_trades_api(u):
         try: st.x('DELETE FROM assist_log WHERE uid=?', (uid,))
         except Exception: pass
     st.x('DELETE FROM kv WHERE k=?', ('pnlreset:%s' % uid,))
+    return jsonify(ok=True, trades=n)
+
+def _may_reset(u):
+    """RS1: the owner, or anyone on a confirmed demo account. A real account keeps its loss limits."""
+    return bool(u['admin']) or st.acct(u['uid'] or '').get('demo') is True
+
+@app.post('/api/risk/reset-day')
+@need(verified=True)
+def risk_reset_day_api(u):
+    """RS1: today's loss count starts again from now. The daily loss limit stays on for every new loss."""
+    if not _may_reset(u): return jsonify(error='On a real account the daily loss limit cannot be restarted here. Ask the owner.'), 403
+    uid = _mine(u); st.put('dayok:' + uid, int(time.time()) + 1)
+    return jsonify(ok=True)
+
+@app.post('/api/stats/reset')
+@need(verified=True)
+def stats_reset_api(u):
+    """RS1: a person deletes THEIR OWN finished trades and starts from zero. Open and waiting trades stay. Owner: use Clear all trades."""
+    if u['admin']: return jsonify(error='Owner: use Clear all trades.'), 400
+    if not _may_reset(u): return jsonify(error='On a real account the stats cannot be reset here. Ask the owner.'), 403
+    uid = u['uid'] or ''
+    if not uid: return jsonify(error='No account'), 400
+    ids = [r['id'] for r in st.q("SELECT id FROM signals WHERE COALESCE(uid,'')=? AND COALESCE(status,'') NOT IN (?,?,?)", (uid, 'open', 'pending', 'sent'))]
+    n = 0
+    for i in range(0, len(ids), 200):
+        part = ids[i:i + 200]; ph = ','.join('?' * len(part))
+        n += st.x('DELETE FROM signals WHERE id IN (%s)' % ph, tuple(part), count=True) or 0
+        st.x('DELETE FROM kv WHERE k IN (%s)' % ph, tuple('closedby:%s' % x for x in part))
+    for k in ('pnlreset:%s' % uid, 'dayok:%s' % uid):
+        st.x('DELETE FROM kv WHERE k=?', (k,))
     return jsonify(ok=True, trades=n)
 
 @app.get('/api/trade/<int:tid>')

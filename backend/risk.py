@@ -59,6 +59,13 @@ def streak_state(uid='', now=None):
     if len(last) == k and all(x['pnl'] < 0 for x in last) and now < until: return {'k': k, 'until': until, 'pnls': [x['pnl'] for x in last], 'since': last[0]['closed']}
     return None
 
+def day_since(uid='', now=None):
+    """RS1: where today's loss count starts: the day start, or later when the person restarted it."""
+    now = now or time.time(); base = int(now - now % 86400)
+    try: t = int(float(st.get('dayok:' + (uid or '')) or 0))
+    except (TypeError, ValueError): t = 0
+    return max(base, t)
+
 def global_gate(now=None, uid='', burst=False):
     now = now or time.time(); a = st.acct(uid); d = dt.datetime.utcfromtimestamp(now)
     if not bot_on(uid): return False, 'bot off'
@@ -75,7 +82,7 @@ def global_gate(now=None, uid='', burst=False):
         n = st.q("SELECT COUNT(DISTINCT COALESCE(grp,id)) n FROM signals WHERE created>=? AND status IN('pending','sent','open','closed') AND COALESCE(uid,'')=?", (since, uid), True)['n']
         if n >= mt: return False, 'max trades today'
     bal = float(a.get('balance') or 0)
-    if bal and _pnl_since(since, uid) <= -bal * st.fget('max_daily_loss_pct') / 100: return False, 'daily loss limit hit'
+    if bal and _pnl_since(day_since(uid, now), uid) <= -bal * st.fget('max_daily_loss_pct') / 100: return False, 'daily loss limit hit'
     if bal and _pnl_since(_week_start(now), uid) <= -bal * st.fget('max_weekly_loss_pct') / 100: return False, 'weekly loss limit hit'
     s = streak_state(uid, now)          # streakreq.py: an admin approval restarts the count
     if s: return False, f"{s['k']} losses in a row: cooling down"

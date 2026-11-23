@@ -46,7 +46,7 @@ def watch(uid, now=None):
     """18: half of the daily loss limit is used (called after the gates passed, so the limit itself is not hit yet)."""
     now = now or time.time(); bal = float((st.acct(uid) or {}).get('balance') or 0)
     if bal <= 0: return None
-    lim = st.fget('max_daily_loss_pct'); loss = -risk._pnl_since(int(now - now % 86400), uid) / bal * 100
+    lim = st.fget('max_daily_loss_pct'); loss = -risk._pnl_since(risk.day_since(uid, now), uid) / bal * 100
     if lim > 0 and HALF * lim <= loss < lim:
         _fire(18, 'r18-' + dt.datetime.utcfromtimestamp(now).date().isoformat(), uid, now, used=_num(round(loss, 1)), limit=_num(lim)); return 18
     return None
