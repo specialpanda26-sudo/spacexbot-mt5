@@ -73,7 +73,7 @@ def get(uid=''):
             'giveback': _clamp(j.get('giveback'), 0, 90, DEF['giveback']),
             'stake_usd': round(_clamp(j.get('stake_usd'), 0, USD_HI, DEF['stake_usd'], float), 2),
             'loss_usd': round(_clamp(j.get('loss_usd'), 0, USD_HI, 0.0, float), 2),          # BT13
-            'minute': j.get('minute') is True, 'minute_n': _clamp(j.get('minute_n'), 2, 3, DEF['minute_n'])}          # BT7
+            'minute': j.get('minute') is True, 'minute_n': _clamp(j.get('minute_n'), 2, c, DEF['minute_n'])}          # BT7
 
 
 def _whole(v, lo, hi, name):
@@ -103,7 +103,7 @@ def save(uid, d):
     if 'minute' in d:          # BT7
         if not isinstance(d['minute'], bool): raise ValueError('minute must be true or false')
         new['minute'] = d['minute']
-    if 'minute_n' in d: new['minute_n'] = _whole(d['minute_n'], 2, 3, 'Entries each minute')
+    if 'minute_n' in d: new['minute_n'] = _whole(d['minute_n'], 2, c, 'Entries each minute')
     if 'quick_n' in d: new['quick_n'] = _whole(d['quick_n'], 1, c, 'Quick burst entries')
     if 'big_n' in d: new['big_n'] = _whole(d['big_n'], 1, c, 'Big burst entries')
     if 'quick_usd' in d: new['quick_usd'] = _money(d['quick_usd'], 'Quick target')

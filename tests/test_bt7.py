@@ -28,7 +28,7 @@ burst.save('', {'on': True, 'idle_min': 5})
 g = burst.get('')
 T('off by default, 2 entries a minute', g['minute'] is False and g['minute_n'] == 2)
 j = burst.save('', {'minute': True, 'minute_n': 3}); T('saved: on, 3 entries', j['minute'] is True and j['minute_n'] == 3)
-for bad in ({'minute': 'yes'}, {'minute': 1}, {'minute_n': 1}, {'minute_n': 4}, {'minute_n': 2.5}, {'minute_n': 'x'}):
+for bad in ({'minute': 'yes'}, {'minute': 1}, {'minute_n': 1}, {'minute_n': 16}, {'minute_n': 2.5}, {'minute_n': 'x'}):
     try: burst.save('', bad); ok = False
     except ValueError: ok = True
     T('bad %r refused' % (bad,), ok)
