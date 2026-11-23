@@ -905,6 +905,14 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - After the deploy the owner sees the same switches as before (copied). Other owner cards (group target and loss, limits, strategies) still use scope '': NOT checked, not changed here.
 - Tests: tests/test_bt9.py.
 
+## Section OC1 (no limit on open trades, owner switch) DONE (Nov 23)
+- Owner wish: the bot must not sit idle because 'Max open trades reached' (phone alert: 6 trades are open, so new signals wait). Setting no_open_cap (0 or 1, default 0, admin page checkbox 'No limit on open trades').
+- limits.no_cap(uid): on only for the OWNER (uid '' or a uid whose email is in ADMIN_EMAILS); subscribers keep their pick and the owner's ceiling. limits.max_open() returns UNLIMITED (1000) then, so risk.global_gate, multi, deriv_group and burst room sums all stop blocking. burst.plan() ignores the burst ceiling for the owner too (entries in ONE group are still limited by the burst ceiling number).
+- limits.view() adds max_open_unlimited; the Positions-at-once chip says 'Open now N, no limit'.
+- Still protecting the account: daily and weekly loss limits, loss-streak stop, news lock, currency exposure, symbol cooldown. NOT yet: a stop at 60% account loss, a dollar loss alert, margin check (next sections). Until those exist, keep this switch ON for a DEMO account only.
+- The ADMIN check here reads users.email without the 'verified' flag (same as app._paid).
+- Tests: tests/test_oc1.py.
+
 ## STATUS BOARD Nov 23 (newest; read this first, then the sections above it)
 - Owner's rules (unchanged): phone only (Termux), new files as cat heredocs, edits to existing files as python heredocs with an edit() helper (replace only if the old text appears exactly once, skip when already done), one block that runs the tests, one git block. One section per reply, owner says "go". NO Claude attribution in commits (no Co-Authored-By, no Claude-Session lines).
 - Owner's wishes for the screen assistant (Nov 23, dictated): (1) the floating button is the SpaceX symbol (the purple, yellow and white icon, branding/ic_large_sxb.png), not a plain bubble; (2) every cartoon in the panel comes from the website's own set (window.IL2 in static/index.html), NEVER new ones drawn by the AI; (3) one section at a time.

@@ -6,7 +6,7 @@ Rules:
  - A subscriber can only be STRICTER than the owner, never looser: trades = the smaller of the two (when the owner has a cap), streak the same.
    The owner's 0 means 'no limit' for trades and 'switched off' for the streak stop, so then the subscriber's own number applies on its own.
 The risk gate (risk.global_gate) asks trades(uid) and streak(uid) every time, so a change applies on the very next signal."""
-import json
+import json, os
 from . import store as st
 
 MAX_TRADES, MAX_STREAK, MAX_OPEN_HI = 100, 10, 50          # MAX_OPEN_HI: the most the owner can ever set as the ceiling
@@ -39,6 +39,19 @@ def streak(uid=''):
     """Effective loss-streak stop for the gate. 0 = off."""
     return _g('max_losing_streak') if not uid else _cap(_num(_mine(uid).get('ks')), _g('max_losing_streak'))
 
+UNLIMITED = 1000          # OC1: what 'no limit' counts as in the room sums
+
+def _owner(uid):
+    """OC1: the owner's own scope ('') or a signed-in admin's uid (the owner's Deriv / Binance bot runs under the owner's own uid)."""
+    if not uid: return True
+    r = st.q('SELECT email FROM users WHERE uid=?', (uid,), True)
+    adm = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
+    return bool(r) and (r['email'] or '').lower() in adm
+
+def no_cap(uid=''):
+    """OC1: True when the owner switched 'No limit on open trades' on (setting no_open_cap = 1). It applies to the OWNER only; every subscriber keeps the ceiling."""
+    return st.get('no_open_cap') == '1' and _owner(uid)
+
 def ceiling():
     """R4: the highest 'positions at once' a subscriber may pick. The owner sets it (setting max_open_ceiling, default 6). Never below 1."""
     return max(1, min(MAX_OPEN_HI, _g('max_open_ceiling') or 6))
@@ -46,6 +59,7 @@ def ceiling():
 def max_open(uid=''):
     """R4: how many positions the bot may hold at once for this person. The owner's own scope uses the global setting max_open. A subscriber uses the number
     they picked (kept per person, never above the owner's ceiling, even if the ceiling was lowered later); with no pick they get the owner's default."""
+    if no_cap(uid): return UNLIMITED          # OC1
     base = max(1, _g('max_open') or 3)
     try:
         from . import automode
@@ -57,7 +71,7 @@ def max_open(uid=''):
 
 def view(uid=''):
     """What the app shows: the person's OWN saved numbers (0 = none) and the owner's caps."""
-    mo = {'max_open': _num(_mine(uid).get('mo')) if uid else max_open(''), 'max_open_now': max_open(uid), 'max_open_default': max(1, _g('max_open') or 3), 'max_open_ceiling': ceiling()}
+    mo = {'max_open_unlimited': no_cap(uid), 'max_open': _num(_mine(uid).get('mo')) if uid else max_open(''), 'max_open_now': max_open(uid), 'max_open_default': max(1, _g('max_open') or 3), 'max_open_ceiling': ceiling()}
     if not uid: return dict({'max_trades': _g('max_trades_day'), 'streak': _g('max_losing_streak'), 'cap_trades': 0, 'cap_streak': 0}, **mo)
     m = _mine(uid); ct, cs = _g('max_trades_day'), _g('max_losing_streak')
     return dict(mo, **{'max_trades': _cap(_num(m.get('mt')), ct) if _num(m.get('mt')) else 0, 'streak': _cap(_num(m.get('ks')), cs) if _num(m.get('ks')) else 0, 'cap_trades': ct, 'cap_streak': cs})

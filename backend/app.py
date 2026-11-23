@@ -562,7 +562,7 @@ def admin_set(u):
             try: v = float(j[k])
             except (TypeError, ValueError): return jsonify(error='%s must be a number' % k), 400
             if not lo <= v <= hi: return jsonify(error='%s must be between %g and %g' % (k, lo, hi)), 400
-    for k in ('btc_sunday_bounce', 'btc_short_pullback', 'orb_session', 'screen_on'):          # BTC 6B switches: 0 or 1 only, checked before anything is saved
+    for k in ('btc_sunday_bounce', 'btc_short_pullback', 'orb_session', 'screen_on', 'no_open_cap'):          # BTC 6B switches: 0 or 1 only, checked before anything is saved
         if k in j and str(j[k]) not in ('0', '1'): return jsonify(error='%s must be 0 or 1' % k), 400
     for k, v in j.items():
         if k in st.DEFAULTS and k != 'plans': st.put(k, v)          # plans have their own checked route (/api/admin/plans)

@@ -172,7 +172,7 @@ def plan(uid, score, now=None, n=None):
     """-> (plan or None, why). The kind and size of the burst for a setup that `score` strategies agree on."""
     p = get(uid); big = n is None and int(score or 0) >= big_score() and p['big_n'] > p['quick_n']          # BT7: an entries number given (every minute) is never a big burst
     want = n if n else p['big_n'] if big else p['quick_n']
-    room = ceiling() - risk.open_count(uid)
+    room = (limits.UNLIMITED if limits.no_cap(uid) else ceiling()) - risk.open_count(uid)          # OC1: no burst ceiling for the owner when 'No limit' is on
     mt = limits.trades(uid)
     if mt > 0:
         used = st.q("SELECT COUNT(*) n FROM signals WHERE created>=? AND status IN('pending','sent','open','closed') AND COALESCE(uid,'')=?", (st.day_start(), uid or ''), True)['n']
