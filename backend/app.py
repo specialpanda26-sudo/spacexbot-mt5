@@ -858,6 +858,15 @@ def stats_reset_api(u):
         st.x('DELETE FROM kv WHERE k=?', (k,))
     return jsonify(ok=True, trades=n)
 
+@app.post('/api/stats/restart')
+@need(verified=True)
+def stats_restart_api(u):
+    """RS2: the Journal numbers count from now. {"undo": true} counts everything again. Deletes nothing and touches no limit."""
+    key = 'statsfrom:%s' % (u['uid'] or '')
+    if _j().get('undo'): st.x('DELETE FROM kv WHERE k=?', (key,))
+    else: st.put(key, int(time.time()) + 1)
+    return jsonify(ok=True)
+
 @app.get('/api/trade/<int:tid>')
 @need(verified=True)
 def trade_api(u, tid):

@@ -127,6 +127,12 @@ def burst_groups(uid, admin, limit=30):
             'groups': out[:max(1, int(limit))]}
 
 
+def stats_from(uid):
+    """RS2: seconds (UTC) from which the Journal numbers count, or 0 = everything."""
+    try: return max(0, int(float(st.get('statsfrom:%s' % (uid or '')) or 0)))
+    except (TypeError, ValueError): return 0
+
+
 def snapshot(uid, admin=False, broker='', result='all', limit=LIMIT, now=None):
     allr = _closed(uid, admin); brokers = sorted({r['broker'] for r in allr}, key=lambda b: (b not in KNOWN, b))
     want = _canon(broker) or (str(broker or '').strip()[:20] if broker else '')
@@ -135,5 +141,8 @@ def snapshot(uid, admin=False, broker='', result='all', limit=LIMIT, now=None):
     shown = show[:max(1, int(limit))]
     for r in shown: _detail(r)
     for r in allr: r.pop('_raw', None)
-    return {'rows': shown, 'open': open_now(uid, admin), 'total': len(show), 'stats': numbers(rows), 'pairs': by_pair(rows), 'brokers': brokers, 'broker': want, 'burst': burst_groups(uid, admin),          # BX2
+    cut = stats_from(uid); cnt = [r for r in rows if r['t'] >= cut] if cut else rows          # RS2
+    nums = numbers(cnt)
+    if cut: nums['from'] = cut
+    return {'rows': shown, 'open': open_now(uid, admin), 'total': len(show), 'stats': nums, 'pairs': by_pair(cnt), 'brokers': brokers, 'broker': want, 'burst': burst_groups(uid, admin),          # BX2
             'result': result if result in ('win', 'loss') else 'all', 'ts': int(now or time.time())}
