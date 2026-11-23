@@ -65,7 +65,7 @@ class MT5Broker:
         if not outs: return None
         r = outs[-1].reason
         return {'pnl': round(sum(x.profit + x.swap + x.commission + getattr(x, 'fee', 0.0) for x in d), 2),
-                'reason': 'tp' if r == m.DEAL_REASON_TP else 'sl' if r == m.DEAL_REASON_SL else 'other'}
+                'reason': 'tp' if r == m.DEAL_REASON_TP else 'sl' if r == m.DEAL_REASON_SL else 'other', 'price': float(outs[-1].price)}
 
     def send_market(self, sym, side, lots, sl, tp, comment, deviation, magic, fill):
         m = self._mt(); k = m.symbol_info_tick(sym); buy = side == 'buy'
@@ -74,3 +74,21 @@ class MT5Broker:
                           'type_time': m.ORDER_TIME_GTC, 'type_filling': fill})
         if r is None: return {'ok': False, 'retcode': -1, 'ticket': 0, 'price': 0, 'comment': str(m.last_error())}
         return {'ok': r.retcode in (m.TRADE_RETCODE_DONE, m.TRADE_RETCODE_PLACED), 'retcode': r.retcode, 'ticket': r.order, 'price': r.price, 'comment': r.comment}
+
+    def positions_pl(self, magic):
+        """Open positions of this bot with their live profit (profit + swap, same as the EA's basket watch)."""
+        m = self._mt(); r = m.positions_get()
+        if r is None: raise BrokerError('could not read open positions (%s)' % (m.last_error(),))
+        return [{'pid': p.identifier, 'ticket': p.ticket, 'comment': p.comment, 'symbol': p.symbol, 'pl': float(p.profit + p.swap),
+                 'type': p.type, 'volume': p.volume} for p in r if p.magic == magic]
+
+    def close_position(self, pos, deviation, magic):
+        """Close one position at market. True when MT5 accepted the close."""
+        m = self._mt(); k = m.symbol_info_tick(pos['symbol']); i = m.symbol_info(pos['symbol'])
+        if k is None or i is None: return False
+        buy = pos['type'] == m.POSITION_TYPE_BUY          # closing a buy = selling at the bid
+        fill = m.ORDER_FILLING_IOC if i.filling_mode & 2 else m.ORDER_FILLING_FOK if i.filling_mode & 1 else m.ORDER_FILLING_RETURN
+        r = m.order_send({'action': m.TRADE_ACTION_DEAL, 'symbol': pos['symbol'], 'volume': pos['volume'], 'position': pos['ticket'],
+                          'type': m.ORDER_TYPE_SELL if buy else m.ORDER_TYPE_BUY, 'price': k.bid if buy else k.ask, 'deviation': deviation,
+                          'magic': magic, 'type_time': m.ORDER_TIME_GTC, 'type_filling': fill})
+        return r is not None and r.retcode in (m.TRADE_RETCODE_DONE, m.TRADE_RETCODE_PLACED)

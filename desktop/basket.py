@@ -65,6 +65,7 @@ def _open(e, bk, ids, acct, bot):
     for sid, r in placed:
         if sid in pos: e.known[sid] = pos[sid]
         e._queue(sid, 'open', ticket=r['ticket'], lots=lots, price=r['price'])
+    _register(e, bk, gid, placed, acct)          # DK2
     e.log('burst group %d: %d of %d %s %s opened, %.2f lots each' % (gid, len(placed), n, side.upper(), sym, lots))
     return None
 
@@ -78,3 +79,88 @@ def run(e, bk, acct, bot):
     if why:
         e.log('burst group refused: %s' % why)
         for sid in ids: e._queue(sid, 'rejected', reason=why[:120])
+
+
+# ---------------- DK2: closing the group ----------------
+import time
+ARM = 30          # percent: the give-back guard only starts once the group profit reached this share of its target (EA: BasketArmPct)
+
+
+def _num(v, d=0.0):
+    try:
+        x = float(v)
+        return x if x == x else d
+    except (TypeError, ValueError): return d
+
+
+def _register(e, bk, gid, placed, acct):
+    """Remember the group's rules (target, give-back, loss limit in money) so the watch can close it. Saved with the app's state."""
+    if not placed: return
+    tgt, each, loss = _num(bk.get('tgt')), _num(bk.get('each')), _num(bk.get('loss'))
+    e.groups[gid] = {'t': round(tgt if tgt > 0 else each * len(placed), 2), 'b': int(_num(bk.get('gb'))), 'p': 0.0,
+                     'l': round(acct['balance'] * loss / 100.0, 2) if loss > 0 else 0.0, 'x': 0, 's': None, 'o': e.clock(), 'sids': [s for s, _ in placed]}
+    e._save()
+
+
+def _group_of(e, sid):
+    for g in e.groups.values():
+        if sid in (g.get('sids') or ()): return g
+    return None
+
+
+def close_extra(e, sid, info):
+    """What the 'closed' report carries. A trade the group watch closed says 'basket' (with the group profit); the closing price is sent when known."""
+    out = {'pnl': info['pnl'], 'reason': info['reason']}
+    if info.get('price'): out['price'] = info['price']
+    g = _group_of(e, sid)
+    if g is not None and g.get('x'):
+        out['reason'] = 'basket'
+        if g.get('s') is not None: out['gpnl'] = round(g['s'], 2)
+    return out
+
+
+def _close(e, ps):
+    for p in ps:
+        try: e.b.close_position(p, e.cfg['deviation'], e.cfg['magic'])
+        except Exception as x: e.log('group close failed for %s: %s (will retry)' % (p.get('ticket'), x.__class__.__name__))
+
+
+def manage(e):
+    """One look at every open group. Same rules as ManageBaskets in the EA: loss limit first, then target, then give-back."""
+    if not e.groups: return
+    try: pos = e.b.positions_pl(e.cfg['magic'])
+    except BrokerError: return
+    except Exception as x: e.log('group watch: %s' % x.__class__.__name__); return
+    live = {}
+    for p in pos:
+        g = gid_of(p['comment'])
+        if g: live.setdefault(g, []).append(p)
+    now = e.clock(); dirty = False
+    for gid, m in list(e.groups.items()):
+        ps = live.get(gid, [])
+        if not ps:          # nothing left: forget it once every close was reported
+            if not any(s in e.known for s in m.get('sids', ())) and now - (m.get('x') or m.get('o') or 0) > (60 if m.get('x') else 120): del e.groups[gid]; dirty = True
+            continue
+        if m.get('x'): _close(e, ps); continue          # already closing: finish it (retry what failed)
+        total = round(sum(p['pl'] for p in ps), 2)
+        if total > m['p']: m['p'] = total; dirty = True
+        why = None
+        if m['l'] > 0 and total <= -m['l']: why = 'hit its loss limit'
+        elif m['t'] > 0 and total >= m['t']: why = 'reached its target'
+        elif m['b'] > 0 and m['t'] > 0 and m['p'] >= m['t'] * ARM / 100.0 and total <= m['p'] * (1 - m['b'] / 100.0): why = 'is giving the profit back'
+        if why:
+            m['x'] = now; m['s'] = total; dirty = True
+            e.log('burst group %d %s: %+.2f (best %+.2f, target %.2f) - closing the group' % (gid, why, total, m['p'], m['t'])); _close(e, ps)
+    if dirty: e._save()
+
+
+def pause(e, stop, secs):
+    """Wait `secs` between passes, but look at the open groups about once a second (a small target can come and go within one pass)."""
+    end = time.time() + secs
+    while not stop.is_set():
+        left = end - time.time()
+        if left <= 0: break
+        if e.groups:
+            try: manage(e)
+            except Exception as x: e.log('group watch error: %s' % x.__class__.__name__)
+        stop.wait(min(1.0, max(0.05, left)))

@@ -15,6 +15,7 @@ class Engine:
         s = config.load_json(state_file) if state_file else {}
         self.known = {int(k): v for k, v in (s.get('known') or {}).items()}      # signal id -> MT5 position id, our open trades
         self.outbox = list(s.get('outbox') or []); self.done = list(s.get('done') or [])[-50:]
+        self.groups = {int(k): v for k, v in (s.get('groups') or {}).items() if isinstance(v, dict)}          # DK2: open burst groups
         self.offset = cfg['utc_offset_min'] if cfg['utc_offset_min'] is not None else s.get('offset_min')     # broker server time minus UTC, minutes
         self.closing = {}; self.first_push = True; self.last_push = 0; self.server_symbols = ''
         self._prev = None; self._cand = None; self._cand_n = 0; self._names = {}; self.logs = []
@@ -24,7 +25,7 @@ class Engine:
     def log(self, m):
         self.logs = (self.logs + ['%s  %s' % (time.strftime('%H:%M:%S'), m)])[-200:]; self._log(self.logs[-1])
     def _save(self):
-        if self.sf: config.save_json(self.sf, {'known': self.known, 'outbox': self.outbox, 'done': self.done, 'offset_min': self.offset})
+        if self.sf: config.save_json(self.sf, {'known': self.known, 'outbox': self.outbox, 'done': self.done, 'offset_min': self.offset, 'groups': self.groups})
     def _symbols(self): return [s.strip() for s in (self.cfg['symbols'] or self.server_symbols or DEFAULT_SYMBOLS).split(',') if s.strip()]
     def _resolve(self, canon):
         if canon not in self._names:
@@ -61,7 +62,7 @@ class Engine:
                 self.closing[sid] = self.closing.get(sid, 0) + 1
                 if self.closing[sid] > 30: self.log('signal %d: could not read its result, gave up' % sid); del self.known[sid]
                 continue
-            self._queue(sid, 'closed', pnl=info['pnl'], reason=info['reason']); del self.known[sid]; self.closing.pop(sid, None)
+            self._queue(sid, 'closed', **basket.close_extra(self, sid, info)); del self.known[sid]; self.closing.pop(sid, None)
             self.log('signal %d closed: %s %+.2f' % (sid, info['reason'].upper(), info['pnl']))
         return len(cur)
 
@@ -160,6 +161,7 @@ class Engine:
         if isinstance(sig, dict): self._execute(sig, acct, res.get('bot') is True)
         bk = res.get('basket')          # DK1: a burst group arrives as one basket
         if isinstance(bk, dict): basket.run(self, bk, acct, res.get('bot') is True)
+        basket.manage(self)          # DK2: close a group at its target / give-back / loss limit
         try: self._flush()
         except AuthError: pass
         msg = 'Waiting for the clock (a few seconds)...' if self.offset is None else 'Running. Bot is %s in the app.' % ('ON' if res.get('bot') else 'OFF')
@@ -172,4 +174,4 @@ class Engine:
             except Exception as e: self.log('unexpected error: %s: %s' % (e.__class__.__name__, e)); s = self._end('error', 'Unexpected error, retrying.')
             if on_status: on_status(s)
             fails = 0 if s['state'] in ('ok', 'expired') else fails + 1
-            stop.wait(self.cfg['poll_seconds'] if not fails else min(60, self.cfg['poll_seconds'] * 2 ** min(fails, 5)))
+            basket.pause(self, stop, self.cfg['poll_seconds'] if not fails else min(60, self.cfg['poll_seconds'] * 2 ** min(fails, 5)))
