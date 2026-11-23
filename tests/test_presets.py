@@ -83,6 +83,45 @@ T('a failing save refuses the tap', refused(presets.apply, A, 10))
 groupcap.save = real
 T('and rolls everything back (nothing half-applied, no snapshot left)', raw(A) == b4 and presets._snap(A) is None)
 
+# ---- S3: minimum-lot check ----
+import time as _t
+st.x("UPDATE users SET plan_until=? WHERE uid=?", (int(_t.time()) + 86400 * 30, A))
+KEY = links.new_key(A); EH = {'X-EA-Key': KEY}
+def candles(rng=2.0, n=40):
+    t0 = int(_t.time()) - n * 900; return [[t0 + i * 900, 2000, 2000 + rng / 2, 2000 - rng / 2, 2000, 1] for i in range(n)]
+GOLD = {'XAUUSD': {'vol_min': 0.01, 'tick_value': 1.0, 'tick_size': 0.01}}
+def sync(bal, sym=None, bars=True):
+    acct = {'balance': bal, 'equity': bal, 'open': 0, 'demo': True, 'allow_live': False, 'login': 1}
+    if sym is not None: acct['sym'] = sym
+    return c.post('/api/ea/sync', json={'account': acct, 'bars': {'XAUUSD': {'M15': candles()}} if bars else {}}, headers=EH)
+
+T('clean_sym drops bad numbers, names and shapes', presets.clean_sym({'XAUUSD': {'vol_min': 0.01, 'tick_value': 1, 'tick_size': 0.01}, 'bad name': GOLD['XAUUSD'], 'X': {'vol_min': -1, 'tick_value': 1, 'tick_size': 1}, 'Y': {'vol_min': True, 'tick_value': 1, 'tick_size': 1}, 'Z': 5, 'W': {'vol_min': float('nan'), 'tick_value': 1, 'tick_size': 1}}).keys() == {'XAUUSD'})
+T('clean_sym: not a dict gives nothing', presets.clean_sym(None) == {} and presets.clean_sym([1]) == {})
+r = sync(1000)
+a0 = st.acct(A)
+T('OLD EA payload (no sym field): sync works exactly as before', r.status_code == 200 and 'sym' not in a0 and a0.get('balance') == 1000)
+m = presets.min_lot(A, 20)
+T('no min-lot facts: nothing is claimed, no warning, tap not blocked', m['known'] is False and not m['warn'] and not m['blocked'] and m['message'] == '')
+presets.apply(A, 20); presets.undo(A)
+T('new EA payload with sym is accepted and kept', sync(1000, GOLD).status_code == 200 and st.acct(A).get('sym') == GOLD)
+T('garbage sym is dropped, the rest of the sync still works', sync(1000, {'XAUUSD': {'vol_min': 'x'}, 'q': 1}).status_code == 200 and 'sym' not in st.acct(A) and st.acct(A).get('balance') == 1000)
+sync(1000, GOLD)
+m = presets.min_lot(A, 20); row = m['rows'][0]
+T('worst case = min lot x (3.5 ATR / tick size) x tick value (gold, range 2 -> 7 dollars)', abs(row['worst_usd'] - 7.0) < 0.2 and abs(row['best_usd'] - 1.0) < 0.1 and row['min_lot'] == 0.01)
+T('1000 balance: limit 10 dollars, no warning', m['known'] and m['risk_usd'] == 10.0 and not m['warn'] and m['message'] == '')
+sync(100, GOLD); m = presets.min_lot(A, 20)
+T('100 balance: limit 1 dollar, worst case 7 -> the plain warning shows, but the tap is allowed (some setups still fit)', m['warn'] and m['message'] == presets.WORDS and not m['blocked'] and presets.status(A)['minlot']['20']['warn'])
+sync(50, GOLD); b4 = raw(A)
+T('50 balance: even the smallest stop is too big -> blocked with the plain message', presets.min_lot(A, 20)['blocked'] and 'cent account or a demo' in presets.WORDS)
+try: presets.apply(A, 20); ok = False
+except ValueError as e: ok = str(e) == presets.WORDS
+T('blocked tap is refused with that message and NOTHING changes', ok and raw(A) == b4 and presets._snap(A) is None)
+sync(1000, GOLD)
+T('balance grows: the check clears and the tap works again', presets.apply(A, 20)['active'] == 20); presets.undo(A)
+from backend import bars as _bars
+_bars.merge('EURUSD', 'M15', candles(), uid=A); st.set_acct({'balance': 1000, 'equity': 1000, 'open': 0, 'demo': True, 'sym': dict(GOLD, EURUSD={'vol_min': 1.0, 'tick_value': 1.0, 'tick_size': 0.00001})}, A)
+T('min-lot check only looks at markets the owner allows (EURUSD is not in Symbols, so it is ignored)', [x['symbol'] for x in presets.min_lot(A, 20)['rows']] == ['XAUUSD'])
+
 n = len(R); bad = [x for x, ok in R if not ok]
 print('%d checks, %d failed' % (n, len(bad)))
 for f in glob.glob(DB + '*'): os.remove(f)

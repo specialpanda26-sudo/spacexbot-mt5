@@ -304,11 +304,25 @@ void OnTimer()
    if(GetTickCount() - lastPoll < (uint)(PollSeconds * 1000)) return;                  // the server is still polled every PollSeconds
    lastPoll = GetTickCount(); PollServer();
 }
+string SymJson()
+{  // optional: the smallest lot, tick value and tick size of each market, so the server can warn BEFORE a group is refused for min lot
+   string list[]; int n = StringSplit(Symbols, ',', list); string s = ""; int k = 0;
+   for(int i = 0; i < n; i++)
+   {
+      StringTrimLeft(list[i]); StringTrimRight(list[i]);
+      string sy = list[i] + SymbolSuffix;
+      double mn = SymbolInfoDouble(sy, SYMBOL_VOLUME_MIN), tv = SymbolInfoDouble(sy, SYMBOL_TRADE_TICK_VALUE), ts = SymbolInfoDouble(sy, SYMBOL_TRADE_TICK_SIZE);
+      if(mn <= 0 || tv <= 0 || ts <= 0) continue;
+      if(k++ > 0) s += ",";
+      s += "\"" + list[i] + "\":{\"vol_min\":" + DoubleToString(mn, 4) + ",\"tick_value\":" + DoubleToString(tv, 8) + ",\"tick_size\":" + DoubleToString(ts, 8) + "}";
+   }
+   return (s == "") ? "" : ",\"sym\":{" + s + "}";
+}
 void PollServer()
 {
    string acct = "{\"balance\":" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + ",\"equity\":" + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2)
                + ",\"open\":" + (string)OurPositions() + ",\"demo\":" + (IsDemo() ? "true" : "false") + ",\"allow_live\":" + (AllowLive ? "true" : "false")
-               + ",\"login\":" + (string)AccountInfoInteger(ACCOUNT_LOGIN) + "}";
+               + ",\"login\":" + (string)AccountInfoInteger(ACCOUNT_LOGIN) + SymJson() + "}";
    string bars = "";
    if(TimeLocal() - lastBars >= BarsPushSeconds || firstPush)
    {

@@ -12,8 +12,8 @@ Rules (the tests check each one):
 Not included (they have no per-person setting or no server rule today, so they are NOT set and the card says so): drawdown stop,
 daily profit target + stop for the day, daily/weekly loss % (global owner settings). Kept in NOT_INCLUDED for the card text only.
 Nothing here claims it makes money or keeps an account safe: it only makes the bot take smaller, fewer trades."""
-import json, time
-from . import store as st, prefs, limits, groupcap, burst, links, brokers as bk
+import json, re, time
+from . import store as st, prefs, limits, groupcap, burst, links, brokers as bk, automode, bars, indicators
 
 # ---- the three tiers: change numbers here only ----
 BASE = {'strategies': ['jg_pullback', 'heikin_flip', 'fvg_retrace'], 'alone': True, 'min_conf': 1, 'entries': 1,
@@ -79,9 +79,59 @@ def values(tier, uid=''):
             'burst_on': False, 'minute': False}
 
 
+# ---- S3: the minimum-lot check (before trading, not after) ----
+WORDS = 'Your balance is too small for this market on this account type. Try a cent account or a demo.'
+SYM_MAX = 12
+
+
+def clean_sym(x):
+    """The optional per-market facts the EA may send: {name: {vol_min, tick_value, tick_size}}. Anything odd is dropped. {} = nothing usable."""
+    out = {}
+    if not isinstance(x, dict): return out
+    for k, v in list(x.items())[:SYM_MAX]:
+        if not isinstance(k, str) or not re.fullmatch(r'[A-Za-z0-9._]{1,20}', k) or not isinstance(v, dict): continue
+        row = {}
+        for f in ('vol_min', 'tick_value', 'tick_size'):
+            n = v.get(f)
+            if isinstance(n, bool) or not isinstance(n, (int, float)) or n != n or n <= 0 or n > 1e9: break
+            row[f] = float(n)
+        else: out[k] = row
+    return out
+
+
+def min_lot(uid, tier):
+    """Worst-case loss in dollars of the SMALLEST lot at the bot's widest stop (automode.max_stop ATR of the 15-minute candles; the bot
+    never uses a wider one), against this tier's risk limit (balance x risk %). Same sum the EA does ('min lot would risk more than allowed').
+    known False = the EA did not send min lots (old EA), or no balance / candles yet: nothing is claimed, the EA's own check still applies.
+    warn = the worst case is above the limit for at least one market. blocked = even the smallest stop (0.5 ATR) is above it for EVERY market."""
+    t = values(tier, uid); a = st.acct(uid) or {}
+    try: bal = float(a.get('balance') or 0)
+    except (TypeError, ValueError): bal = 0.0
+    lim = round(bal * t['risk_pct'] / 100.0, 2)
+    out = {'known': False, 'balance': round(bal, 2), 'risk_pct': t['risk_pct'], 'risk_usd': lim, 'rows': [], 'warn': False, 'blocked': False, 'message': ''}
+    sym = clean_sym(a.get('sym')); mine = {x.strip() for x in (st.get('symbols') or '').split(',') if x.strip()}
+    if bal <= 0 or not sym: return out
+    wide = automode.max_stop()
+    for name, f in sym.items():
+        if mine and name not in mine: continue
+        b = bars.get(name, 'M15', uid)
+        if len(b) < 15: continue
+        r = indicators.atr(b)[-1]
+        if not r > 0: continue
+        per = lambda d: f['vol_min'] * (d / f['tick_size']) * f['tick_value']
+        worst, best = per(r * wide), per(r * 0.5)
+        out['rows'].append({'symbol': name, 'min_lot': f['vol_min'], 'worst_usd': round(worst, 2), 'best_usd': round(best, 2),
+                            'too_small': worst > lim, 'all_skipped': best > lim})
+    if not out['rows']: return out
+    out['known'] = True; out['warn'] = any(x['too_small'] for x in out['rows']); out['blocked'] = all(x['all_skipped'] for x in out['rows'])
+    if out['warn']: out['message'] = WORDS
+    return out
+
+
 def apply(uid, tier):
     """Apply a tier for this person. Raises ValueError (nothing changed) when refused or when a save fails. Returns status(uid)."""
     tier = _tier(tier); _check_person(uid)
+    if min_lot(uid, tier)['blocked']: raise ValueError(WORDS)          # S3: no market could trade at this size, so say so now instead of skipping trades quietly
     v = values(tier, uid)
     old = _snap(uid); prev = old['prev'] if old else _read_raw(uid)          # a second tap keeps the ORIGINAL values for undo
     st.put(_snap_key(uid), json.dumps({'tier': tier, 'prev': prev, 't': int(time.time())}))
@@ -112,4 +162,5 @@ def status(uid):
     """What the card needs: the tiers (with this person's capped values), which one is on, whether undo is possible."""
     s = _snap(uid) if uid else None
     return {'tiers': {str(k): values(k, uid) for k in TIERS}, 'active': s['tier'] if s else None, 'can_undo': bool(s),
-            'not_included': NOT_INCLUDED, 'owner': bool(not uid or limits._owner(uid))}
+            'not_included': NOT_INCLUDED, 'owner': bool(not uid or limits._owner(uid)),
+            'minlot': {} if not uid or limits._owner(uid) else {str(k): min_lot(uid, k) for k in TIERS}}

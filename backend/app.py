@@ -14,7 +14,7 @@ def _boom(e):
     import traceback; print('500', request.path, repr(e)[:300]); traceback.print_exc(); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 from . import manual_close, burst_scope, btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
-from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck
+from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck, presets
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -209,11 +209,14 @@ def ea_sync():
     who = _ea_who()
     if who is None: return jsonify(error='bad key'), 401
     d = _j(True); a = d.get('account') if isinstance(d.get('account'), dict) else {}; bz = d.get('bars') if isinstance(d.get('bars'), dict) else {}
+    sy = presets.clean_sym(a.get('sym'))          # S3: optional min-lot facts from a newer EA
     if who:
         if not _paid(who): return jsonify(signal=None, bot=False, expired=True, symbols=st.get('symbols'))          # plan ended: nothing is stored or traded
         a = {k: a[k] for k in ('balance', 'equity', 'open', 'demo', 'allow_live', 'login') if k in a}                   # only the fields we know
         ok = {x.strip() for x in (st.get('symbols') or '').split(',') if x.strip()}
         bz = {s: v for s, v in list(bz.items())[:12] if s in ok}                                                        # only the owner's symbol list
+    a.pop('sym', None)
+    if sy: a['sym'] = sy          # S3: only checked numbers are kept; an old EA sends none and nothing changes
     st.set_acct(a, who)
     try:          # CY4: a next group that had to wait for the account snapshot to catch up is tried again now
         from . import mt5_cycle; mt5_cycle.retry(who)
