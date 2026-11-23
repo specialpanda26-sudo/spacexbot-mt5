@@ -122,6 +122,37 @@ from backend import bars as _bars
 _bars.merge('EURUSD', 'M15', candles(), uid=A); st.set_acct({'balance': 1000, 'equity': 1000, 'open': 0, 'demo': True, 'sym': dict(GOLD, EURUSD={'vol_min': 1.0, 'tick_value': 1.0, 'tick_size': 0.00001})}, A)
 T('min-lot check only looks at markets the owner allows (EURUSD is not in Symbols, so it is ignored)', [x['symbol'] for x in presets.min_lot(A, 20)['rows']] == ['XAUUSD'])
 
+# ---- S4: the routes ----
+EA_, BO = H('amy@x.com'), H('boss@x.com')
+sync(1000, GOLD); pre = raw(A); glb = {k: st.get(k) for k in ('max_trades_day', 'max_losing_streak', 'max_open', 'risk_pct', 'max_daily_loss_pct', 'max_open_ceiling')}
+T('GET /api/presets needs sign-in', c.get('/api/presets').status_code == 401 and c.post('/api/presets', json={'tier': 10}).status_code == 401)
+g = c.get('/api/presets', headers=EA_).get_json()
+T('GET: the three tiers, nothing active, no undo, demo yes, owner no', set(g['tiers']) == {'10', '20', '30'} and g['active'] is None and g['can_undo'] is False and g['demo'] is True and g['owner'] is False and 'Drawdown stop' in g['not_included'])
+T('GET: the worst-case dollars for each tier are there before anyone confirms', g['minlot']['20']['known'] and g['minlot']['20']['rows'][0]['worst_usd'] > 0)
+r = c.post('/api/presets', json={'tier': 20}, headers=EA_); j = r.get_json()
+T('POST tier 20: 200, active 20, undo possible', r.status_code == 200 and j['active'] == 20 and j['can_undo'] is True)
+T('POST wrote through the real saves (entries 1, 3 strategies, burst off, one position)', prefs.get(A)['entries'] == 1 and len(prefs.get(A)['strategies']) == 3 and burst.get(A)['on'] is False and limits.max_open(A) == 1)
+for bad in (15, 'x', True, 20.5, None, [20], {}, float('nan')):
+    body = {'tier': bad} if bad != {} else {}
+    rr = c.post('/api/presets', data=json.dumps(body, allow_nan=True), content_type='application/json', headers=EA_)
+    T('bad tier refused (400) and still on 20: %r' % (bad,), rr.status_code == 400 and 'error' in rr.get_json() and presets.status(A)['active'] == 20)
+T('a body that is not an object is refused', c.post('/api/presets', json=[20], headers=EA_).status_code == 400)
+T('"30" as text works (same number)', c.post('/api/presets', json={'tier': '30'}, headers=EA_).get_json()['active'] == 30)
+r = c.post('/api/presets', json={'undo': True}, headers=EA_)
+T('POST undo: 200 and the exact old values are back', r.status_code == 200 and r.get_json()['active'] is None and raw(A) == pre)
+T('undo again: 400 plain message', c.post('/api/presets', json={'undo': True}, headers=EA_).status_code == 400)
+T('someone who never tapped (B) is untouched by all of this', raw(B) == before_b and presets._snap(B) is None)
+ob = c.get('/api/presets', headers=BO).get_json()
+T('owner GET: owner true, nothing to tap, no min-lot rows', ob['owner'] is True and ob['minlot'] == {} and ob['demo'] is False)
+ro = c.post('/api/presets', json={'tier': 10}, headers=BO)
+T('owner POST refused and no global setting moved', ro.status_code == 400 and glb == {k: st.get(k) for k in glb} and presets._snap('') is None)
+st.x("UPDATE links SET mode='real' WHERE uid=?", (A,))
+rr = c.post('/api/presets', json={'tier': 10}, headers=EA_)
+T('Real mode: 400 "try demo first", nothing changes, GET says demo false', rr.status_code == 400 and 'demo' in rr.get_json()['error'].lower() and raw(A) == pre and c.get('/api/presets', headers=EA_).get_json()['demo'] is False)
+st.x("UPDATE links SET mode='demo' WHERE uid=?", (A,))
+sync(50, GOLD); rr = c.post('/api/presets', json={'tier': 10}, headers=EA_)
+T('too-small balance: 400 with the plain balance message', rr.status_code == 400 and rr.get_json()['error'] == presets.WORDS and raw(A) == pre)
+
 n = len(R); bad = [x for x, ok in R if not ok]
 print('%d checks, %d failed' % (n, len(bad)))
 for f in glob.glob(DB + '*'): os.remove(f)

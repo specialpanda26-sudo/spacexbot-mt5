@@ -957,6 +957,20 @@ def burst_set(u):
     learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in burst.KEYS}})
     return jsonify(burst.view(sc))
 
+@app.get('/api/presets')
+@need(verified=True)
+def presets_get(u): return jsonify(presets.status(_mine(u)))          # the owner gets owner=True and no tap (backend/presets.py)
+
+@app.post('/api/presets')
+@need(verified=True)
+def presets_set(u):
+    j = _j(); sc = _mine(u)
+    if not isinstance(j, dict): return jsonify(error='Send the choice as an object'), 400
+    try: out = presets.undo(sc) if j.get('undo') is True else presets.apply(sc, j.get('tier'))
+    except ValueError as e: return jsonify(error=str(e)), 400
+    learn.log(u['uid'], 'setting', data={'path': request.path, 'preset': 'undo' if j.get('undo') is True else out['active']})
+    return jsonify(out)
+
 @app.get('/api/live/why')          # LIVE2: why is the phone notification not showing
 @need(verified=True)
 def live_why(u):

@@ -28,8 +28,10 @@ KEYS = {'pref': 'pref:', 'lim': 'lim:', 'gcap': 'gcap:', 'burst': 'burst:'}     
 
 
 def _tier(n):
-    try: n = int(n)
-    except (TypeError, ValueError): n = 0
+    """10, 20 or 30 (a whole number, or the same number as text). Anything else, True and 20.5 included, is refused."""
+    if isinstance(n, bool) or not isinstance(n, (int, float, str)): n = 0
+    try: f = float(n); n = int(f) if f == int(f) else 0
+    except (TypeError, ValueError, OverflowError): n = 0
     if n not in TIERS: raise ValueError('Pick the $10, $20 or $30 settings')
     return n
 
@@ -163,4 +165,5 @@ def status(uid):
     s = _snap(uid) if uid else None
     return {'tiers': {str(k): values(k, uid) for k in TIERS}, 'active': s['tier'] if s else None, 'can_undo': bool(s),
             'not_included': NOT_INCLUDED, 'owner': bool(not uid or limits._owner(uid)),
+            'demo': bool(uid) and links.mode(uid) != 'real' and bk.mode(uid, 'Deriv') != 'real',
             'minlot': {} if not uid or limits._owner(uid) else {str(k): min_lot(uid, k) for k in TIERS}}
