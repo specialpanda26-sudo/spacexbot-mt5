@@ -171,7 +171,9 @@ def _burst_scan(sym, uid=''):
     ok, why = burst.look(uid)
     if not ok or (risk.crypto_open() and risk.weekend_skip(sym)): return
     if risk.weekday_skip(sym): return          # B1: Bitcoin weekends-only mode
-    m5 = bars.get(sym, 'M5', uid); tf, hi = ('M5', 'M15') if m5 else ('M15', 'H1')
+    m5 = bars.get(sym, 'M5', uid)
+    if m5 and len(m5) < 120 and len(bars.get(sym, 'M15', uid)) >= 120: m5 = []          # BT11: too few 5-minute candles for the strategies (a fresh EA start or restart), the 15-minute ones have enough
+    tf, hi = ('M5', 'M15') if m5 else ('M15', 'H1')
     m = m5 or bars.get(sym, 'M15', uid); h = bars.get(sym, hi, uid)
     if not m: burst_look.note(uid, sym + ': no candles received yet.'); return          # BT5
     key = f'lastbar:{uid}:{sym}:burst'

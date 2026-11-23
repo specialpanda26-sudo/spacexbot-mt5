@@ -927,6 +927,11 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Not changed: the EA, the burst rules, the 20-second scan gap. Cost: one small kv write per market per timeframe every 2 minutes.
 - Tests: tests/test_bt10.py.
 
+## Section BT11 (burst picks the timeframe that has enough candles) DONE (Nov 23)
+- Checked first, as planned: burst on Deriv. The Deriv loop (backend/deriv.py) fetches 300 M15 and 200 H1 candles itself every round (M5 too when 'fast' is on), so a restart does not starve it. The owner's card said 'MT5 is not talking' because the owner's bot is on MT5 (scope ''), not Deriv: botstate.explain only shows the Deriv state when Deriv is the running one. Nothing to fix on the Deriv side.
+- Found on the MT5 side: backend/app.py _burst_scan took the 5-minute candles whenever ANY existed, even 20 of them, so the strategies (need 120) said 'Not enough candle history' while the 15-minute candles were enough. Now the 5-minute candles are used only with 120 or more; otherwise the 15-minute ones (when they have 120 or more). Both short: unchanged (the card says not enough history).
+- Tests: tests/test_bt11.py.
+
 ## STATUS BOARD Nov 23 (newest; read this first, then the sections above it)
 - Owner's rules (unchanged): phone only (Termux), new files as cat heredocs, edits to existing files as python heredocs with an edit() helper (replace only if the old text appears exactly once, skip when already done), one block that runs the tests, one git block. One section per reply, owner says "go". NO Claude attribution in commits (no Co-Authored-By, no Claude-Session lines).
 - Owner's wishes for the screen assistant (Nov 23, dictated): (1) the floating button is the SpaceX symbol (the purple, yellow and white icon, branding/ic_large_sxb.png), not a plain bubble; (2) every cartoon in the panel comes from the website's own set (window.IL2 in static/index.html), NEVER new ones drawn by the AI; (3) one section at a time.
