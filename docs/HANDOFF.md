@@ -938,6 +938,13 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Words only. It does not start MT5 or change what the bot does.
 - Tests: tests/test_bt12.py.
 
+## Section BT13 (burst loss limit in USD) DONE (Nov 23)
+- Owner wish (dictated): the person says how much a burst may lose in dollars, e.g. 'on my 1,000 USD it must not lose 20 USD', 'on my 10 USD not 4 USD'. This replaces the planned admin field for burst_loss_target (the BT8 win/loss-rate target stays as it was, owner setting, words only).
+- New burst choice loss_usd (0 = no limit, else 0.1 to 1000), on the Bot tab burst card ('Most a burst group may lose ($, empty = no limit)'; saving with the box empty clears it). burst.create turns it into a percent of the account balance known at that moment (usd / balance x 100, at most 100) and saves it as the group's 'loss' (kv bg:<id>, also 'loss_usd'). The MT5 bridge (EA: balBefore x loss% / 100) and the Deriv engine (deriv_group.loss_limit: bal0 x loss% / 100) already close a WHOLE group at that loss, so no EA rebuild. If the person's group loss limit (percent) is also on, the smaller one wins.
+- With a limit set and no account balance known yet, burst.plan refuses to open (the Last look line says why): a loss limit that cannot be set must not be skipped silently.
+- The stop loss of each entry still applies (burst entries share the risk of one normal trade). The limit is checked when the bridge or Deriv loop reads the group, so the real loss can pass it by the slippage of one check; it is not a guarantee.
+- Tests: tests/test_bt13.py.
+
 ## STATUS BOARD Nov 23 (newest; read this first, then the sections above it)
 - Owner's rules (unchanged): phone only (Termux), new files as cat heredocs, edits to existing files as python heredocs with an edit() helper (replace only if the old text appears exactly once, skip when already done), one block that runs the tests, one git block. One section per reply, owner says "go". NO Claude attribution in commits (no Co-Authored-By, no Claude-Session lines).
 - Owner's wishes for the screen assistant (Nov 23, dictated): (1) the floating button is the SpaceX symbol (the purple, yellow and white icon, branding/ic_large_sxb.png), not a plain bubble; (2) every cartoon in the panel comes from the website's own set (window.IL2 in static/index.html), NEVER new ones drawn by the AI; (3) one section at a time.

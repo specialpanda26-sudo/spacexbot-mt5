@@ -19,7 +19,7 @@ from . import store as st, links, risk, limits, multi, groupcap, burst_look, bur
 
 HI = 30
 AUTO_WHY = 'Auto mode is on, and Auto mode turns burst off'          # BX1: the scanner always stopped here, the card never said so
-DEF = {'on': False, 'idle_min': 5, 'quick_n': 5, 'big_n': 15, 'quick_usd': 0.5, 'big_usd': 1.0, 'giveback': 40, 'stake_usd': 0.5, 'minute': False, 'minute_n': 2}
+DEF = {'on': False, 'idle_min': 5, 'quick_n': 5, 'big_n': 15, 'quick_usd': 0.5, 'big_usd': 1.0, 'giveback': 40, 'stake_usd': 0.5, 'minute': False, 'minute_n': 2, 'loss_usd': 0.0}
 KEYS = tuple(DEF)
 USD_LO, USD_HI = 0.05, 1000.0
 
@@ -41,6 +41,11 @@ def big_score():
     try: v = int(float(st.get('burst_big_score')))
     except (TypeError, ValueError): v = 3
     return max(2, min(10, v))
+
+
+def _balance(uid):          # BT13
+    try: return float((st.acct(uid) or {}).get('balance') or 0)
+    except (TypeError, ValueError): return 0.0
 
 
 def _raw(uid):
@@ -67,6 +72,7 @@ def get(uid=''):
             'big_usd': round(_clamp(j.get('big_usd'), USD_LO, USD_HI, DEF['big_usd'], float), 2),
             'giveback': _clamp(j.get('giveback'), 0, 90, DEF['giveback']),
             'stake_usd': round(_clamp(j.get('stake_usd'), 0, USD_HI, DEF['stake_usd'], float), 2),
+            'loss_usd': round(_clamp(j.get('loss_usd'), 0, USD_HI, 0.0, float), 2),          # BT13
             'minute': j.get('minute') is True, 'minute_n': _clamp(j.get('minute_n'), 2, 3, DEF['minute_n'])}          # BT7
 
 
@@ -108,6 +114,11 @@ def save(uid, d):
         except (TypeError, ValueError): sv = float('nan')
         if sv != sv or not (sv == 0 or 0.1 <= sv <= USD_HI): raise ValueError('Stake per entry must be 0 (normal sizing) or from 0.1 to %g USD' % USD_HI)
         new['stake_usd'] = round(sv, 2)
+    if 'loss_usd' in d:          # BT13: the most one burst group may lose, in USD (0 = no limit)
+        try: lv = float('nan') if isinstance(d['loss_usd'], bool) else float(d['loss_usd'])
+        except (TypeError, ValueError): lv = float('nan')
+        if lv != lv or not (lv == 0 or 0.1 <= lv <= USD_HI): raise ValueError('Most a burst group may lose must be 0 (no limit) or from 0.1 to %g USD' % USD_HI)
+        new['loss_usd'] = round(lv, 2)
     cur.update(new)
     st.put('burst:' + (uid or ''), json.dumps(cur))
     return get(uid)
@@ -179,6 +190,7 @@ def plan(uid, score, now=None, n=None):
         room = min(room, mt - used)
     n = min(want, room)
     if n < 2: return None, 'not enough room for a burst (%d free)' % max(0, room)
+    if p['loss_usd'] > 0 and _balance(uid) <= 0: return None, 'the account balance is not known yet, so the loss limit of %g USD cannot be set' % p['loss_usd']          # BT13
     return {'kind': 'big' if big else 'quick', 'n': n, 'each': p['big_usd'] if big else p['quick_usd'], 'giveback': p['giveback'], 'score': int(score or 0), 'stake': p['stake_usd']}, 'ok'
 
 
@@ -197,6 +209,9 @@ def create(uid, sym, s, pl, reason='', now=None):
     gr = groupcap.rules(uid, n)          # the person's group target / loss limit, when they switched it on
     if gr: gm.update(tgt=gr['tgt'], loss=gr['loss'])
     if not gr: gm['dtgt'] = round(float(pl['each']) * n, 2)          # BT2: the Deriv engine closes the group when the entries together reach entries x target each
+    lu = get(uid)['loss_usd']; bal = _balance(uid)          # BT13: the person's USD loss limit becomes the percent of the balance the bridge and the Deriv engine already stop a group at; the smaller of two limits wins
+    if lu > 0 and bal > 0:
+        pc = min(100.0, round(lu / bal * 100, 4)); gm['loss'] = min(gm['loss'], pc) if gm.get('loss') else pc; gm['loss_usd'] = lu
     st.put('bg:%d' % first, json.dumps(gm))
     return ids
 
