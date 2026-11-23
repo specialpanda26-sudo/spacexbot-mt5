@@ -932,6 +932,12 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - Found on the MT5 side: backend/app.py _burst_scan took the 5-minute candles whenever ANY existed, even 20 of them, so the strategies (need 120) said 'Not enough candle history' while the 15-minute candles were enough. Now the 5-minute candles are used only with 120 or more; otherwise the 15-minute ones (when they have 120 or more). Both short: unchanged (the card says not enough history).
 - Tests: tests/test_bt11.py.
 
+## Section BT12 (burst card: how long MT5 has been silent) DONE (Nov 23)
+- Found: the burst card already said 'MT5 is not talking to the server...' (botstate PLAIN['EA offline'], through burst.explain) but not for how long.
+- backend/burst_bridge.py since(uid, now): ' Last contact: 11 min ago.' (or ' The bridge has not connected yet.'), read from the account snapshot time (st.acct seen). burst.explain adds it only when the reason is 'EA offline' (the gate order is unchanged: bot off and the other reasons keep their own words). No page change: the Bot tab already prints now.why.
+- Words only. It does not start MT5 or change what the bot does.
+- Tests: tests/test_bt12.py.
+
 ## STATUS BOARD Nov 23 (newest; read this first, then the sections above it)
 - Owner's rules (unchanged): phone only (Termux), new files as cat heredocs, edits to existing files as python heredocs with an edit() helper (replace only if the old text appears exactly once, skip when already done), one block that runs the tests, one git block. One section per reply, owner says "go". NO Claude attribution in commits (no Co-Authored-By, no Claude-Session lines).
 - Owner's wishes for the screen assistant (Nov 23, dictated): (1) the floating button is the SpaceX symbol (the purple, yellow and white icon, branding/ic_large_sxb.png), not a plain bubble; (2) every cartoon in the panel comes from the website's own set (window.IL2 in static/index.html), NEVER new ones drawn by the AI; (3) one section at a time.

@@ -15,7 +15,7 @@ The idea, in plain words:
 Settings are saved per person in kv 'burst:<uid>' (uid '' = the owner's own bot). Group facts are kept in kv 'bg:<group id>'.
 Nothing here claims it makes more money. Only a demo run or tools/backtest.py can say that."""
 import json, time
-from . import store as st, links, risk, limits, multi, groupcap, burst_look, burst_live, burst_results, automode
+from . import store as st, links, risk, limits, multi, groupcap, burst_look, burst_live, burst_results, automode, burst_bridge
 
 HI = 30
 AUTO_WHY = 'Auto mode is on, and Auto mode turns burst off'          # BX1: the scanner always stopped here, the card never said so
@@ -227,7 +227,9 @@ def explain(uid='', now=None, admin=False):
     if why == AUTO_WHY: return {'state': 'waiting', 'blocked': 'auto', 'why': 'Paused: Auto mode is ON, and Auto mode turns burst off. Switch Auto mode off (admin page, or AUTO_MODE=0 on Render) and burst starts.'}          # BX1
     if ok: return {'state': 'ready', 'why': 'Quiet long enough. It looks for a quick chance on the next candle check.'}
     if why.startswith('quiet for'): return {'state': 'waiting', 'why': 'Watching. The bot has been %s without a trade; after that it looks for a quick small-profit chance.' % why[len('quiet for '):]}
-    return {'state': 'waiting', 'why': botstate._words(why)}
+    w = botstate._words(why)
+    if why == 'EA offline': w += burst_bridge.since(uid, now)          # BT12: how long the MT5 bridge has been silent
+    return {'state': 'waiting', 'why': w}
 
 
 def view(uid='', now=None):
