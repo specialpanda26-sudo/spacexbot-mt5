@@ -13,7 +13,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     import traceback; print('500', request.path, repr(e)[:300]); traceback.print_exc(); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import burst_scope, btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
+from . import manual_close, burst_scope, btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
 from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck
 _last_scan = {}
 
@@ -233,11 +233,13 @@ def ea_sync():
     if s and who and risk.bot_on(who) and not links.bot_on(who): s = None          # R7: the bot is on only for Deriv, so this signal is for Deriv; the MT5 bridge never sees it (the MT5 bridge itself ignores the bot flag)
     if s and not tradeon.allows(who, 'MT5'): s = None          # 5A: another platform was chosen, so the MT5 bridge gets nothing
     bk = burst.basket(s, who) if s else None          # a burst group goes out ALL AT ONCE as one basket (the old way would send one entry per poll)
+    if bk and manual_close.on(who): bk.update(tgt=manual_close.FAR, gb=0, tp=manual_close.far_tp(bk['side'], bk['sl'], bk['tp']))          # MC1: the owner closes the profits
     if bk:
         for i in bk['ids'].split(','): st.x("UPDATE signals SET status='sent' WHERE id=?", (int(i),)); lag.stamp(int(i), 'sent')
         bk['stake_pct'] = 0.0          # Section 2: a burst basket is many small entries, it never gets a big stake
         return jsonify(signal=None, basket=bk, bot=links.bot_on(who) and tradeon.allows(who, 'MT5'), symbols=st.get('symbols'))
     if s: st.x("UPDATE signals SET status='sent' WHERE id=?", (s['id'],)); lag.stamp(s['id'], 'sent')
+    if s and manual_close.on(who): s = dict(s, tp=manual_close.far_tp(s['side'], s['sl'], s['tp']))          # MC1
     if s: s = dict(s); s['stake_pct'] = stake.pct(s['id']); s['stake_max_risk_pct'] = stake.max_risk()          # Section 2: the EA sizes a strong setup by margin share (0 = normal sizing)
     return jsonify(signal=s, bot=links.bot_on(who) and tradeon.allows(who, 'MT5'), symbols=st.get('symbols'))
 
@@ -562,7 +564,7 @@ def admin_set(u):
             try: v = float(j[k])
             except (TypeError, ValueError): return jsonify(error='%s must be a number' % k), 400
             if not lo <= v <= hi: return jsonify(error='%s must be between %g and %g' % (k, lo, hi)), 400
-    for k in ('btc_sunday_bounce', 'btc_short_pullback', 'orb_session', 'screen_on', 'no_open_cap'):          # BTC 6B switches: 0 or 1 only, checked before anything is saved
+    for k in ('btc_sunday_bounce', 'btc_short_pullback', 'orb_session', 'screen_on', 'no_open_cap', 'manual_close'):          # BTC 6B switches: 0 or 1 only, checked before anything is saved
         if k in j and str(j[k]) not in ('0', '1'): return jsonify(error='%s must be 0 or 1' % k), 400
     for k, v in j.items():
         if k in st.DEFAULTS and k != 'plans': st.put(k, v)          # plans have their own checked route (/api/admin/plans)

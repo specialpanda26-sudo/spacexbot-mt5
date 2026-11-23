@@ -10,7 +10,7 @@ The new group still has to pass the risk gates (bot on, loss limits, daily trade
 and the cycle stops for the day after cycle.max_per_day new groups. A group that ended on a stop loss, by hand or on a failed sell never starts the next one.
 Nothing here claims it makes more money: repeating trades also repeats losses. Deriv still refuses a stake under 1 USD (deriv._size), a new entry that cannot be sized is rejected as usual."""
 import json, time
-from . import store as st, cycle, groupcap, risk, multi, links, limits, learn, sbauth, push, burst_live
+from . import store as st, cycle, groupcap, risk, multi, links, limits, learn, sbauth, push, burst_live, manual_close
 
 COLS = 'id,grp,symbol,side,entry,sl,tp,risk_pct,strategy,score,reason,ticket,status,pnl'
 
@@ -66,7 +66,9 @@ def check(sess, uid, acct, now=None):
     for g in _open_groups(uid):
         m = _meta(g); tgt = _f((m or {}).get('tgt')) or _f((m or {}).get('dtgt')) or 0
         lim = loss_limit(m)
-        if tgt <= 0 and lim <= 0: continue
+        manual = manual_close.on(uid)          # MC1: the owner closes the profits: no sale at the target, the live profit is still read
+        if manual: tgt = 0
+        if tgt <= 0 and lim <= 0 and not manual: continue
         mem = st.q('SELECT %s FROM signals WHERE grp=? AND COALESCE(uid,\'\')=? ORDER BY id' % COLS, (g, uid or ''))
         if any(r['status'] in ('pending', 'sent') for r in mem): continue          # not all entries are open yet, or one buy is unconfirmed: the total would be wrong
         opn = [r for r in mem if r['status'] == 'open' and r['ticket']]

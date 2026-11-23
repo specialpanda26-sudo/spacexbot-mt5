@@ -278,7 +278,7 @@ def _low_stake(sig, bal, want, m):
 
 def _place(sess, sig, bal, cur):
     """Quote, then buy by the quote's own id (so one signal can never buy twice). Returns ('open', info) or ('rejected', reason)."""
-    from . import stake as stk
+    from . import stake as stk, manual_close
     bs = _burst_stake(sig)          # BT2: a burst entry with a stake the person chose
     ct = 'MULTUP' if sig['side'] == 'buy' else 'MULTDOWN'; sym = sig['symbol']
     order = ([_mult_ok[sym]] if sym in _mult_ok else []) + [m for m in MULTS() if m != _mult_ok.get(sym)]
@@ -292,7 +292,7 @@ def _place(sess, sig, bal, cur):
         if not z: continue
         stake, slm, tpm = z
         p = sess.ask({'proposal': 1, 'contract_type': ct, 'underlying_symbol': _frx(sym), 'currency': cur, 'amount': stake, 'basis': 'stake',
-                      'multiplier': m, 'limit_order': {'stop_loss': slm, 'take_profit': tpm}})
+                      'multiplier': m, 'limit_order': ({'stop_loss': slm} if manual_close.on_sig(sig) else {'stop_loss': slm, 'take_profit': tpm})})          # MC1: no take profit when the owner closes the profits
         q = p.get('proposal')
         if not isinstance(q, dict) or not q.get('id'): last = _why(p); continue
         b = sess.ask({'buy': q['id'], 'price': q.get('ask_price', stake)})

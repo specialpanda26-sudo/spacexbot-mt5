@@ -913,6 +913,13 @@ Owner attaches the latest repo zip (this session's copy is gone). First check th
 - The ADMIN check here reads users.email without the 'verified' flag (same as app._paid).
 - Tests: tests/test_oc1.py.
 
+## Section MC1 (owner closes the profits himself) DONE (Nov 23)
+- Owner wish: an optional switch so that WINNING trades are closed only by him. Setting manual_close (0 or 1, default 0, admin page checkbox 'I close the profits myself'). Owner only (limits._owner): subscribers are never touched.
+- When ON: MT5 single signals get a far take-profit (manual_close.far_tp, 20 x the stop-to-target distance beyond the target; the stored plan keeps the real target); an MT5 burst basket gets tgt 1e9 and give-back 0 (the EA closes a basket at its target or on give-back, so both are switched off WITHOUT a new EA build) and a far take-profit; the Deriv order has no take_profit; deriv_group.check does not sell a group at its target but still reads and saves its live profit.
+- NOT touched (loss side): stop loss, the group loss limit, daily and weekly limits, streak stop. With the switch ON, nobody banks a profit except the owner: switch it OFF when away.
+- Not built: a phone alert 'your group reached its old target, close it' (needs a new push kind); MT5 baskets already open when the switch is flipped keep the old target (their target lives in the EA).
+- Tests: tests/test_mc1.py.
+
 ## STATUS BOARD Nov 23 (newest; read this first, then the sections above it)
 - Owner's rules (unchanged): phone only (Termux), new files as cat heredocs, edits to existing files as python heredocs with an edit() helper (replace only if the old text appears exactly once, skip when already done), one block that runs the tests, one git block. One section per reply, owner says "go". NO Claude attribution in commits (no Co-Authored-By, no Claude-Session lines).
 - Owner's wishes for the screen assistant (Nov 23, dictated): (1) the floating button is the SpaceX symbol (the purple, yellow and white icon, branding/ic_large_sxb.png), not a plain bubble; (2) every cartoon in the panel comes from the website's own set (window.IL2 in static/index.html), NEVER new ones drawn by the AI; (3) one section at a time.
