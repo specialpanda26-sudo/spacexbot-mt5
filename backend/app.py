@@ -571,7 +571,7 @@ def admin_set(u):
                      ('max_open', 1, 10), ('max_daily_loss_pct', 0.5, 20), ('max_weekly_loss_pct', 1, 40), ('max_losing_streak', 0, 20), ('streak_cooldown_h', 0, 72),
                      ('burst_ceiling', 2, 30), ('burst_big_score', 2, 10), ('burst_free_per_hour', 0, 12), ('burst_minute_per_hour', 1, 60), ('min_confluence', 1, 6), ('multi_min_score', 2, 10), ('auto_disable_min_trades', 5, 500),
                      ('auto_markets_max', 0, 10), ('max_trades_day', 0, 100), ('auto_target_usd', 0, 1000), ('practice_trades_needed', 0, 100),
-                     ('news_before_min', 0, 240), ('news_after_min', 0, 240), ('cooldown_min', 0, 1440), ('max_ccy_exposure', 1, 10), ('multi_entries', 1, 10), ('regime_min_trades', 5, 500)):          # AU1: the six numbers that had no field, checked before anything is saved
+                     ('news_before_min', 0, 240), ('news_after_min', 0, 240), ('cooldown_min', 0, 1440), ('max_ccy_exposure', 0, 10), ('multi_entries', 1, 10), ('regime_min_trades', 5, 500)):          # AU1: the six numbers that had no field, checked before anything is saved
                                # the three auto-mode numbers: checked before anything is saved
         if k in j:
             try: v = float(j[k])

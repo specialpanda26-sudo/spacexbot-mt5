@@ -120,6 +120,7 @@ def symbol_gate(sym, side, now=None, uid='', cool=True):
     last = st.q("SELECT created FROM signals WHERE symbol=? AND COALESCE(uid,'')=? ORDER BY id DESC LIMIT 1", (sym, uid), True)
     if cool and last and now - last['created'] < st.fget('cooldown_min') * 60: return False, 'symbol cooldown'
     net = exposure(uid); cap = int(st.fget('max_ccy_exposure'))
+    if cap <= 0: cap = 1000 if limits._owner(uid) else 2          # RS4: 0 = off for the owner; everyone else keeps 2
     for c, v in _legs(sym, side).items():
         if abs(net.get(c, 0) + v) > cap: return False, f'{c} exposure already at limit (correlated trades)'
     return True, 'ok'
