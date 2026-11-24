@@ -14,7 +14,7 @@ def _boom(e):
     import traceback; print('500', request.path, repr(e)[:300]); traceback.print_exc(); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 from . import manual_close, burst_scope, btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
-from . import userlim, risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck, presets, streakreq
+from . import userlim, risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck, presets, streakreq, sharecode
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -1038,6 +1038,45 @@ def presets_set(u):
     try: out = presets.undo(sc) if j.get('undo') is True else presets.apply(sc, j.get('tier'))
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, 'preset': 'undo' if j.get('undo') is True else out['active']})
+    return jsonify(out)
+
+# ---------------- share code: copy all my bot settings to a friend's account (backend/sharecode.py) ----------------
+def _share_scopes(u): return _mine(u), burst_scope.scope(u)          # same scopes the cards use: prefs / limits / group / cycle, and the burst card
+
+@app.get('/api/sharecode')
+@need(verified=True)
+def share_status(u):
+    sc, bsc = _share_scopes(u); return jsonify(sharecode.status(sc, bsc))
+
+@app.post('/api/sharecode/make')
+@need(verified=True)
+def share_make(u):
+    sc, bsc = _share_scopes(u)
+    return jsonify(sharecode.make(sc, bsc, _j().get('name')))
+
+@app.post('/api/sharecode/check')
+@need(verified=True)
+def share_check(u):
+    sc, bsc = _share_scopes(u)
+    try: return jsonify(sharecode.check(sc, bsc, _j().get('code')))
+    except ValueError as e: return jsonify(error=str(e)), 400
+
+@app.post('/api/sharecode/load')
+@need(verified=True)
+def share_load(u):
+    sc, bsc = _share_scopes(u)
+    try: out = sharecode.load(sc, bsc, _j().get('code'))
+    except ValueError as e: return jsonify(error=str(e)), 400
+    learn.log(u['uid'], 'setting', data={'path': request.path, 'sharecode': 'load'})
+    return jsonify(out)
+
+@app.post('/api/sharecode/undo')
+@need(verified=True)
+def share_undo(u):
+    sc, bsc = _share_scopes(u)
+    try: out = sharecode.undo(sc, bsc)
+    except ValueError as e: return jsonify(error=str(e)), 400
+    learn.log(u['uid'], 'setting', data={'path': request.path, 'sharecode': 'undo'})
     return jsonify(out)
 
 @app.get('/api/streak')
