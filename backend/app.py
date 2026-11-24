@@ -14,7 +14,7 @@ def _boom(e):
     import traceback; print('500', request.path, repr(e)[:300]); traceback.print_exc(); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 from . import manual_close, burst_scope, btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
-from . import risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck, presets, streakreq
+from . import userlim, risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck, presets, streakreq
 _last_scan = {}
 
 def _same(a, b): return hmac.compare_digest(str(a).encode('utf-8'), str(b).encode('utf-8'))     # str compare_digest crashes on non-ASCII
@@ -592,9 +592,9 @@ def status(u):
     ok, why = risk.global_gate(uid=sc)
     nh = news.next_high(now)
     return jsonify(bot=links.bot_on(sc), ea_online=now - a.get('seen', 0) < 120, can_trade=ok, why=why,
-                   day_loss_pct=round(max(0, -dpnl) / bal * 100, 2) if bal else 0, day_loss_limit=st.fget('max_daily_loss_pct'),
+                   day_loss_pct=round(max(0, -dpnl) / bal * 100, 2) if bal else 0, day_loss_limit=userlim.val(sc, 'daily_loss'),
                    open=risk.open_count(sc, a), max_open=limits.max_open(sc), news_next=nh, news_loaded=news.loaded(),
-                   news_lock=st.get('news_lock') == '1', exposure=risk.exposure(sc), demo=a.get('demo'),
+                   news_lock=max(userlim.news(sc)) > 0, exposure=risk.exposure(sc), demo=a.get('demo'),
                    strategies=[f.__name__ for f in __import__('backend.strategies', fromlist=['ALL']).ALL], off=[x for x in (st.get('strategies_off') or '').split(',') if x])
 
 @app.get('/api/news')
@@ -866,6 +866,20 @@ def stats_restart_api(u):
     if _j().get('undo'): st.x('DELETE FROM kv WHERE k=?', (key,))
     else: st.put(key, int(time.time()) + 1)
     return jsonify(ok=True)
+
+@app.get('/api/mylimits')
+@need(verified=True)
+def mylimits_api(u):
+    """RS5: this person's own limits, with the plain-words guide for each."""
+    return jsonify(userlim.view(_mine(u)))
+
+@app.post('/api/mylimits')
+@need(verified=True)
+def mylimits_save_api(u):
+    """RS5: save this person's limits ({key: number}, 0 = off) or go back to the start values ({"reset": true})."""
+    j = _j(); uid = _mine(u)
+    try: return jsonify(userlim.reset(uid) if j.get('reset') else userlim.save(uid, j))
+    except ValueError as e: return jsonify(error=str(e)), 400
 
 @app.get('/api/trade/<int:tid>')
 @need(verified=True)

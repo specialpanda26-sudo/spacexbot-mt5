@@ -15,7 +15,7 @@ c = A.app.test_client(); ad = {'Authorization': 'Bearer dev:boss@x.com'}; c.get(
 good = {'news_before_min': 45, 'news_after_min': 20, 'cooldown_min': 90, 'max_ccy_exposure': 3, 'multi_entries': 4, 'regime_min_trades': 20, 'practice_trades_needed': 8}
 r = c.post('/api/admin/settings', json=good, headers=ad); j = r.get_json()
 T('good values save', r.status_code == 200 and all(float(j[k]) == v for k, v in good.items()))
-bad = {'news_before_min': 999, 'news_after_min': -1, 'cooldown_min': 5000, 'max_ccy_exposure': 0, 'multi_entries': 11, 'regime_min_trades': 4, 'practice_trades_needed': 101}
+bad = {'news_before_min': 999, 'news_after_min': -1, 'cooldown_min': 5000, 'max_ccy_exposure': 11, 'multi_entries': 11, 'regime_min_trades': 4, 'practice_trades_needed': 101}
 for k, v in bad.items():
     r = c.post('/api/admin/settings', json={k: v}, headers=ad); T('%s=%s refused' % (k, v), r.status_code == 400)
 j = c.post('/api/admin/settings', json={}, headers=ad).get_json(); T('refused values changed nothing', float(j['cooldown_min']) == 90 and float(j['max_ccy_exposure']) == 3)

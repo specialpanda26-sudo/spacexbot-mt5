@@ -33,11 +33,13 @@ def _cap(own, owner):
 
 def trades(uid=''):
     """Effective max trades per day for the gate. 0 = no limit."""
-    return _g('max_trades_day') if not uid else _cap(_num(_mine(uid).get('mt')), _g('max_trades_day'))
+    from . import userlim          # RS5: the person's own number; the owner's setting is for the owner's own bot
+    return int(userlim.val(uid, 'max_trades'))
 
 def streak(uid=''):
     """Effective loss-streak stop for the gate. 0 = off."""
-    return _g('max_losing_streak') if not uid else _cap(_num(_mine(uid).get('ks')), _g('max_losing_streak'))
+    from . import userlim          # RS5
+    return int(userlim.val(uid, 'streak'))
 
 UNLIMITED = 1000          # OC1: what 'no limit' counts as in the room sums
 
@@ -65,16 +67,17 @@ def max_open(uid=''):
         from . import automode
         if automode.on(): base = max(base, automode.positions())          # auto mode: always room for one whole trade
     except Exception: pass
-    if not uid: return base
-    own = _num(_mine(uid).get('mo'))
-    return min(own, ceiling()) if own > 0 else base
+    if not uid or _owner(uid): return base
+    from . import userlim          # RS5: the person's own number (0 = off = the owner's server ceiling)
+    own = int(userlim.val(uid, 'max_open'))
+    return min(own, ceiling()) if own > 0 else ceiling()
 
 def view(uid=''):
     """What the app shows: the person's OWN saved numbers (0 = none) and the owner's caps."""
     mo = {'max_open_unlimited': no_cap(uid), 'max_open': _num(_mine(uid).get('mo')) if uid else max_open(''), 'max_open_now': max_open(uid), 'max_open_default': max(1, _g('max_open') or 3), 'max_open_ceiling': ceiling()}
     if not uid: return dict({'max_trades': _g('max_trades_day'), 'streak': _g('max_losing_streak'), 'cap_trades': 0, 'cap_streak': 0}, **mo)
     m = _mine(uid); ct, cs = _g('max_trades_day'), _g('max_losing_streak')
-    return dict(mo, **{'max_trades': _cap(_num(m.get('mt')), ct) if _num(m.get('mt')) else 0, 'streak': _cap(_num(m.get('ks')), cs) if _num(m.get('ks')) else 0, 'cap_trades': ct, 'cap_streak': cs})
+    return dict(mo, **{'max_trades': _num(m.get('mt')), 'streak': _num(m.get('ks')), 'cap_trades': 0, 'cap_streak': 0})          # RS5: the owner's numbers no longer cut a person's own
 
 def _int(v, hi, name):
     if isinstance(v, bool) or not isinstance(v, (int, float, str)): raise ValueError('%s must be a whole number' % name)

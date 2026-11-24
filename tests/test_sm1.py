@@ -38,5 +38,5 @@ class Down(Fake):
 deriv._mult_ok.clear(); f = Down(); k, r = deriv._place(f, dict(sig(), grp=50), 1000.0, 'USD')
 T("another refusal (market closed) keeps Deriv's own words", k == 'rejected' and r == 'Market is closed.')
 html = open(os.path.join(ROOT, 'static', 'index.html'), encoding='utf-8').read()
-T('the Burst card label says Deriv needs 1 or more', 'Stake per entry ($, Deriv needs 1 or more)' in html)
+T('the Burst card label says Deriv needs 1 or more', 'Stake per entry ($) - Deriv only, needs 1 or more' in html)
 print('%d/%d passed' % (sum(R), len(R))); sys.exit(0 if all(R) else 1)

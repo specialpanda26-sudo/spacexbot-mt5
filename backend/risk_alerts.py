@@ -4,7 +4,7 @@ The gates in backend/risk.py only RETURN a reason; gate() below turns that reaso
 A person's own alerts go to that person; the owner's scope (uid '') goes to the admins' phones. Risk alerts ignore quiet hours and the cap (push.BYPASS_CATS).
 Tunables are assumptions:"""
 import time, datetime as dt
-from . import store as st, push, limits, risk, lag
+from . import store as st, push, limits, risk, lag, userlim
 
 HALF = 0.5                    # 18: tell the person when this share of the daily loss limit is used
 LONG_OPEN_H = 6               # 10: a trade open this many hours
@@ -27,13 +27,13 @@ def _num(x):
 def gate(uid, why, sym='', now=None):
     """Called where a scan was stopped by a gate. Returns the kind it tried to send, or None (a reason that is not a risk alert)."""
     now = now or time.time(); w = str(why or ''); day = dt.datetime.utcfromtimestamp(now).date().isoformat()
-    if w == 'daily loss limit hit': _fire(11, 'r11-' + day, uid, now, limit=_num(st.fget('max_daily_loss_pct'))); return 11
-    if w == 'weekly loss limit hit': _fire(12, 'r12-%d' % risk._week_start(now), uid, now, limit=_num(st.fget('max_weekly_loss_pct'))); return 12
+    if w == 'daily loss limit hit': _fire(11, 'r11-' + day, uid, now, limit=_num(userlim.val(uid, 'daily_loss'))); return 11
+    if w == 'weekly loss limit hit': _fire(12, 'r12-%d' % risk._week_start(now), uid, now, limit=_num(userlim.val(uid, 'weekly_loss'))); return 12
     if w.endswith('losses in a row: cooling down'):
         try: n = int(w.split()[0])
         except ValueError: n = limits.streak(uid)
         last = (st.q("SELECT MAX(closed) c FROM signals WHERE status='closed' AND pnl IS NOT NULL AND COALESCE(uid,'')=?", (uid,), True) or {}).get('c') or now
-        until = int(last + st.fget('streak_cooldown_h') * 3600)
+        until = int(last + userlim.val(uid, 'streak_rest') * 3600)
         st.put('ra14:%s' % (uid or 'owner'), until)          # kind 14 goes out when this time has passed
         _fire(13, 'r13-%d' % until, uid, now, n=n, until=dt.datetime.fromtimestamp(until, EAT).strftime('%H:%M') + ' EAT'); return 13
     if w == 'max open positions': _fire(15, 'r15-' + day, uid, now, n=limits.max_open(uid)); return 15
@@ -46,7 +46,7 @@ def watch(uid, now=None):
     """18: half of the daily loss limit is used (called after the gates passed, so the limit itself is not hit yet)."""
     now = now or time.time(); bal = float((st.acct(uid) or {}).get('balance') or 0)
     if bal <= 0: return None
-    lim = st.fget('max_daily_loss_pct'); loss = -risk._pnl_since(risk.day_since(uid, now), uid) / bal * 100
+    lim = userlim.val(uid, 'daily_loss'); loss = -risk._pnl_since(risk.day_since(uid, now), uid) / bal * 100
     if lim > 0 and HALF * lim <= loss < lim:
         _fire(18, 'r18-' + dt.datetime.utcfromtimestamp(now).date().isoformat(), uid, now, used=_num(round(loss, 1)), limit=_num(lim)); return 18
     return None

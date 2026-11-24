@@ -2005,6 +2005,17 @@ if(vb){
   SXA.api("/api/burst",{method:"POST",body:body}).then(function(j){bswShow(j);$("#bswMsg").textContent="Saved on the server.";toast("Burst numbers saved")}).catch(function(e){$("#bswMsg").textContent=e.message||"Not saved";toast(e.message||"Not saved")}).then(function(){b.disabled=false})};
  bswLoad();
  /*BT1-end*/
+ /*LM1-start*/
+ vb.insertBefore(card(["My limits",'<span class="chip info" id="lmChip"></span>'],'<p class="note" id="lmIntro"></p><div id="lmRows" style="display:grid;gap:14px"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0"><button type="button" class="btn" id="lmSave">Save my limits</button><button type="button" class="btn" id="lmReset">Back to start values</button></div><p class="note" id="lmMsg" role="status"></p>'),vb.firstChild);
+ function lmShow(j){$("#lmChip").textContent=j.mode==="real"?"Real account":j.mode==="owner"?"Owner":"Demo account";$("#lmIntro").textContent=j.intro||"";var h="";
+  (j.fields||[]).forEach(function(f){h+='<div class="field"><label for="lm_'+f.key+'">'+esc(f.label)+' ('+f.lo+' to '+f.hi+', 0 = off)</label><input class="inp" id="lm_'+f.key+'" type="number" inputmode="decimal" min="'+f.lo+'" max="'+f.hi+'" step="'+f.step+'" value="'+f.value+'"><details><summary class="note">What this does</summary><p class="note"><b>When you set it:</b> '+esc(f.on)+'</p><p class="note"><b>Example:</b> '+esc(f.example)+'</p><p class="note"><b>When it is 0 (off):</b> '+esc(f.off)+'</p><p class="note">Start value on a real account: '+f.safe+'</p></details></div>'});$("#lmRows").innerHTML=h}
+ function lmLoad(){if(!window.SXA)return;SXA.api("/api/mylimits").then(lmShow).catch(function(){})}
+ $("#lmSave").onclick=function(){var b=this,body={};$$("#lmRows input").forEach(function(i){var v=parseFloat(i.value);body[i.id.slice(3)]=isNaN(v)?0:v});b.disabled=true;
+  SXA.api("/api/mylimits",{method:"POST",body:body}).then(function(j){lmShow(j);$("#lmMsg").textContent="Saved. The bot uses these on its next check, about a minute."}).catch(function(e){$("#lmMsg").textContent=e.message||"Not saved"}).then(function(){b.disabled=false})};
+ $("#lmReset").onclick=function(){if(!confirm("Go back to the start values?"))return;var b=this;b.disabled=true;
+  SXA.api("/api/mylimits",{method:"POST",body:{reset:true}}).then(function(j){lmShow(j);$("#lmMsg").textContent="Back to the start values."}).catch(function(e){$("#lmMsg").textContent=e.message||"Not saved"}).then(function(){b.disabled=false})};
+ lmLoad();
+ /*LM1-end*/
  /*SW2-start*/
  vb.insertBefore(card(["Strategy switching",'<span class="chip info" id="swcChip"></span>'],'<p class="note" id="swcAuto"></p><p class="note" id="swcMarket" role="status"></p><button type="button" class="switch" role="switch" aria-checked="false" id="swcOn"><span><b>Learned switch</b><small>Pause a strategy in a market type where my own closed trades keep losing. Off by default.</small></span><span class="sw"></span></button><p class="note" id="swcNow" role="status"></p><div id="swcRows" style="display:grid;gap:6px"></div><p class="note" id="swcMsg" role="status"></p>'),(function(){var b=$("#bswOn"),c=b&&b.closest?b.closest(".card"):null;return c&&c.nextSibling?c.nextSibling:vb.firstChild})());
  var swcMine=false;
