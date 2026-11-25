@@ -19,7 +19,8 @@ def beat(uid, n):
     else: st.put('acct', json.dumps(a))
 links.new_key(A); links.set_bot(A, True); st.put('bot_enabled', '1')
 
-T('default: switch off, the owner limit is the old number', limits.no_cap('') is False and limits.max_open('') == 3)
+T('default: switch ON (NC1), the owner has no open limit', limits.no_cap('') is True and limits.max_open('') == limits.UNLIMITED)
+st.put('no_open_cap', '0'); T('switched off: back to the old number', limits.no_cap('') is False and limits.max_open('') == 3); st.put('no_open_cap', '0')
 beat('', 6); T('switch off: 6 open stops the owner ("max open positions")', risk.global_gate(WD + 5, uid='') == (False, 'max open positions'))
 st.put('no_open_cap', '1')
 T('switch on: owner scope has no cap', limits.no_cap('') is True and limits.max_open('') == limits.UNLIMITED)
