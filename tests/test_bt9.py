@@ -6,7 +6,7 @@ os.environ.update(DEV_AUTH='1', EA_KEY='k', ADMIN_EMAILS='boss@x.com', DB_PATH=o
 if os.path.exists(os.environ['DB_PATH']): os.remove(os.environ['DB_PATH'])
 sys.path.insert(0, os.path.join(HERE, '..'))
 from backend import app as A
-from backend import store as st, brain, burst, burst_scope as bs, tradeon, brokers as bk
+from backend import store as st, brain, burst, burst_scope as bs, brokers as bk
 R = []
 def T(n, ok): R.append((n, bool(ok))); print('PASS' if ok else 'FAIL', n)
 for k, v in dict(bot_enabled='1', max_open='3', max_open_ceiling='6', max_trades_day='0', burst_enabled='1', burst_ceiling='15', burst_big_score='3', risk_pct='1.0', news_lock='0', multi_entries='1').items(): st.put(k, v)
@@ -14,16 +14,18 @@ c = A.app.test_client(); OW = {'Authorization': 'Bearer dev:boss@x.com'}; AM = {
 c.get('/api/me', headers=OW); c.get('/api/me', headers=AM)
 UID, AMY = 'dev-boss@x.com', 'dev-amy@x.com'
 def on(sc): return burst.get(sc)['on']
+def pick(uid, p):          # which broker's bot is running (the old 'Trade on' choice is gone)
+    for b in ('Deriv', 'Binance'): bk.set_bot(uid, b, b == p)
 
 # 1) nothing chosen: owner stays on scope '' (the owner's PC EA)
 c.post('/api/burst', json={'on': True, 'minute': True, 'quick_n': 4}, headers=OW)
 T('nothing chosen: the owner saves under scope "" as before', on('') is True and on(UID) is False)
 # 2) MT5 chosen: still ''
-tradeon.set_(UID, True, 'MT5'); c.post('/api/burst', json={'quick_n': 3}, headers=OW)
+pick(UID, 'MT5'); c.post('/api/burst', json={'quick_n': 3}, headers=OW)
 T('MT5 chosen: still scope ""', burst.get('')['quick_n'] == 3 and burst.get(UID)['quick_n'] != 3)
 T('scope(): owner on MT5 = ""', bs.scope({'uid': UID, 'admin': True}) == '')
 # 3) Deriv chosen: the card uses the uid, the settings already saved are copied once
-tradeon.set_(UID, True, 'Deriv')
+pick(UID, 'Deriv')
 j = c.get('/api/burst', headers=OW).get_json()
 T('Deriv chosen: scope() is the owner uid', bs.scope({'uid': UID, 'admin': True}) == UID)
 T('Deriv chosen: the switches saved before are copied, not lost', j['settings']['on'] is True and j['settings']['minute'] is True and j['settings']['quick_n'] == 3 and on(UID) is True)
@@ -53,11 +55,11 @@ st.put('burst:closed:' + UID, 0); burst.save(UID, {'on': True, 'minute': True, '
 A._scan('XAUUSD', UID); rows = st.q("SELECT * FROM signals WHERE uid=?", (UID,))
 T('Deriv scan under the owner uid opens a burst group of 2 (%d rows)' % len(rows), len(rows) == 2 and len({r['grp'] for r in rows}) == 1)
 # 6) Binance too, everyone else unchanged, MT5 again = ""
-tradeon.set_(UID, True, 'Binance'); T('Binance chosen: the owner uid', bs.scope({'uid': UID, 'admin': True}) == UID)
-tradeon.set_(UID, True, 'MT5'); T('back to MT5: scope ""', bs.scope({'uid': UID, 'admin': True}) == '')
+pick(UID, 'Binance'); T('Binance chosen: the owner uid', bs.scope({'uid': UID, 'admin': True}) == UID)
+pick(UID, 'MT5'); T('back to MT5: scope ""', bs.scope({'uid': UID, 'admin': True}) == '')
 c.post('/api/burst', json={'on': True}, headers=AM)
 T('a normal subscriber keeps their own uid', bs.scope({'uid': AMY, 'admin': False}) == AMY and on(AMY) is True)
-tradeon.set_(AMY, False, 'Deriv'); T('subscriber on Deriv: still their uid', bs.scope({'uid': AMY, 'admin': False}) == AMY)
+pick(AMY, 'Deriv'); T('subscriber on Deriv: still their uid', bs.scope({'uid': AMY, 'admin': False}) == AMY)
 # 7) text
 S = open(os.path.join(HERE, '..', 'backend', 'app.py'), encoding='utf-8').read()
 T('both burst endpoints use burst_scope', S.count('burst_scope.scope(u)') >= 2 and 'burst.save(_mine(u)' not in S and 'burst.view(_mine(u))' not in S)

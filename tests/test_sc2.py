@@ -10,7 +10,7 @@ def T(n, ok): R.append(bool(ok)); print(('PASS ' if ok else 'FAIL ') + n)
 def done(): print('%d/%d passed' % (sum(R), len(R))); sys.exit(0 if all(R) else 1)
 
 # ---- static checks ----
-T('index.html loads screen.js once, right after trade_on.js', S.count('/static/screen.js') == 1 and '<script src="/static/trade_on.js"></script><script src="/static/screen.js"></script>' in S)
+T('index.html loads screen.js once, right after quick_ui.js', S.count('/static/screen.js') == 1 and '<script src="/static/quick_ui.js"></script><script src="/static/screen.js"></script>' in S)
 T('IL2.eye is defined once, inside the picture closure', S.count('IL2.eye=il(') == 1 and S.find('IL2.eye=il(') < S.find('var ILM={plug:'))
 css = J[J.find('st.textContent ='):J.find('document.head.appendChild(st)')]
 T('the style uses no hard-coded colour and no font name', css != '' and not re.search(r'#[0-9a-fA-F]{3,8}\b|Arial|rgb\(|hsl\(', css))

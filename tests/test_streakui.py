@@ -6,7 +6,7 @@ if not shutil.which('node'): print('SKIP node not installed'); sys.exit(0)
 code = open(os.path.join(ROOT, 'static', 'streak_ui.js'), encoding='utf-8').read(); html = open(os.path.join(ROOT, 'static', 'index.html'), encoding='utf-8').read()
 R = []
 def T(n, ok): R.append((n, bool(ok)))
-T('the page loads streak_ui.js once, right after prefs_ui.js', html.count('/static/streak_ui.js') == 1 and html.find('prefs_ui.js') < html.find('streak_ui.js') < html.find('trade_on.js'))
+T('the page loads streak_ui.js once, right after prefs_ui.js', html.count('/static/streak_ui.js') == 1 and html.find('prefs_ui.js') < html.find('streak_ui.js') < html.find('quick_ui.js'))
 T('no made-up numbers, no stored copies, no hard-coded colours', 'Math.random' not in code and 'localStorage' not in code and '#' not in ''.join(l for l in code.splitlines() if 'style=' in l))
 HARNESS = r'''
 const code = require('fs').readFileSync(0, 'utf8'), OUT = [], ok = (n, c) => OUT.push([n, !!c]), tick = () => new Promise(r => setTimeout(r, 5));

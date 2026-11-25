@@ -5,7 +5,7 @@ os.environ.update(DEV_AUTH='1', EA_KEY='k', ADMIN_EMAILS='boss@x.com', DB_PATH=o
 if os.path.exists(os.environ['DB_PATH']): os.remove(os.environ['DB_PATH'])
 sys.path.insert(0, os.path.join(HERE, '..'))
 from backend import app as A
-from backend import store as st, brain, burst, burst_look, automode, openlive, livestats, live, deriv, tradeon, brokers as bk, risk
+from backend import store as st, brain, burst, burst_look, automode, openlive, livestats, live, deriv, brokers as bk, risk
 R = []
 def T(n, ok): R.append((n, bool(ok))); print('PASS' if ok else 'FAIL', n)
 for k, v in dict(bot_enabled='1', max_open='3', max_open_ceiling='6', max_trades_day='0', burst_enabled='1', burst_ceiling='15', risk_pct='1.0', news_lock='0', auto_mode='0').items(): st.put(k, v)
@@ -20,7 +20,7 @@ T('openlive ignores a figure older than %d s' % openlive.FRESH, openlive.get('u1
 openlive.save('u2', {}, NOW); T('nothing open, read just now = 0.0 (not "unknown")', openlive.floating('u2', NOW) == 0.0)
 T('never read = None', openlive.floating('nobody', NOW) is None)
 # 2) Auto mode blocks burst and the card says so
-burst.save(UID, {'on': True, 'minute': True}); tradeon.set_(UID, True, 'Deriv'); bk.set_bot(UID, 'Deriv', True)
+burst.save(UID, {'on': True, 'minute': True}); bk.set_bot(UID, 'Deriv', True)
 st.set_acct({'balance': 1000, 'equity': 1000, 'open': 0, 'demo': True, 'src': 'deriv'}, UID)
 st.put('auto_mode', '1'); ok, why = burst.due(UID, NOW)
 T('Auto mode on: due() says so', ok is False and why == burst.AUTO_WHY)
@@ -55,7 +55,7 @@ st.set_acct({'balance': 1000, 'equity': 1000, 'open': 2, 'demo': True, 'src': 'd
 def closed(grp, pnl, sym='XAUUSD'): return st.x("INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,closed,pnl,uid,grp,broker) VALUES(?,?,1,1,1,1,'x',1,'closed',?,?,?,?,?,'Deriv')", (sym, 'buy', int(NOW), int(NOW), pnl, UID, grp))
 g1 = closed(None, 0.5); st.x('UPDATE signals SET grp=id WHERE id=?', (g1,)); closed(g1, 0.5); closed(g1, -0.2)
 l1 = closed(None, -0.9, 'EURUSD')
-tradeon.set_(UID, True, 'Deriv'); sn = livestats.snapshot(UID, True, NOW)
+sn = livestats.snapshot(UID, True, NOW)
 T('floating = the live profit of the open trades (+1.10)', sn['floating'] == 1.1 and sn['equity'] == 1001.1)
 T('each open trade carries its own profit', {t['id']: t['pnl'] for t in sn['trades']} == {a: 1.5, b: -0.4})
 T('a burst group of 3 entries counts as ONE win; with the sold trade (+0.8) that is 2 wins, and the loose loss is 1 loss', (sn['today_w'], sn['today_l']) == (2, 1))

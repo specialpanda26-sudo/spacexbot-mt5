@@ -138,8 +138,6 @@ def balance(sess):
 def _bot(uid):
     """Is the bot on for this person's Deriv trading? The Deriv switch (set from the Deriv tile) wins once used;
     until then the old MT5-link switch still counts, so nothing that worked before stops working."""
-    from . import tradeon
-    if not tradeon.allows(uid, 'Deriv'): return False          # 5A: another platform was chosen
     f = bk.bot_flag(uid, 'Deriv')
     return f if f is not None else links.bot_on(uid)
 
@@ -165,8 +163,6 @@ def _run_once(uid, scan, paid, connect, http, now):
     """One round for one customer: only if plan active, bot on, token verified. Reads candles, refreshes the account snapshot, runs the scan."""
     if not ON(): return 'off'
     if not paid(uid): return 'plan ended'
-    from . import tradeon
-    if not tradeon.allows(uid, 'Deriv'): return 'other platform'          # 5A
     if not _bot(uid): return 'bot off'
     r = st.q("SELECT status FROM broker_links WHERE uid=? AND broker='Deriv'", (uid,), True)
     if not r or r['status'] != 'verified': return 'not verified'

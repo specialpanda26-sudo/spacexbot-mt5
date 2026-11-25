@@ -9,7 +9,7 @@ Where the numbers come from (nothing is invented, nothing is sample data):
 Amounts are shown with $ like the live notification: the EA does not report the account currency (assumption).
 ASSUMPTIONS (tunable): FRESH seconds a Deriv balance counts as live; MT5_FRESH is the same limit the rest of the app uses for 'EA online'."""
 import time
-from . import store as st, links, brokers as bk, strategy_info as si, pnlreset as pr, tradeon, burst_live, openlive
+from . import store as st, links, brokers as bk, strategy_info as si, pnlreset as pr, burst_live, openlive
 
 FRESH = 180
 MT5_FRESH = 120
@@ -73,8 +73,7 @@ def _scope_sql(ch):
 
 def snapshot(uid, admin=False, now=None):
     now = now or time.time(); src = sources(uid, admin, now); sc = ('' if admin else uid, uid)
-    ch = tradeon.get(uid)          # LV4: the platform the bot is set to trade on; nothing chosen = the old behaviour (every connected account)
-    if ch: src = [s for s in src if s['id'] == ch]
+    ch = None          # every connected account is shown
     bq = _scope_sql(ch)
     t = st.q("SELECT COALESCE(SUM(pnl),0) p, COUNT(*) n FROM signals WHERE closed>=? AND pnl IS NOT NULL AND COALESCE(uid,'') IN (?,?)" + bq, (pr.since(uid), sc[0], sc[1]), True) or {}
     today = round(_f(t.get('p')) or 0.0, 2)

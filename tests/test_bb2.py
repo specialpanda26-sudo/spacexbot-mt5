@@ -5,7 +5,7 @@ if os.path.exists(os.environ['DB_PATH']): os.remove(os.environ['DB_PATH'])
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from urllib.parse import parse_qs
 from backend.app import app
-from backend import store as st, brokers as bk, binance_bot as bb, binance_trade as bt, tradeon
+from backend import store as st, brokers as bk, binance_bot as bb, binance_trade as bt
 c = app.test_client(); H = lambda e: {'Authorization': 'Bearer dev:' + e}
 R = []
 def T(n, ok): R.append(bool(ok)); print('PASS' if ok else 'FAIL', n)
@@ -44,8 +44,7 @@ T('no Binance key saved -> not verified', bb.run_once(U, scan, yes, http, NOW) =
 c.post('/api/brokers/Binance', json={'key': KEY, 'secret': SEC}, headers=H('amy@x.com'))
 T('a saved but unchecked key -> not verified, nothing called', bb.run_once(U, scan, yes, http, NOW) == 'not verified' and not S['calls'])
 st.x("UPDATE broker_links SET status='verified' WHERE uid=? AND broker='Binance'", (U,))
-T('Binance never chosen as the platform -> other platform, nothing called', bb.run_once(U, scan, yes, http, NOW) == 'other platform' and not S['calls'])
-tradeon.set_(U, False, 'Binance')
+T('Binance bot never switched on -> bot off, nothing called', bb.run_once(U, scan, yes, http, NOW) == 'bot off' and not S['calls'])
 T('chosen but the bot switch is off -> bot off, nothing called', bb.run_once(U, scan, yes, http, NOW) == 'bot off' and not S['calls'])
 bk.set_bot(U, 'Binance', True)
 T('plan ended -> plan ended, nothing called', bb.run_once(U, scan, no, http, NOW) == 'plan ended' and not S['calls'])

@@ -8,7 +8,7 @@ reason 'basket', its closing price and the group profit. The server does the res
      That one refusal is tried again on the next polls for up to 90 seconds; any other refusal ends it at once.
 Nothing here claims it makes more money: repeating trades also repeats losses."""
 import json, time
-from . import store as st, tradeon, deriv_group as dg
+from . import store as st, deriv_group as dg
 
 WAIT = 90          # seconds a refusal for 'no room yet' is retried
 
@@ -30,7 +30,6 @@ def after_close(uid, sid, price, now=None):
     closed = [r for r in mem if r['status'] == 'closed']
     total = round(sum(dg._f(r['pnl']) or 0 for r in closed), 2)
     if not closed or total <= 0: return None          # a loss limit or a stop loss never starts the next group
-    if not tradeon.allows(uid, 'MT5'): return None          # the person moved to another platform
     if not st.x("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO NOTHING", ('cyc_done:%d' % int(g), str(int(now))), True): return None          # this group already started its successor
     ids = dg.reopen(uid, g, m, mem[0], price, now)
     if not ids and _transient(dg.why(uid)): st.put('cyc_retry:' + uid, json.dumps({'parent': int(g), 'price': dg._f(price), 't': int(now)}))
