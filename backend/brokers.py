@@ -74,7 +74,6 @@ REASONS = {
     'off': 'Deriv trading is not switched on on the server yet. The owner must set DERIV_APP_ID on Render.',
     'plan ended': 'Your plan has ended. Renew it to trade.',
     'bot off': 'The bot is off. Tap Start bot.',
-    'other platform': 'You chose another platform to trade on, so this one is paused. Change it on the Bot tab.',
     'real not ready': 'Real-money Binance trading is not available yet. Switch to the testnet (demo).',
     'no key': 'No Binance key is saved. Save your testnet key and secret again.',
     'no crypto symbols': 'No crypto market is set to trade. The owner must add one (for example BTCUSD) to the symbols list.',

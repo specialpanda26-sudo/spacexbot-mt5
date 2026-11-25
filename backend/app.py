@@ -6,6 +6,11 @@ from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 from . import screenread
 st.init(); assist.init(); screenread.init()
+try:          # one-time cleanup: the old "Trade on" limit is gone, so forget its saved choice and the "paused" note it left on each broker
+    st.x("DELETE FROM kv WHERE k LIKE 'trade_on:%'")
+    for _r in st.q("SELECT k,v FROM kv WHERE k LIKE 'why:%'") or []:
+        if '"other platform"' in str(_r['v']): st.x('DELETE FROM kv WHERE k=?', (_r['k'],))
+except Exception as _e: print('trade-on cleanup skipped', str(_e)[:80])
 
 @app.errorhandler(Exception)
 def _boom(e):
@@ -13,7 +18,7 @@ def _boom(e):
     if isinstance(e, HTTPException): return e
     import traceback; print('500', request.path, repr(e)[:300]); traceback.print_exc(); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
-from . import manual_close, burst_scope, btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
+from . import manual_close, burst_scope, btc_switch, course, roadmap, guide, deriv_oauth, testlab
 from . import quickprofit          # QP1: take small profits
 from . import userlim, risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck, presets, streakreq, sharecode
 _last_scan = {}
@@ -245,17 +250,16 @@ def ea_sync():
     st.x("UPDATE signals SET status='expired' WHERE status IN('pending','sent') AND created<? AND COALESCE(uid,'')=?", (now - 180, who))
     s = st.q("SELECT id,symbol,side,sl,tp,risk_pct FROM signals WHERE status='pending' AND COALESCE(uid,'')=? ORDER BY id LIMIT 1", (who,), one=True)
     if s and who and risk.bot_on(who) and not links.bot_on(who): s = None          # R7: the bot is on only for Deriv, so this signal is for Deriv; the MT5 bridge never sees it (the MT5 bridge itself ignores the bot flag)
-    if s and not tradeon.allows(who, 'MT5'): s = None          # 5A: another platform was chosen, so the MT5 bridge gets nothing
     bk = burst.basket(s, who) if s else None          # a burst group goes out ALL AT ONCE as one basket (the old way would send one entry per poll)
     if bk and manual_close.on(who): bk.update(tgt=manual_close.FAR, gb=0, tp=manual_close.far_tp(bk['side'], bk['sl'], bk['tp']))          # MC1: the owner closes the profits
     if bk:
         for i in bk['ids'].split(','): st.x("UPDATE signals SET status='sent' WHERE id=?", (int(i),)); lag.stamp(int(i), 'sent')
         bk['stake_pct'] = 0.0          # Section 2: a burst basket is many small entries, it never gets a big stake
-        return jsonify(signal=None, basket=bk, bot=links.bot_on(who) and tradeon.allows(who, 'MT5'), symbols=st.get('symbols'), qp=quickprofit.usd_for(who))
+        return jsonify(signal=None, basket=bk, bot=links.bot_on(who), symbols=st.get('symbols'), qp=quickprofit.usd_for(who))
     if s: st.x("UPDATE signals SET status='sent' WHERE id=?", (s['id'],)); lag.stamp(s['id'], 'sent')
     if s and manual_close.on(who): s = dict(s, tp=manual_close.far_tp(s['side'], s['sl'], s['tp']))          # MC1
     if s: s = dict(s); s['stake_pct'] = stake.pct(s['id']); s['stake_max_risk_pct'] = stake.max_risk()          # Section 2: the EA sizes a strong setup by margin share (0 = normal sizing)
-    return jsonify(signal=s, bot=links.bot_on(who) and tradeon.allows(who, 'MT5'), symbols=st.get('symbols'), qp=quickprofit.usd_for(who))
+    return jsonify(signal=s, bot=links.bot_on(who), symbols=st.get('symbols'), qp=quickprofit.usd_for(who))
 
 @app.post('/api/ea/report')
 def ea_report():
@@ -423,7 +427,6 @@ def link_bot(u):
     on = _j().get('on') is True
     if on and not u['active']: return jsonify(error='subscription required'), 402
     if on and assist.is_on(u['uid']): return jsonify(error='Turn off Phone mode first, so the same signal is not traded twice.'), 400
-    if on and tradeon.blocked_msg(u['uid'], 'MT5'): return jsonify(error=tradeon.blocked_msg(u['uid'], 'MT5')), 400          # 5A
     return _link_edit(u, lambda: links.set_bot(u['uid'], on))
 
 @app.post('/api/link/risk')
@@ -498,8 +501,6 @@ def brokers_bot(u, name):
         if not u['active']: return jsonify(error='subscription required'), 402
         if r['status'] != 'verified': return jsonify(error='Your %s is not checked yet. Save it again to check it.' % what), 400
         if assist.is_on(u['uid']): return jsonify(error='Turn off Phone mode first, so the same signal is not traded twice.'), 400
-        if tradeon.blocked_msg(u['uid'], n): return jsonify(error=tradeon.blocked_msg(u['uid'], n)), 400          # 5A
-        if n == 'Binance' and tradeon.get(u['uid']) != 'Binance': return jsonify(error='Choose Binance as your trading platform on the Bot tab first.'), 400          # 5B-2b: never on by default
         if n == 'Binance' and bk.mode(u['uid'], n) == 'real': return jsonify(error='Real-money Binance trading is not available yet.'), 400
     bk.set_bot(u['uid'], n, on); learn.log(u['uid'], 'setting', data={'path': request.path, 'on': on})
     if on: (deriv if n == 'Deriv' else binance_bot).kick(u['uid'], _scan, _paid)
@@ -631,21 +632,6 @@ def botstate_api(u):
         out['deriv'] = {'on': bool(bk.bot_flag(u['uid'], 'Deriv')), 'why': row.get('why')}
     return jsonify(out)
 
-@app.get('/api/trade-on')
-@need(verified=True)
-def trade_on_get(u):
-    """5A: which platform trades (MT5, Deriv or Binance), or null when the person never chose."""
-    return jsonify(tradeon.view(u['uid'], bool(u['admin'])))
-
-@app.post('/api/trade-on')
-@need(verified=True)
-def trade_on_set(u):
-    """5A: choose the ONE platform that trades. Every other platform's bot is switched off. Real-money rules (plan, REAL word, limits) are unchanged."""
-    try: n = tradeon.set_(u['uid'], bool(u['admin']), _j().get('platform'))
-    except ValueError as e: return jsonify(error=str(e)), 400
-    learn.log(u['uid'], 'setting', data={'path': request.path, 'platform': n})
-    return jsonify(ok=True, **tradeon.view(u['uid'], bool(u['admin'])))
-
 @app.get('/api/screen/status')
 @need(verified=True)
 def screen_status(u):
@@ -749,10 +735,9 @@ def _deriv_bot(u, on):
 @need(verified=True)
 def bot_switch(u):
     """Section 4: the Bot tab's Start / Stop. The owner switches the owner's EA; everyone else switches their own link (plan and Phone-mode rules as before)."""
-    on = _j().get('on') is True; tp = tradeon.get(u['uid'])
-    # 5B-2b: Binance may start now when it was chosen (the old refusal is gone)
-    m5, dv = (not on) or tradeon.allows(u['uid'], 'MT5'), (not on) or tradeon.allows(u['uid'], 'Deriv')          # 5A: Start reaches only the chosen platform; Stop always reaches all
-    bn = (not on) or tp == 'Binance'          # 5B-2b: Binance starts only when it was chosen on purpose; Stop reaches it too
+    on = _j().get('on') is True
+    m5 = dv = True          # Start / Stop reaches every platform this person has connected; nothing is paused for choosing another
+    bn = (not on) or bool(st.q("SELECT 1 FROM broker_links WHERE uid=? AND broker='Binance'", (u['uid'],), True))
     if u['admin']:
         if m5: st.put('bot_enabled', '1' if on else '0')
         learn.log(u['uid'], 'setting', data={'path': request.path, 'on': on})
@@ -764,7 +749,6 @@ def bot_switch(u):
     if on and assist.is_on(u['uid']): return jsonify(error='Turn off Phone mode first, so the same signal is not traded twice.'), 400
     has_mt5 = bool(links.get(u['uid']))
     if not has_mt5 and not st.q("SELECT 1 FROM broker_links WHERE uid=? AND broker IN('Deriv','Binance')", (u['uid'],), True): return jsonify(error='Make your MT5 key on the Connect tab first.'), 400
-    if on and tp == 'MT5' and not has_mt5: return jsonify(error='Make your MT5 key on the Connect tab first.'), 400
     if has_mt5 and m5: links.set_bot(u['uid'], on)
     err = _deriv_bot(u, on) if dv else None
     err = err or (_binance_bot(u, on) if bn else None)

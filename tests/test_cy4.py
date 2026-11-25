@@ -49,7 +49,6 @@ wipe(); groupcap.save('', {'on': True, 'target_usd': 0.7}); ids = group(); one(i
 wipe(); on(); ids = group(kind='quick'); one(ids, [0.3, 0.3, 0.2]); T('a burst group never cycles', not pend())
 wipe(); on(); ids = group(tgt=0); one(ids, [0.3, 0.3, 0.2]); T('a group without a target never cycles', not pend())
 wipe(); on(); ids = group(n=1); one(ids, [0.5]); T('a single trade is not a group', not pend())
-wipe(); on(); st.put('trade_on:', 'Deriv'); ids = group(); one(ids, [0.3, 0.3, 0.2]); T('the person moved to another platform: MT5 queues nothing', not pend())
 wipe(); on(); ids = group(); one(ids, [0.3, 0.3, 0.2], price=None); T('the EA sent no closing price: nothing is queued and it says why', not pend() and 'price' in dg.why(''))
 wipe(); on(cap=1); ids = group(); one(ids, [0.3, 0.3, 0.2]); a = len(pend()); ids2 = [x['id'] for x in pend()]
 for i in ids2: st.x("UPDATE signals SET status='open',ticket=?,broker='MT5' WHERE id=?", (str(700 + i), i))

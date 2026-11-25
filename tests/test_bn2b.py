@@ -6,7 +6,7 @@ os.environ.update(DEV_AUTH='1', EA_KEY='k', ADMIN_EMAILS='boss@x.com', DB_PATH=D
 for f in glob.glob(DB + '*'): os.remove(f)
 sys.path.insert(0, ROOT)
 from backend.app import app
-from backend import store as st, links, brokers as bk, tradeon, alerts, botstate, binance_bot as bb, binance_trade as bt
+from backend import store as st, links, brokers as bk, alerts, botstate, binance_bot as bb, binance_trade as bt
 try: alerts.stop()
 except Exception: pass
 c = app.test_client(); H = lambda e: {'Authorization': 'Bearer dev:' + e}
@@ -39,8 +39,7 @@ v = binrow(A)
 T('tile data: Binance trades is True now, status saved, mode demo', v['trades'] is True and v['status'] == 'saved' and v['mode'] == 'demo')
 cat = {x['name']: x for x in c.get('/api/brokers', headers=H('amy@x.com')).get_json()['catalog']}
 T('catalog says testnet, fake money, and that real is not available', 'testnet' in cat['Binance']['tile'].lower() and 'fake money' in cat['Binance']['works'] and 'Real-money' in cat['Binance']['not'])
-T('plain words exist for every new reason', all(k in bk.REASONS and len(bk.REASONS[k]) > 20 for k in ('real not ready', 'no key', 'no crypto symbols', 'cannot trade', 'other platform')))
-T("'other platform' no longer names Deriv (it is shown on the Binance tile too)", 'Deriv' not in bk.REASONS['other platform'])
+T('plain words exist for every new reason', all(k in bk.REASONS and len(bk.REASONS[k]) > 20 for k in ('real not ready', 'no key', 'no crypto symbols', 'cannot trade')))
 
 # ---- key check (demo = testnet)
 T('no key saved: asks for it', bb.verify(B, http, clock()) == (False, 'Save your Binance testnet key and secret first.'))
@@ -75,13 +74,9 @@ T('route: verify ok returns the tile row', r['ok'] and next(b for b in r['broker
 # ---- Start bot on the Binance card
 bb._vlast.clear()
 def tile_bot(email, on): return c.post('/api/brokers/Binance/bot', json={'on': on}, headers=H(email))
-T('Binance card: Start before choosing Binance is refused (never on by default)', tile_bot('amy@x.com', True).status_code == 400 and 'Choose Binance' in tile_bot('amy@x.com', True).get_json()['error'] and bk.bot_flag(A, 'Binance') is not True and not KICKS)
-c.post('/api/trade-on', json={'platform': 'Deriv'}, headers=H('amy@x.com'))
 r = tile_bot('amy@x.com', True)
-T('Binance card: Start while Deriv is chosen is refused with the chosen name', r.status_code == 400 and 'Deriv' in r.get_json()['error'] and not KICKS)
-c.post('/api/trade-on', json={'platform': 'Binance'}, headers=H('amy@x.com'))
-r = tile_bot('amy@x.com', True)
-T('Binance chosen + checked + plan: Start works, flag on, the loop is kicked once', r.status_code == 200 and bk.bot_flag(A, 'Binance') is True and KICKS == [A])
+KICKS.clear(); r = tile_bot('amy@x.com', True)
+T('Binance checked + plan: Start works, flag on, the loop is kicked once', r.status_code == 200 and bk.bot_flag(A, 'Binance') is True and KICKS == [A])
 T('Binance card Stop: flag off, note says bot off', tile_bot('amy@x.com', False).status_code == 200 and bk.bot_flag(A, 'Binance') is False and 'The bot is off' in binrow(A)['why'])
 st.x("UPDATE broker_links SET status='saved' WHERE uid=? AND broker='Binance'", (A,)); KICKS.clear()
 r = tile_bot('amy@x.com', True)
@@ -105,31 +100,27 @@ T('and the Bot tab says Binance is running (broker Binance, plain words)', r.get
 r = c.post('/api/bot', json={'on': False}, headers=H('amy@x.com')).get_json()
 T('Bot tab Stop stops Binance', bk.bot_flag(A, 'Binance') is False and r.get('running') is False)
 bk.set_bot(A, 'Binance', True)
-c.post('/api/trade-on', json={'platform': 'MT5'}, headers=H('amy@x.com'))
-T('choosing MT5 switches the Binance bot off and says why', bk.bot_flag(A, 'Binance') is False and binrow(A)['why_code'] == 'other platform')
-c.post('/api/trade-on', json={'platform': 'Binance'}, headers=H('amy@x.com'))
 r = c.post('/api/bot', json={'on': True}, headers=H('bob@x.com'))
-T('a person with no Binance key: Start with Binance chosen asks for the key, nothing starts', (c.post('/api/trade-on', json={'platform': 'Binance'}, headers=H('bob@x.com')), c.post('/api/bot', json={'on': True}, headers=H('bob@x.com')))[1].status_code == 400 and bk.bot_flag(B, 'Binance') is None)
+T('a person with no Binance key and no MT5 key: Start asks for a key, nothing starts', c.post('/api/bot', json={'on': True}, headers=H('bob@x.com')).status_code == 400 and bk.bot_flag(B, 'Binance') is None)
 st.x("UPDATE broker_links SET status='saved' WHERE uid=? AND broker='Binance'", (A,)); bk.set_bot(A, 'Binance', False)
 r = c.post('/api/bot', json={'on': True}, headers=H('amy@x.com'))
 T('Bot tab Start with an unchecked Binance key says so', r.status_code == 400 and 'not checked' in r.get_json()['error'] and bk.bot_flag(A, 'Binance') is False)
 st.x("UPDATE broker_links SET status='verified' WHERE uid=? AND broker='Binance'", (A,))
-KICKS.clear(); links.new_key(A); c.post('/api/trade-on', json={'platform': 'MT5'}, headers=H('amy@x.com')); links.set_bot(A, False)          # Amy has an MT5 key here, so the request really reaches the platform gates
+KICKS.clear(); links.new_key(A); links.set_bot(A, False)          # Amy has an MT5 key here, so the request really reaches the platform gates
 c.post('/api/bot', json={'on': True}, headers=H('amy@x.com'))
-T('with MT5 chosen the Bot tab Start starts MT5 and never touches Binance', links.bot_on(A) is True and bk.bot_flag(A, 'Binance') is not True and not KICKS)
+T('with an MT5 key too, the Bot tab Start starts MT5 and the checked Binance key', links.bot_on(A) is True and bk.bot_flag(A, 'Binance') is True)
 
 # ---- the owner (admin) path
 c.post('/api/brokers/Binance', json={'key': KEY, 'secret': SEC}, headers=H('boss@x.com')); bb._vlast.clear(); bb.verify(O, http, clock())
-c.post('/api/trade-on', json={'platform': 'Binance'}, headers=H('boss@x.com')); KICKS.clear()
+KICKS.clear()
 r = c.post('/api/bot', json={'on': True}, headers=H('boss@x.com'))
-T('owner: Start with Binance chosen starts Binance and leaves the owner EA switch off', r.status_code == 200 and bk.bot_flag(O, 'Binance') is True and st.get('bot_enabled') != '1' and KICKS == [O])
+T('owner: Start starts Binance (and the owner EA switch, nothing is paused)', r.status_code == 200 and bk.bot_flag(O, 'Binance') is True and KICKS == [O])
 c.post('/api/bot', json={'on': False}, headers=H('boss@x.com'))
 T('owner: Stop stops Binance', bk.bot_flag(O, 'Binance') is False)
 
 # ---- the Bot tab words
-bk.set_bot(A, 'Binance', False); tradeon.set_(A, False, 'Binance')
+bk.set_bot(A, 'Binance', False); links.set_bot(A, False)
 e = botstate.explain(A, False, True)
-T('Bot tab, Binance chosen and bot off: stopped, broker Binance', e['state'] == 'stopped' and e['broker'] == 'Binance' and e['running'] is False)
 bk.set_bot(A, 'Binance', True); bk.set_why(A, 'Binance', 'ok'); e = botstate.explain(A, False, True)
 T('Bot tab, Binance running fine: watching, says testnet', e['state'] == 'watching' and 'testnet' in e['why'] and e['broker'] == 'Binance')
 bk.set_why(A, 'Binance', 'no crypto symbols'); e = botstate.explain(A, False, True)
@@ -138,14 +129,13 @@ bk.set_why(A, 'Binance', 'real not ready'); T('real not ready has its own words'
 st.x("DELETE FROM kv WHERE k LIKE 'why:%:Binance'"); e = botstate.explain(A, False, True)
 T('no note yet: starting, never a made-up state', e['code'] == 'starting')
 T('plan ended is still said first', botstate.explain(A, False, False)['code'] == 'plan ended')
-tradeon.set_(A, False, 'Deriv'); T('Binance not chosen: the Bot tab is the old one (no broker Binance)', botstate.explain(A, False, True).get('broker') != 'Binance')
+bk.set_bot(A, 'Binance', False); T('Binance bot off: the Bot tab is the old one (no broker Binance)', botstate.explain(A, False, True).get('broker') != 'Binance')
 
 # ---- 5A gate and the loop are wired
-T('trade-on view: Binance trades, note says testnet', (tradeon.set_(A, False, 'Binance'), c.get('/api/trade-on', headers=H('amy@x.com')).get_json())[1]['platforms'][2]['trades'] is True and 'testnet' in tradeon.view(A)['note'])
 bb.round_all  # exists
 src = open(os.path.join(ROOT, 'backend', 'app.py'), encoding='utf-8').read()
 T('the app starts the Binance loop', "binance_bot.start(_scan, _paid)" in src and 'binance_bot' in src.split('authmail, binance, ')[1].split('\n')[0])
-T('the old "does not trade yet" words are gone from the server', 'does not trade yet' not in src and 'does not trade yet' not in open(os.path.join(ROOT, 'backend', 'tradeon.py')).read())
+T('the old "does not trade yet" words are gone from the server', 'does not trade yet' not in src)
 idx = open(os.path.join(ROOT, 'static', 'index.html'), encoding='utf-8').read()
 T('page: Binance card says testnet and fake money, never the real key, 1-minute stop check', 'testnet.binance.vision' in idx and 'Never paste your real Binance key' in idx and 'about once a minute' in idx)
 T('page: the Start bot button is on the Binance card and posts to its own broker', '((n==="Deriv"||bn)&&cur&&cur.status==="verified"' in idx and '"/api/brokers/"+n+"/bot"' in idx and '"/api/brokers/Deriv/bot"' not in idx)

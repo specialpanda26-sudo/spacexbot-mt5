@@ -6,7 +6,7 @@ of the balance (stake.py), otherwise the stop loses about the signal's risk perc
 bot about once a minute (spot has no stop built into a market order), so a fast move can pass them: said plainly in the app in 5B-2b. Open trades are followed even if the bot is switched off."""
 import os, time, json, threading
 from decimal import Decimal
-from . import store as st, brokers as bk, bars, tradeon, binance_trade as bt
+from . import store as st, brokers as bk, bars, binance_trade as bt
 
 CRYPTO = ('BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'ADA', 'DOGE', 'LTC')
 IV = {'M5': '5m', 'M15': '15m', 'H1': '1h'}; SEC = {'M5': 300, 'M15': 900, 'H1': 3600}
@@ -165,10 +165,9 @@ def _run_once(uid, scan, paid, http, now):
     if st.q("SELECT 1 FROM signals WHERE uid=? AND status='open' AND broker='Binance'", (uid,), True): _track(uid, key, secret, http, now)          # always, even if the bot is off
     try:          # CY5: close a whole group at its profit target or loss limit; after a profit (cycle on, bot allowed to trade) queue the next group
         from . import binance_group
-        binance_group.check(uid, key, secret, http, now, bool(paid(uid)) and tradeon.get(uid) == 'Binance' and _bot(uid) and bk.mode(uid, 'Binance') != 'real')
+        binance_group.check(uid, key, secret, http, now, bool(paid(uid)) and _bot(uid) and bk.mode(uid, 'Binance') != 'real')
     except Exception as e: print('[binance_bot] group failed', type(e).__name__)
     if not paid(uid): return 'plan ended'
-    if tradeon.get(uid) != 'Binance': return 'other platform'          # Binance trades only when it was chosen on purpose
     if not _bot(uid): return 'bot off'
     if bk.mode(uid, 'Binance') == 'real': return 'real not ready'          # 5B-3
     free, can = _free(key, secret, http, ms)
