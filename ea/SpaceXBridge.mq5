@@ -4,7 +4,7 @@
 //| and add your Render URL to the list. Attach to ANY chart.        |
 //+------------------------------------------------------------------+
 #property strict
-#property version "1.21"
+#property version "1.22"
 #include <Trade\Trade.mqh>
 
 input string ServerUrl      = "https://your-service.onrender.com"; // no trailing slash
@@ -25,6 +25,7 @@ input int    BasketCheckMs  = 500;     // BURST: how often open baskets are chec
 
 CTrade trade;
 datetime lastBars = 0; bool firstPush = true;
+double QuickUsd = 0;          // QP1: take small profits. The server sends it on every poll (USD per position, 0 = off)
 
 //--- tiny JSON helpers (flat values only)
 string JStr(const string js, const string key)
@@ -239,6 +240,30 @@ void CloseBasket(long gid)
    }
 }
 
+void ManageQuick()          // QP1: each of our positions closes by itself once its OWN profit (plus swap) reaches QuickUsd
+{
+   datetime now = TimeCurrent();
+   for(int i = GlobalVariablesTotal() - 1; i >= 0; i--)          // forget old "closed by small profit" marks (the close was reported long ago)
+   {
+      string nm = GlobalVariableName(i);
+      if(StringFind(nm, "SXB_Q") == 0 && now - GlobalVariableTime(nm) > 300) GlobalVariableDel(nm);
+   }
+   if(QuickUsd <= 0) return;
+   trade.SetExpertMagicNumber(Magic); trade.SetDeviationInPoints(Deviation);
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong tk = PositionGetTicket(i); if(!PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC) != Magic) continue;
+      if(StringFind(PositionGetString(POSITION_COMMENT), "SXB") != 0) continue;
+      double pr = PositionGetDouble(POSITION_PROFIT) + PositionGetDouble(POSITION_SWAP);
+      if(pr < QuickUsd) continue;
+      string qn = "SXB_Q" + (string)PositionGetInteger(POSITION_IDENTIFIER);
+      GlobalVariableSet(qn, (double)now);
+      if(trade.PositionClose(tk, Deviation)) Print("Small profit: closed position ", tk, " at ", DoubleToString(pr, 2), " (limit ", DoubleToString(QuickUsd, 2), ")");
+      else { GlobalVariableDel(qn); Print("Small profit: close failed for ", tk, " retcode ", trade.ResultRetcode(), " (will retry)"); }
+   }
+}
+
 void ManageBaskets()
 {
    long g[]; double sum[]; int ng = 0;
@@ -300,6 +325,7 @@ void OnDeinit(const int reason){ EventKillTimer(); }
 void PollServer();
 void OnTimer()
 {
+   ManageQuick();                                                                      // QP1: small profits are taken here, twice a second
    ManageBaskets();                                                                    // burst baskets are watched every BasketCheckMs
    static uint lastPoll = 0;
    if(GetTickCount() - lastPoll < (uint)(PollSeconds * 1000)) return;                  // the server is still polled every PollSeconds
@@ -340,6 +366,7 @@ void PollServer()
    string res = Post("/api/ea/sync", "{\"account\":" + acct + bars + "}");
    if(res == "") return;
    if(bars != "") firstPush = false;
+   QuickUsd = StringToDouble(JStr(res, "qp"));                                         // QP1: 0 when the person has it off (or an old server sends nothing)
    long bgid = (long)StringToInteger(JStr(res, "gid"));
    if(bgid > 0)   // a burst group arrived: all its entries at once
    {
@@ -378,7 +405,8 @@ void OnTradeTransaction(const MqlTradeTransaction &t, const MqlTradeRequest &rq,
    if(sid > 0)
    {
       string why = "other";                                    // what really closed it
-      if(gid > 0 && GlobalVariableCheck(GV("X", gid))) why = "basket";
+      if(GlobalVariableCheck("SXB_Q" + (string)pid)) why = "quick";                       // QP1: closed by the small-profit switch
+      else if(gid > 0 && GlobalVariableCheck(GV("X", gid))) why = "basket";
       else if(dr == DEAL_REASON_TP) why = "tp";
       else if(dr == DEAL_REASON_SL) why = "sl";
       else if(dr == DEAL_REASON_CLIENT || dr == DEAL_REASON_MOBILE || dr == DEAL_REASON_WEB) why = "manual";

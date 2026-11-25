@@ -375,6 +375,16 @@ def _track(sess, uid, acct):
         except (TypeError, ValueError): continue
         p = sess.ask({'proposal_open_contract': 1, 'contract_id': cid}).get('proposal_open_contract')
         if isinstance(p, dict) and str(p.get('is_sold')).lower() not in ('1', 'true'): live[r['id']] = p.get('profit')          # BX1
+        if isinstance(p, dict) and str(p.get('is_sold')).lower() not in ('1', 'true'):          # QP1: take small profits, one trade at a time
+            try:
+                from . import quickprofit, deriv_group
+                q = quickprofit.usd_for(uid); pr = float(p.get('profit'))
+                if q > 0 and pr >= q:
+                    fin = deriv_group._sell(sess, cid, pr)
+                    if fin is not None and st.x("UPDATE signals SET status='closed',pnl=?,closed=? WHERE id=? AND status='open'", (fin, int(time.time()), r['id']), True):
+                        st.put('closedby:%d' % r['id'], 'quick'); live.pop(r['id'], None); _report(uid, r['id'], 'closed', 'tp' if fin > 0 else 'other'); done = True; continue
+            except ConnectionError: raise
+            except Exception as e: print('[deriv] quick profit failed', repr(e)[:100])
         if not isinstance(p, dict) or str(p.get('is_sold')).lower() not in ('1', 'true'): continue
         try: pnl = round(float(p.get('profit')), 2)
         except (TypeError, ValueError): continue

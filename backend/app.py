@@ -14,6 +14,7 @@ def _boom(e):
     import traceback; print('500', request.path, repr(e)[:300]); traceback.print_exc(); return jsonify(error='Something hiccuped (%s). Please try again.' % type(e).__name__), 500
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 from . import manual_close, burst_scope, btc_switch, tradeon, course, roadmap, guide, deriv_oauth, testlab
+from . import quickprofit          # QP1: take small profits
 from . import userlim, risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck, presets, streakreq, sharecode
 _last_scan = {}
 
@@ -250,11 +251,11 @@ def ea_sync():
     if bk:
         for i in bk['ids'].split(','): st.x("UPDATE signals SET status='sent' WHERE id=?", (int(i),)); lag.stamp(int(i), 'sent')
         bk['stake_pct'] = 0.0          # Section 2: a burst basket is many small entries, it never gets a big stake
-        return jsonify(signal=None, basket=bk, bot=links.bot_on(who) and tradeon.allows(who, 'MT5'), symbols=st.get('symbols'))
+        return jsonify(signal=None, basket=bk, bot=links.bot_on(who) and tradeon.allows(who, 'MT5'), symbols=st.get('symbols'), qp=quickprofit.usd_for(who))
     if s: st.x("UPDATE signals SET status='sent' WHERE id=?", (s['id'],)); lag.stamp(s['id'], 'sent')
     if s and manual_close.on(who): s = dict(s, tp=manual_close.far_tp(s['side'], s['sl'], s['tp']))          # MC1
     if s: s = dict(s); s['stake_pct'] = stake.pct(s['id']); s['stake_max_risk_pct'] = stake.max_risk()          # Section 2: the EA sizes a strong setup by margin share (0 = normal sizing)
-    return jsonify(signal=s, bot=links.bot_on(who) and tradeon.allows(who, 'MT5'), symbols=st.get('symbols'))
+    return jsonify(signal=s, bot=links.bot_on(who) and tradeon.allows(who, 'MT5'), symbols=st.get('symbols'), qp=quickprofit.usd_for(who))
 
 @app.post('/api/ea/report')
 def ea_report():
@@ -270,7 +271,7 @@ def ea_report():
     elif stt == 'rejected': st.x("UPDATE signals SET status='rejected',note=? WHERE id=?", (str(d.get('reason'))[:120], sid))
     elif stt == 'closed':
         st.x("UPDATE signals SET status='closed',pnl=?,closed=? WHERE id=?", (d.get('pnl'), int(time.time()), sid))
-        if str(d.get('reason')) in ('tp', 'sl', 'manual', 'bot', 'basket', 'other'): st.put('closedby:%d' % sid, str(d.get('reason')))      # only what the bridge really reported
+        if str(d.get('reason')) in ('tp', 'sl', 'manual', 'bot', 'basket', 'quick', 'other'): st.put('closedby:%d' % sid, str(d.get('reason')))      # only what the bridge really reported
         try: px = float(d.get('price'))
         except (TypeError, ValueError): px = 0.0
         if 0 < px < 1e9: st.put('exitpx:%d' % sid, px)          # Section 4: the closing price the EA read from the closing deal (an old EA sends none)
@@ -1123,6 +1124,19 @@ def gcap_set(u):
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in groupcap.KEYS}})
     return jsonify(groupcap.view(_mine(u)))
+
+@app.get('/api/quickprofit')          # QP1: take small profits
+@need(verified=True)
+def qp_get(u): return jsonify(quickprofit.view(_mine(u)))
+
+@app.post('/api/quickprofit')
+@need(verified=True)
+def qp_set(u):
+    j = _j()
+    try: quickprofit.save(_mine(u), j)
+    except ValueError as e: return jsonify(error=str(e)), 400
+    learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in quickprofit.KEYS}})
+    return jsonify(quickprofit.view(_mine(u)))
 
 @app.get('/api/cycle')          # CY1: Auto-cycle choices
 @need(verified=True)
