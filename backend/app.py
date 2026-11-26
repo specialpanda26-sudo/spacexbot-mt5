@@ -20,6 +20,7 @@ def _boom(e):
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 from . import manual_close, burst_scope, btc_switch, course, roadmap, guide, deriv_oauth, testlab
 from . import quickprofit          # QP1: take small profits
+from . import inbox as inbox_mod          # TB1: in-app notification inbox
 from . import userlim, risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck, presets, streakreq, sharecode
 _last_scan = {}
 
@@ -1110,6 +1111,20 @@ def gcap_set(u):
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in groupcap.KEYS}})
     return jsonify(groupcap.view(_mine(u)))
+
+@app.get('/api/inbox')          # TB1: the bell at the top of the app
+@need()
+def inbox_get(u): return jsonify(inbox_mod.view(u['uid']))
+
+@app.post('/api/inbox/seen')
+@need()
+def inbox_seen(u):
+    inbox_mod.mark_seen(u['uid']); return jsonify(inbox_mod.view(u['uid']))
+
+@app.post('/api/inbox/clear')
+@need()
+def inbox_clear(u):
+    inbox_mod.clear(u['uid']); return jsonify(inbox_mod.view(u['uid']))
 
 @app.get('/api/quickprofit')          # QP1: take small profits
 @need(verified=True)

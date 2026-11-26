@@ -128,6 +128,12 @@ def tag_for(kind, key=None):
 # ---------- the one entry point ----------
 def send(uid, kind, body, title=None, key=None, force=False, img=None):
     """Send one notification kind to one person. key makes it idempotent per person. Returns (sent_count, reason)."""
+    k0 = KINDS.get(kind)          # TB1: the in-app inbox keeps it too (unless that category is switched off)
+    if k0:
+        try:
+            from . import inbox
+            if prefs(uid).get(k0['cat'], True): inbox.add(uid, kind, title or k0['title'], body, k0['cat'], key)
+        except Exception as e: print('[push] inbox failed', str(e)[:80])
     if not configured(): return 0, 'FCM not configured'
     k = KINDS.get(kind)
     if not k: return 0, 'unknown kind'

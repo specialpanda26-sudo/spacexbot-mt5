@@ -2067,7 +2067,7 @@ if(vb){
     setTimeout(function(){var tg=e&&document.body.contains(e)?e:(fieldEl(c,r.f)||c);tg.scrollIntoView({behavior:"smooth",block:"center"});tg.classList.add("sxflash");setTimeout(function(){tg.classList.remove("sxflash")},tg===c?2600:3400)},folded?480:0)}
    setTimeout(look,260)}
   /*SF4-end*/
-  window.SXgo=go;          /*SF1: the Bot status card opens a setting with the same jump the search uses*/
+  window.SXgo=go;window.SXfind=find;window.SXscan=scan;window.SXfb=FB;          /*SF1: the Bot status card opens a setting with the same jump the search uses*/
   var box=card(["Find a setting",""],'<div class="field"><label for="sxQ">What do you want to do?</label><input class="inp" id="sxQ" type="search" placeholder="e.g. burst, stake per entry, daily loss, notifications" autocomplete="off"></div><div id="sxR" role="status"></div>');
   box.classList.add("sxfind");vb.insertBefore(box,vb.firstChild);
   var q=box.querySelector("#sxQ"),R=box.querySelector("#sxR");
@@ -3664,5 +3664,5 @@ window.sxBanner=function(o){o=o||{};var t=String(o.title||""),x=String(o.text||"
  void el.offsetWidth;el.classList.add("on");clearTimeout(tm);tm=setTimeout(hide,o.ms>0?o.ms:6000)};
 window.sxBannerHide=hide})();
 </script>
-<script src="/static/prefs_ui.js"></script><script src="/static/streak_ui.js"></script><script src="/static/share_ui.js"></script><script src="/static/quick_ui.js"></script><script src="/static/screen.js"></script><script src="/static/deriv_login.js"></script><script src="/static/test_lab.js"></script><script src="/static/course.js"></script><script src="/static/roadmap.js"></script><script src="/static/guide.js"></script><script src="/static/running.js"></script><script src="/static/update.js"></script>
+<script src="/static/prefs_ui.js"></script><script src="/static/streak_ui.js"></script><script src="/static/share_ui.js"></script><script src="/static/quick_ui.js"></script><script src="/static/topbar_ui.js"></script><script src="/static/screen.js"></script><script src="/static/deriv_login.js"></script><script src="/static/test_lab.js"></script><script src="/static/course.js"></script><script src="/static/roadmap.js"></script><script src="/static/guide.js"></script><script src="/static/running.js"></script><script src="/static/update.js"></script>
 </body></html>
