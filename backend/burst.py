@@ -72,7 +72,7 @@ def get(uid=''):
             'big_usd': round(_clamp(j.get('big_usd'), USD_LO, USD_HI, DEF['big_usd'], float), 2),
             'giveback': _clamp(j.get('giveback'), 0, 90, DEF['giveback']),
             'stake_usd': round(_clamp(j.get('stake_usd'), 0, USD_HI, DEF['stake_usd'], float), 2),
-            'loss_usd': round(_clamp(j.get('loss_usd'), 0, USD_HI, 0.0, float), 2), 'lot': round(_clamp(j.get('lot'), 0, 100.0, 0.0, float), 2),          # LOT1
+            'loss_usd': round(_clamp(j.get('loss_usd'), 0, USD_HI, 0.0, float), 2), 'lot': round(_clamp(j.get('lot'), 0, 100.0, 0.0, float), 2), 'max_lot': round(_clamp(j.get('max_lot'), 0, 100.0, 0.0, float), 2),          # LOT1
                       # BT13
             'minute': j.get('minute') is True, 'minute_n': _clamp(j.get('minute_n'), 2, c, DEF['minute_n'])}          # BT7
 
@@ -125,6 +125,11 @@ def save(uid, d):
         except (TypeError, ValueError): tv = float('nan')
         if tv != tv or not (tv == 0 or 0.01 <= tv <= 100): raise ValueError('Lot per entry must be 0 (automatic) or from 0.01 to 100')
         new['lot'] = round(tv, 2)
+    if 'max_lot' in d:          # LC1: the biggest lot any one MT5 trade may have (0 = no cap)
+        try: mv = float('nan') if isinstance(d['max_lot'], bool) else float(d['max_lot'])
+        except (TypeError, ValueError): mv = float('nan')
+        if mv != mv or not (mv == 0 or 0.01 <= mv <= 100): raise ValueError('Biggest lot must be 0 (no cap) or from 0.01 to 100')
+        new['max_lot'] = round(mv, 2)
     cur.update(new)
     st.put('burst:' + (uid or ''), json.dumps(cur))
     return get(uid)

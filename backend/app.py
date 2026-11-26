@@ -258,11 +258,12 @@ def ea_sync():
     if bk and manual_close.on(who): bk.update(tgt=manual_close.FAR, gb=0, tp=manual_close.far_tp(bk['side'], bk['sl'], bk['tp']))          # MC1: the owner closes the profits
     if bk:
         for i in bk['ids'].split(','): st.x("UPDATE signals SET status='sent' WHERE id=?", (int(i),)); lag.stamp(int(i), 'sent')
+        bk['max_lot'] = burst.get(who)['max_lot']          # LC1: the person's biggest lot
         bk['stake_pct'] = 0.0          # Section 2: a burst basket is many small entries, it never gets a big stake
         return jsonify(signal=None, basket=bk, bot=links.bot_on(who), symbols=st.get('symbols'), qp=quickprofit.usd_for(who))
     if s: st.x("UPDATE signals SET status='sent' WHERE id=?", (s['id'],)); lag.stamp(s['id'], 'sent')
     if s and manual_close.on(who): s = dict(s, tp=manual_close.far_tp(s['side'], s['sl'], s['tp']))          # MC1
-    if s: s = dict(s); s['stake_pct'] = stake.pct(s['id']); s['stake_max_risk_pct'] = stake.max_risk()          # Section 2: the EA sizes a strong setup by margin share (0 = normal sizing)
+    if s: s = dict(s); s['stake_pct'] = stake.pct(s['id']); s['stake_max_risk_pct'] = stake.max_risk(); s['lot'] = burst.get(who)['lot']; s['max_lot'] = burst.get(who)['max_lot']          # LC1          # Section 2: the EA sizes a strong setup by margin share (0 = normal sizing)
     return jsonify(signal=s, bot=links.bot_on(who), symbols=st.get('symbols'), qp=quickprofit.usd_for(who))
 
 @app.post('/api/ea/report')
