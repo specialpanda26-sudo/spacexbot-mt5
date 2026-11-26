@@ -4,7 +4,7 @@
 //| and add your Render URL to the list. Attach to ANY chart.        |
 //+------------------------------------------------------------------+
 #property strict
-#property version "1.22"
+#property version "1.23"
 #include <Trade\Trade.mqh>
 
 input string ServerUrl      = "https://your-service.onrender.com"; // no trailing slash
@@ -119,7 +119,7 @@ double StakeLots(const string sym, bool buy, double price, double sl, double sta
    return (lots >= mn) ? lots : 0;
 }
 
-void Execute(long id, string canon, string side, double sl, double tp, double riskPct, double stakePct = 0, double stakeMaxRisk = 10)
+void Execute(long id, string canon, string side, double sl, double tp, double riskPct, double stakePct = 0, double stakeMaxRisk = 10, double maxLot = 0)
 {
    if(!IsDemo() && !AllowLive){ Reject(id, "live account blocked (AllowLive=false)"); return; }
    string sym = canon + SymbolSuffix;
@@ -153,6 +153,11 @@ void Execute(long id, string canon, string side, double sl, double tp, double ri
          else Print("Signal ", id, ": big stake not possible (lot size, margin or loss cap), normal sizing");
       }
    }
+   if(maxLot > 0)
+   {  // LC2: the person's biggest lot for any one trade (0 = no cap). It comes last, so it also limits a big-stake trade.
+      if(maxLot < mn - 1e-12){ Reject(id, "your biggest lot is below the broker minimum lot"); return; }
+      if(lots > maxLot + 1e-12){ lots = MathFloor(maxLot / step + 1e-9) * step; Print("Signal ", id, ": lot cut to your biggest lot, ", DoubleToString(lots, 2)); }
+   }
    trade.SetExpertMagicNumber(Magic); trade.SetDeviationInPoints(Deviation); trade.SetTypeFillingBySymbol(sym);
    bool ok = buy ? trade.Buy(lots, sym, 0, sl, tp, cm) : trade.Sell(lots, sym, 0, sl, tp, cm);
    if(ok && (trade.ResultRetcode() == TRADE_RETCODE_DONE || trade.ResultRetcode() == TRADE_RETCODE_PLACED))
@@ -174,7 +179,7 @@ long CmGid(const string cm){ int p = StringFind(cm, "G", 3); return (StringFind(
 string GV(const string k, long gid){ return "SXB_" + k + (string)gid; }
 void RejectAll(const long &ids[], string why){ for(int i = 0; i < ArraySize(ids); i++) Reject(ids[i], why); }
 
-void ExecuteBasket(long gid, string canon, string side, double sl, double tp, double riskPct, double each, int gb, string idsCsv, double grpTgt, double lossPct, double fixedLot = 0)
+void ExecuteBasket(long gid, string canon, string side, double sl, double tp, double riskPct, double each, int gb, string idsCsv, double grpTgt, double lossPct, double fixedLot = 0, double maxLot = 0)
 {
    string idl[]; int n = StringSplit(idsCsv, ',', idl); if(n <= 0) return;
    long ids[]; ArrayResize(ids, n); for(int i = 0; i < n; i++) ids[i] = (long)StringToInteger(idl[i]);
@@ -205,6 +210,11 @@ void ExecuteBasket(long gid, string canon, string side, double sl, double tp, do
       if(want > n) want = n;
    }
    lots = MathMin(lots, MathMin(mx, MaxLots));
+   if(maxLot > 0)
+   {  // LC2: the person's biggest lot for any one trade (0 = no cap): every entry of the group is cut to it
+      if(maxLot < mn - 1e-12){ RejectAll(ids, "your biggest lot is below the broker minimum lot"); return; }
+      if(lots > maxLot + 1e-12) lots = MathFloor(maxLot / step + 1e-9) * step;
+   }
    trade.SetExpertMagicNumber(Magic); trade.SetDeviationInPoints(Deviation); trade.SetTypeFillingBySymbol(sym);
    double balBefore = AccountInfoDouble(ACCOUNT_BALANCE);
    long okId[]; ulong okTk[]; double okPx[]; ArrayResize(okId, n); ArrayResize(okTk, n); ArrayResize(okPx, n); int k = 0;
@@ -372,13 +382,13 @@ void PollServer()
    {
       ExecuteBasket(bgid, JStr(res, "symbol"), JStr(res, "side"), StringToDouble(JStr(res, "sl")), StringToDouble(JStr(res, "tp")),
                     StringToDouble(JStr(res, "risk_pct")), StringToDouble(JStr(res, "each")), (int)StringToInteger(JStr(res, "gb")), JStr(res, "ids"),
-                    StringToDouble(JStr(res, "tgt")), StringToDouble(JStr(res, "loss")), StringToDouble(JStr(res, "lot")));
+                    StringToDouble(JStr(res, "tgt")), StringToDouble(JStr(res, "loss")), StringToDouble(JStr(res, "lot")), StringToDouble(JStr(res, "max_lot")));
       return;
    }
    long id = (long)StringToInteger(JStr(res, "id"));
    if(id > 0 && StringFind(res, "\"signal\":null") < 0)
       Execute(id, JStr(res, "symbol"), JStr(res, "side"), StringToDouble(JStr(res, "sl")), StringToDouble(JStr(res, "tp")), StringToDouble(JStr(res, "risk_pct")),
-               StringToDouble(JStr(res, "stake_pct")), StringToDouble(JStr(res, "stake_max_risk_pct")));
+               StringToDouble(JStr(res, "stake_pct")), StringToDouble(JStr(res, "stake_max_risk_pct")), StringToDouble(JStr(res, "max_lot")));
 }
 
 //--- report closes (SL/TP/manual) back to the backend

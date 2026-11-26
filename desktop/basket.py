@@ -55,7 +55,9 @@ def _open(e, bk, ids, acct, bot):
         want = int(math.floor(raw * n / i['vol_min'] + 1e-9)); lots = i['vol_min']
         if want < 2: return 'min lot too big for a group'
         want = min(want, n)
-    lots = round(min(lots, i['vol_max'], c['max_lots']), nd)
+    cap, why = e.cap_for(bk, i)          # LC2: obey the person's biggest lot (it only ever lowers the lot)
+    if why: return why
+    lots = math.floor(min(lots, i['vol_max'], cap) / step + 1e-9) * step; lots = round(lots, nd)
     placed = []
     for k, sid in enumerate(ids):
         if k >= want: e._queue(sid, 'rejected', reason='min lot: group trimmed to keep the risk'); continue

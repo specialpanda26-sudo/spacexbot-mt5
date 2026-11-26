@@ -99,6 +99,18 @@ class Engine:
         lots = round(math.floor(min(want, i['vol_max'], cap) / step + 1e-9) * step, nd)
         return lots if lots >= i['vol_min'] - 1e-12 else None
 
+    def cap_for(self, src, i):
+        """LC2: the biggest lot for this trade = the smaller of the app's own cap and the person's max_lot from the server (0 or missing = no server cap).
+        Returns (cap, None), or (None, why) when the person's biggest lot is below what the broker allows."""
+        cap = self.cfg['max_lots']
+        try: ml = float((src or {}).get('max_lot') or 0)
+        except (TypeError, ValueError): ml = 0.0
+        if ml != ml or ml < 0: ml = 0.0
+        if ml > 0:
+            if ml < i['vol_min'] - 1e-12: return None, 'your biggest lot is below the broker minimum lot'
+            cap = min(cap, ml)
+        return cap, None
+
     def _place(self, sid, sig, acct, bot):
         """None = order placed; text = why it was refused. Same checks as the EA, plus bot-off and algo-trading-off."""
         c = self.cfg
@@ -119,7 +131,9 @@ class Engine:
         lvl = i['stops_level'] * pt
         if abs(price - sl) < lvl or abs(price - tp) < lvl: return 'inside broker stop level'
         if i['tick_value'] <= 0 or i['tick_size'] <= 0: return 'no tick value'
-        lots = self._lots(acct['balance'] * risk / 100.0 / ((abs(price - sl) / i['tick_size']) * i['tick_value']), i, c['max_lots'])
+        cap, why = self.cap_for(sig, i)          # LC2: obey the person's biggest lot
+        if why: return why
+        lots = self._lots(acct['balance'] * risk / 100.0 / ((abs(price - sl) / i['tick_size']) * i['tick_value']), i, cap)
         if lots is None: return 'min lot would risk more than allowed'
         r = self.b.send_market(sym, side, lots, sl, tp, 'SXB%d' % sid, c['deviation'], c['magic'], i['fill'])
         if not r['ok']: return 'order failed %s' % r['retcode']
