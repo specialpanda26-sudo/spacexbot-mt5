@@ -2043,24 +2043,37 @@ if(vb){
    password:"security password",security:"security",notification:"notifications",notifications:"notifications push alerts",alert:"notifications",alerts:"notifications",
    privacy:"privacy data",delete:"privacy data account",email:"account email",risk:"risk limits trade",lot:"lot size calculator",lots:"lot size calculator",
    strategy:"strategy strategies",strategies:"strategy",mode:"mode demo real",demo:"mode demo",real:"mode real",news:"safety gates news",gate:"safety gates",gates:"safety gates",
-   memory:"bot memory learn",learn:"bot memory learn",backtest:"backtest test",check:"run check"};
+   memory:"bot memory learn",learn:"bot memory learn",backtest:"backtest test",check:"run check",share:"share friend code",friend:"share code",code:"share friend",close:"profit close",early:"profit close small",entry:"entries stake",limits:"limit loss"};
   var FB=[["Notifications","profile","notification notifications alert alerts push sound"],["Security","profile","security password login"],["Privacy and data","profile","privacy data delete export"],["Account","profile","account plan email subscription"],["Trading profile","profile","trading profile experience"]];
   var VIEWS3=["bot","profile","connect","trades","home"];
   function words(q){var o=[],seen={};q.toLowerCase().replace(/[^a-z0-9 ]/g," ").split(/\s+/).forEach(function(w){if(w.length<2||STOP.indexOf(w)>=0||seen[w])return;seen[w]=1;o.push({w:w,o:1})});o.slice().forEach(function(a){(SYN[a.w]||"").split(" ").forEach(function(x){if(x&&!seen[x]){seen[x]=1;o.push({w:x,o:0})}})});return o}
-  function scan(){var out=[];VIEWS3.forEach(function(v){var r=document.getElementById("view-"+v);if(!r)return;Array.prototype.forEach.call(r.querySelectorAll(".card"),function(c){var h=c.querySelector("h2");if(!h)return;var t=h.textContent.trim();if(!t||c.classList.contains("sxfind"))return;out.push({v:v,c:c,t:t,tl:t.toLowerCase(),x:(c.textContent||"").toLowerCase()})})});return out}
+  /*SF4-start: search lists single settings and lands on the exact one*/
+  function labels(c){var o=[],seen={};Array.prototype.forEach.call(c.querySelectorAll(".field label,.switch b"),function(l){var t=l.textContent.trim().replace(/\s*\([^()]*0 = off\)\s*$/,"");if(t.length<3||t.length>90||seen[t])return;seen[t]=1;o.push(t)});return o}
+  function scan(){var out=[];VIEWS3.forEach(function(v){var r=document.getElementById("view-"+v);if(!r)return;Array.prototype.forEach.call(r.querySelectorAll(".card"),function(c){var h=c.querySelector("h2")||c.querySelector(".shgo b");if(!h)return;var t=h.textContent.trim();if(!t||c.classList.contains("sxfind"))return;out.push({v:v,c:c,t:t,tl:t.toLowerCase(),x:(c.textContent||"").toLowerCase(),fl:labels(c)})})});return out}
   function find(q){var w=words(q);if(!w.length)return[];var seen={},res=[];
-   scan().forEach(function(k){var s=0;w.forEach(function(x){if(k.tl.indexOf(x.w)>=0)s+=x.o?6:4;else if(k.x.indexOf(x.w)>=0)s+=x.o?2:1});if(s>0){seen[k.tl]=1;res.push({s:s,v:k.v,c:k.c,t:k.t})}});
+   scan().forEach(function(k){var s=0,ts=0;w.forEach(function(x){if(k.tl.indexOf(x.w)>=0){s+=x.o?6:4;ts+=1}else if(k.x.indexOf(x.w)>=0)s+=x.o?2:1});seen[k.tl]=1;var fh=[];
+    k.fl.forEach(function(f){var fl=f.toLowerCase(),fs=0;w.forEach(function(x){if(fl.indexOf(x.w)>=0)fs+=x.o?8:5});if(fs>0)fh.push({s:fs+s/2,v:k.v,c:k.c,t:k.t,f:f})});
+    fh.sort(function(a,b){return b.s-a.s});fh.slice(0,2).forEach(function(r){res.push(r)});
+    if(s>0&&(!fh.length||ts>0))res.push({s:s,v:k.v,c:k.c,t:k.t})});
    FB.forEach(function(f){if(seen[f[0].toLowerCase()])return;var s=0;w.forEach(function(x){if(f[2].indexOf(x.w)>=0)s+=x.o?4:2});if(s>0)res.push({s:s,v:f[1],c:null,t:f[0]})});
-   res.sort(function(a,b){return b.s-a.s});return res.slice(0,5)}
+   res.sort(function(a,b){return b.s-a.s});return res.slice(0,6)}
+  var st2=document.createElement("style");st2.textContent=".field.sxflash,.switch.sxflash{border-radius:14px;background:var(--green-soft,rgba(47,184,100,.15))}";document.head.appendChild(st2);
+  function fieldEl(c,ft){if(!c||!ft)return null;var want=ft.toLowerCase(),hit=null;Array.prototype.forEach.call(c.querySelectorAll(".field,.switch"),function(e){if(hit)return;var l=e.matches(".switch")?e.querySelector("b"):e.querySelector("label");if(!l)return;var t=l.textContent.trim().toLowerCase();if(t&&(t===want||t.indexOf(want)>=0||want.indexOf(t)>=0))hit=e});return hit}
   function go(r){var h="#"+r.v;if(location.hash!==h)location.hash=h;else window.dispatchEvent(new Event("hashchange"));
-   setTimeout(function(){var c=r.c;if(!c||!document.body.contains(c)){var f=scan().filter(function(k){return k.t===r.t&&k.v===r.v})[0];c=f&&f.c}if(!c)return;c.scrollIntoView({behavior:"smooth",block:"center"});c.classList.add("sxflash");setTimeout(function(){c.classList.remove("sxflash")},2600)},260)}
+   var tries=0;function look(){tries++;var c=r.c;if(!c||!document.body.contains(c)){var f=scan().filter(function(k){return k.t===r.t&&k.v===r.v})[0];c=f&&f.c}
+    if(!c){if(r.t&&tries<10)setTimeout(look,250);return}
+    var e=r.f?fieldEl(c,r.f):null;if(r.f&&!e&&tries<8){setTimeout(look,250);return}
+    var folded=c.classList.contains("fold");if(folded){var hh=c.querySelector(".card-head h2");if(hh)hh.click()}
+    setTimeout(function(){var tg=e&&document.body.contains(e)?e:(fieldEl(c,r.f)||c);tg.scrollIntoView({behavior:"smooth",block:"center"});tg.classList.add("sxflash");setTimeout(function(){tg.classList.remove("sxflash")},tg===c?2600:3400)},folded?480:0)}
+   setTimeout(look,260)}
+  /*SF4-end*/
   window.SXgo=go;          /*SF1: the Bot status card opens a setting with the same jump the search uses*/
   var box=card(["Find a setting",""],'<div class="field"><label for="sxQ">What do you want to do?</label><input class="inp" id="sxQ" type="search" placeholder="e.g. burst, stake per entry, daily loss, notifications" autocomplete="off"></div><div id="sxR" role="status"></div>');
   box.classList.add("sxfind");vb.insertBefore(box,vb.firstChild);
   var q=box.querySelector("#sxQ"),R=box.querySelector("#sxR");
   q.oninput=function(){var v=q.value.trim();R.textContent="";if(v.length<2)return;var m=find(v);
    if(!m.length){R.innerHTML='<p class="note">No setting matched. Try words like burst, stake, profit target, daily loss, repeat, notifications.</p>';return}
-   m.forEach(function(r){var b=document.createElement("button");b.type="button";b.className="hit";var sn=r.c?((r.c.querySelector(".note")||{}).textContent||"").slice(0,90):"";b.innerHTML="<b></b><small></small>";b.firstChild.textContent=r.t+"  ·  "+({bot:"Bot tab",profile:"Profile",connect:"Connect",trades:"Trades",home:"Home"}[r.v]||r.v);b.lastChild.textContent=sn;b.onclick=function(){go(r)};R.appendChild(b)})};
+   m.forEach(function(r){var b=document.createElement("button");b.type="button";b.className="hit";var sn=r.c?((r.c.querySelector(".note")||{}).textContent||"").slice(0,90):"";b.innerHTML="<b></b><small></small>";b.firstChild.textContent=(r.f?r.f+"  ·  ":"")+r.t+"  ·  "+({bot:"Bot tab",profile:"Profile",connect:"Connect",trades:"Trades",home:"Home"}[r.v]||r.v);b.lastChild.textContent=sn;b.onclick=function(){go(r)};R.appendChild(b)})};
  })();
  /*BT2-end*/
  vb.appendChild(card(["Session limits",'<span class="chip info" id="uPr"></span>'],'<div class="inp-row"><div class="field"><label for="uTp">Daily profit target ($)</label><input class="inp" id="uTp" type="number" min="0" step="1" inputmode="decimal"></div><div class="field"><label for="uMax">Max trades a day</label><input class="inp" id="uMax" type="number" min="1" step="1" inputmode="numeric"></div><div class="field"><label for="uStr">Stop after losses in a row</label><input class="inp" id="uStr" type="number" min="1" max="10" step="1" inputmode="numeric"></div></div><div id="uSw"></div><p class="note" id="uFocus"></p>'));
@@ -3030,7 +3043,7 @@ build()})();
     if (FAIL >= 3) h += '<p class="muted">Cannot reach the server. Showing the last answer.</p>';
     if (ERR) h += '<p class="muted">' + esc(ERR) + "</p>";
     C.innerHTML = h;
-    var gb = document.getElementById("bsGo"); if (gb && D.fix) gb.onclick = function () { if (window.SXgo) window.SXgo({ v: D.fix.view, t: D.fix.card || "", c: null }); };          /*SF1*/
+    var gb = document.getElementById("bsGo"); if (gb && D.fix) gb.onclick = function () { if (window.SXgo) window.SXgo({ v: D.fix.view, t: D.fix.card || "", c: null, f: D.fix.label || "" }); };          /*SF1*/
     var u = me();
     if (u && u.admin) {      /* the owner has no MT5 link card: keep the Home buttons in step with the real switch */
       var on = !!D.running, t = document.getElementById("botToggle"), c = document.getElementById("botChip"), p = document.getElementById("pillTxt");
