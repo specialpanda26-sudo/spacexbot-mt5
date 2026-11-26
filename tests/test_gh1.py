@@ -1,0 +1,41 @@
+"""GH1 checks. Offline. Run: python tests/test_gh1.py"""
+import os, sys, glob, time
+HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.join(HERE, '..'); DB = os.path.join(HERE, 'gh1_test.db')
+os.environ.update(DEV_AUTH='1', EA_KEY='k', ADMIN_EMAILS='boss@x.com', DB_PATH=DB, PAYHERO_CALLBACK_SECRET='s', BASE_URL='http://t', SYMBOLS='XAUUSD')
+for f in glob.glob(DB + '*'): os.remove(f)
+sys.path.insert(0, ROOT)
+from backend.app import app
+from backend import store as st, risk
+R = []
+def T(n, ok): R.append((n, bool(ok))); print('PASS' if ok else 'FAIL', n)
+NOW = int(time.time())
+def sig(status, age, broker=None, uid=''):
+    st.x("INSERT INTO signals(symbol,side,status,created,uid,broker) VALUES('XAUUSD','buy',?,?,?,?)", (status, NOW - age, uid, broker))
+def cnt(status, uid=''): return st.q("SELECT COUNT(*) n FROM signals WHERE status=? AND COALESCE(uid,'')=?", (status, uid), True)['n']
+def acct(n, seen=NOW, **k): return dict({'balance': 1000, 'equity': 1000, 'open': n, 'demo': True, 'seen': seen}, **k)
+for _ in range(3): sig('open', 3600)
+T('3 old open records, MT5 holds 0: count is 0', risk.open_count('', acct(0), NOW) == 0)
+T('the 3 ghosts were expired, not deleted', cnt('open') == 0 and cnt('expired') == 3)
+for _ in range(3): sig('open', 3600)
+T('3 records, MT5 holds 2: count is 2', risk.open_count('', acct(2), NOW) == 2 and cnt('open') == 2)
+sig('open', 30, uid='u2')
+T('a trade opened 30 s ago is never cleaned', risk.open_count('u2', acct(0), NOW) == 1 and cnt('open', 'u2') == 1)
+sig('open', 3600, uid='u3')
+T('old EA snapshot: nothing is cleaned', risk.open_count('u3', acct(0, seen=NOW - 600), NOW) == 1 and cnt('open', 'u3') == 1)
+sig('open', 3600, uid='u4')
+T('Deriv snapshot: MT5 rows untouched', risk.open_count('u4', acct(0, src='deriv'), NOW) == 1 and cnt('open', 'u4') == 1)
+sig('open', 3600, broker='Binance'); sig('open', 3600, broker='Deriv')
+risk.open_count('', acct(0), NOW)
+T('Binance and Deriv rows are never touched', st.q("SELECT COUNT(*) n FROM signals WHERE status='open' AND broker IN('Binance','Deriv')", (), True)['n'] == 2)
+sig('pending', 900); sig('sent', 900); sig('pending', 20)
+risk.open_count('', acct(0), NOW)
+T('pending/sent older than 5 min expire, a fresh one stays', cnt('pending') == 1 and cnt('sent') == 0)
+sig('pending', 900, uid='u5')
+risk.open_count('u5', acct(0, seen=NOW - 600), NOW)
+T('old EA snapshot: pending/sent are NOT expired either', cnt('pending', 'u5') == 1)
+sig('open', 3600, uid='u1'); sig('open', 3600, uid='u1')
+T("another person's ghosts are cleaned in their own scope only", risk.open_count('u1', acct(0), NOW) == 0 and cnt('expired', 'u1') == 2)
+T('the owner scope was not touched by that', cnt('open') == 2)
+t = risk.open_note('', acct(2), NOW)
+T('stop message gives both numbers', 'MT5 reports 2' in t and 'Limit:' in t)
+print('%d checks, %d failed' % (len(R), sum(1 for _, ok in R if not ok)))

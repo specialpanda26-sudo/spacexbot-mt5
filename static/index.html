@@ -2054,6 +2054,7 @@ if(vb){
    res.sort(function(a,b){return b.s-a.s});return res.slice(0,5)}
   function go(r){var h="#"+r.v;if(location.hash!==h)location.hash=h;else window.dispatchEvent(new Event("hashchange"));
    setTimeout(function(){var c=r.c;if(!c||!document.body.contains(c)){var f=scan().filter(function(k){return k.t===r.t&&k.v===r.v})[0];c=f&&f.c}if(!c)return;c.scrollIntoView({behavior:"smooth",block:"center"});c.classList.add("sxflash");setTimeout(function(){c.classList.remove("sxflash")},2600)},260)}
+  window.SXgo=go;          /*SF1: the Bot status card opens a setting with the same jump the search uses*/
   var box=card(["Find a setting",""],'<div class="field"><label for="sxQ">What do you want to do?</label><input class="inp" id="sxQ" type="search" placeholder="e.g. burst, stake per entry, daily loss, notifications" autocomplete="off"></div><div id="sxR" role="status"></div>');
   box.classList.add("sxfind");vb.insertBefore(box,vb.firstChild);
   var q=box.querySelector("#sxQ"),R=box.querySelector("#sxR");
@@ -3023,11 +3024,13 @@ build()})();
     var chip = D.state === "watching" ? ["chip ok", "Running"] : D.state === "waiting" ? ["chip watch", "Waiting"] : ["chip", "Stopped"];
     var h = '<div class="card-head"><h2>Bot status</h2><span class="' + chip[0] + '"><span class="dot"></span>' + chip[1] + "</span></div>";
     h += '<p id="bsWhy">' + esc(D.why || "") + "</p>";
+    if (D.fix) { h += '<p class="note" id="bsFix"><b>Setting: ' + esc(D.fix.name) + "</b>" + (D.fix.value ? " (now: " + esc(D.fix.value) + ")" : "") + "<br>" + esc(D.fix.hint || "") + "</p>"; if (D.fix.view) h += '<button type="button" class="btn block" id="bsGo">Go to this setting</button>'; }          /*SF1*/
     if (D.checked) h += '<p class="muted">Last market check ' + ago(D.checked, Date.now()) + "</p>";
     if (D.deriv && D.deriv.on) h += '<p class="muted">Deriv: ' + esc(D.deriv.why || "on") + "</p>";
     if (FAIL >= 3) h += '<p class="muted">Cannot reach the server. Showing the last answer.</p>';
     if (ERR) h += '<p class="muted">' + esc(ERR) + "</p>";
     C.innerHTML = h;
+    var gb = document.getElementById("bsGo"); if (gb && D.fix) gb.onclick = function () { if (window.SXgo) window.SXgo({ v: D.fix.view, t: D.fix.card || "", c: null }); };          /*SF1*/
     var u = me();
     if (u && u.admin) {      /* the owner has no MT5 link card: keep the Home buttons in step with the real switch */
       var on = !!D.running, t = document.getElementById("botToggle"), c = document.getElementById("botChip"), p = document.getElementById("pillTxt");

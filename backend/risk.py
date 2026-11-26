@@ -1,6 +1,6 @@
 """Pre-trade gates (ideas from claude-trading-skills: drawdown-circuit-breaker, pre-trade-discipline-gate,
 exposure-coach). global_gate() runs before analysis, symbol_gate() after a side is known."""
-import time, datetime as dt
+import time, json, datetime as dt
 from . import store as st, news, links, limits, brokers as bk, roadmap, userlim
 
 def _week_start(now):
@@ -9,14 +9,54 @@ def _week_start(now):
 
 def _pnl_since(ts, uid=''): return st.q("SELECT COALESCE(SUM(pnl),0) p FROM signals WHERE closed>=? AND COALESCE(uid,'')=?", (ts, uid), True)['p']
 
-def open_count(uid='', a=None):
+def _ea_open(a, now):
+    """GH1: how many positions MT5 really holds right now, or None when the EA snapshot is old or is not MT5 (then nothing is cleaned)."""
+    if not a or not a.get('seen') or now - a['seen'] > 120 or a.get('src') == 'deriv': return None
+    try: return int(float(a.get('open') or 0))
+    except (TypeError, ValueError): return None
+
+def ghost_clean(uid='', a=None, now=None):
+    """GH1: a trade recorded as 'open' that MT5 no longer holds (its close message was lost) is a ghost. When the EA is live and reports fewer
+    open trades than we recorded, the oldest extra records (older than 5 minutes) are marked expired, so they stop filling 'max open'. Returns how many."""
+    now = now or time.time(); a = a if a is not None else st.acct(uid); n = 0
+    try:
+        ea = _ea_open(a, now)
+        if ea is None: return 0          # EA offline / old snapshot / not MT5: change nothing
+        st.x("UPDATE signals SET status='expired',note='never opened (cleaned)' WHERE status IN('pending','sent') AND created<? AND COALESCE(uid,'')=?", (int(now) - 300, uid))
+        mine = "COALESCE(uid,'')=? AND status='open' AND COALESCE(broker,'MT5') IN('MT5','')"
+        tot = st.q("SELECT COUNT(*) n FROM signals WHERE " + mine, (uid,), True)['n']
+        extra = tot - ea
+        if extra <= 0: return 0
+        for r in st.q("SELECT id FROM signals WHERE " + mine + " AND created<? ORDER BY id LIMIT ?", (uid, int(now) - 300, extra)):
+            if st.x("UPDATE signals SET status='expired',closed=?,note='ghost: MT5 holds no such trade (cleaned)' WHERE id=? AND status='open'", (int(now), r['id']), True): n += 1
+        if n:
+            st.put('ghost:%s' % (uid or ''), json.dumps({'t': int(now), 'n': n}))
+            print('ghost trades cleaned', uid or 'owner', n)
+    except Exception as e: print('ghost clean failed', str(e)[:100])
+    return n
+
+def open_count(uid='', a=None, now=None):
     """R4: positions this person holds right now, MT5 and Deriv together, plus signals about to open (pending / sent), so a burst of signals cannot all slip past the limit.
-    Assumption: the account snapshot's open count is the larger of what the EA reports and what we recorded (an MT5 position opened by hand counts when the EA reports it)."""
-    a = a if a is not None else st.acct(uid)
+    GH1: ghost 'open' records that MT5 does not hold are cleaned first. The snapshot's open count is the larger of what the EA reports and what we recorded."""
+    a = a if a is not None else st.acct(uid); now = now or time.time()
+    ghost_clean(uid, a, now)
     r = {x['status']: x['n'] for x in st.q("SELECT status, COUNT(*) n FROM signals WHERE COALESCE(uid,'')=? AND status IN('open','pending','sent') GROUP BY status", (uid,))}
     try: ea = int(float(a.get('open') or 0))
     except (TypeError, ValueError): ea = 0
     return max(ea, r.get('open', 0)) + r.get('pending', 0) + r.get('sent', 0)
+
+def open_note(uid='', a=None, now=None):
+    """GH1: both numbers, in words, for the 'max open positions' stop message."""
+    a = a if a is not None else st.acct(uid); now = now or time.time()
+    r = {x['status']: x['n'] for x in st.q("SELECT status, COUNT(*) n FROM signals WHERE COALESCE(uid,'')=? AND status IN('open','pending','sent') GROUP BY status", (uid,))}
+    try: ea = int(float(a.get('open') or 0))
+    except (TypeError, ValueError): ea = 0
+    t = " MT5 reports %d open now. The bot's own records: %d open, %d on the way. Limit: %d." % (ea, r.get('open', 0), r.get('pending', 0) + r.get('sent', 0), limits.max_open(uid))
+    try:
+        g = json.loads(st.get('ghost:%s' % (uid or '')) or 'null')
+        if g and now - g['t'] < 86400: t += " Cleaned %d trade(s) MT5 no longer held." % g['n']
+    except Exception: pass
+    return t
 
 def bot_on(uid=''):
     """R7: is the bot switched on for this person? The MT5 link switch counts, and so does the Deriv switch, so a person with only a Deriv token (no MT5 key) can trade."""
@@ -75,7 +115,7 @@ def global_gate(now=None, uid='', burst=False):
         if a.get('demo') is not True and not roadmap.real_allowed(uid): return False, 'learning path not finished'          # C3: lessons + practice trades first
     elif a.get('demo') is False and not a.get('allow_live'): return False, 'live account not allowed in EA'
     if weekend_shut(now) and not crypto_open(): return False, 'weekend/Friday-night risk'          # a BTC market in Symbols keeps the bot looking; other markets are skipped per market (weekend_skip)
-    if not burst and open_count(uid, a) >= limits.max_open(uid): return False, 'max open positions'          # burst mode has its own ceiling (burst.py)
+    if not burst and open_count(uid, a, now) >= limits.max_open(uid): return False, 'max open positions'          # burst mode has its own ceiling (burst.py)
     since = int(now - now % 86400)
     mt = limits.trades(uid)      # 0 = no daily trade limit (the stop loss and the loss limits protect the account)
     if mt > 0:

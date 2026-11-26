@@ -47,6 +47,32 @@ def _last(uid):
         if isinstance(j, dict) and (best is None or j.get('t', 0) > best.get('t', 0)): best = j
     return best
 
+def fix_for(code, uid=''):
+    """SF1: the setting behind a stop reason -> {name, value, hint, view, card, label} or None. view/card say where it lives in the app (None = nothing to open)."""
+    from . import userlim
+    c = str(code or '')
+    if not c or c in ('watching', 'starting', 'nosetup', 'signal'): return None
+    def lim(key, hint):
+        s = userlim.SPEC[key]; v = userlim.val(uid, key); v = int(v) if v == int(v) else v
+        return {'name': s['label'], 'value': 'off' if v == 0 else str(v), 'hint': hint, 'view': 'bot', 'card': 'My limits', 'label': s['label']}
+    def other(name, value, hint, view, card=None): return {'name': name, 'value': value, 'hint': hint, 'view': view, 'card': card, 'label': name}
+    if c == 'bot off': return other('Start bot', 'off', 'Tap Start bot on Home.', 'home')
+    if c == 'EA offline': return other('MT5 bridge', 'not connected', 'Not a setting: open MT5 on your computer and check the SpaceX bridge is running.', 'connect')
+    if c.startswith('real account needs'): return other('Real mode and live trading', 'off', 'Switch Real mode on and allow live trading in the MT5 bridge, or use a demo account.', 'connect')
+    if c == 'live account not allowed in EA': return other('Allow live trading (MT5 bridge)', 'off', 'Allow live trading in the MT5 bridge settings, or use a demo account.', 'connect')
+    if c == 'learning path not finished': return other('Road to Real', 'not finished', 'Finish the lessons and practice trades, or trade on a demo account.', 'home')
+    if c == 'plan ended': return other('Your plan', 'ended', 'Renew your plan to trade.', 'profile')
+    if c == 'weekend/Friday-night risk': return other('Weekend and Friday-night pause', 'on', 'Not a setting you can change: the markets are closed. A Bitcoin market in Symbols keeps the bot looking.', None)
+    if c == 'max open positions': return lim('max_open', 'Raise it, or put 0 for no limit.')
+    if c == 'max trades today': return lim('max_trades', 'Raise it, or put 0 for no daily limit.')
+    if c == 'daily loss limit hit': return lim('daily_loss', 'Raise it, or put 0 to switch it off. The count restarts at 00:00 UTC (3:00 AM Kenya time).')
+    if c == 'weekly loss limit hit': return lim('weekly_loss', 'Raise it, or put 0 to switch it off. The count restarts Monday 00:00 UTC.')
+    if c.endswith('losses in a row: cooling down'): return lim('streak', 'Put 0 to switch it off, or lower the rest hours below it.')
+    if c == 'symbol cooldown': return lim('cooldown', 'Put 0 so the same market can trade again at once.')
+    if 'exposure already at limit' in c: return lim('same_dir', 'Raise it, or put 0 for no cap.')
+    if c.startswith('news:'): return lim('news_min', 'Put 0 to trade through news, or use fewer minutes.')
+    return None
+
 def _words(why): why = str(why or ''); return PLAIN.get(why) or ('Waiting: %s.' % why if why else 'Waiting for a safe moment.')
 
 def _deriv(uid):
@@ -110,7 +136,7 @@ def explain(uid, admin, paid=True, now=None):
     if not running: out.update(state='stopped', why=PLAIN['bot off'], code='bot off'); return out
     if not a.get('seen') or now - a.get('seen', 0) > 120: out.update(state='waiting', why=PLAIN['EA offline'], code='EA offline'); return out
     ok, why = risk.global_gate(now, uid=sc)
-    if not ok: out.update(state='waiting', why=_words(why), code=why); return out
+    if not ok: out.update(state='waiting', why=_words(why) + (risk.open_note(sc, a, now) if why == 'max open positions' else ''), code=why); return out
     n = _last(sc)
     if n and n.get('c') == 'skip':
         out.update(checked=n['t'], state='waiting', why=_words(n.get('w') or ''), code=n.get('w'))

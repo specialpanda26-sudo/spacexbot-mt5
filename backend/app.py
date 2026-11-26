@@ -626,6 +626,8 @@ def connections_api(u):
 def botstate_api(u):
     """Section 4: is the bot running, and if it is not trading, why (plain words, from the real gates)."""
     out = botstate.explain(u['uid'], bool(u['admin']), _paid(u['uid']))
+    try: out['fix'] = botstate.fix_for(out.get('code'), u['uid'])          # SF1
+    except Exception as e: print('fix_for failed', str(e)[:80])
     d = st.q("SELECT 1 FROM broker_links WHERE uid=? AND broker='Deriv'", (u['uid'],), True)
     if d:
         row = next((r for r in bk.view(u['uid']) if r['name'] == 'Deriv'), {})
