@@ -20,6 +20,7 @@ def _boom(e):
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 from . import manual_close, burst_scope, btc_switch, course, roadmap, guide, deriv_oauth, testlab
 from . import quickprofit          # QP1: take small profits
+from . import openrisk          # Section 2: total stop-loss ceiling for a managed account size
 from . import inbox as inbox_mod          # TB1: in-app notification inbox
 from . import userlim, risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck, presets, streakreq, sharecode
 _last_scan = {}
@@ -156,9 +157,11 @@ def _scan_tf(sym, uid, tf, hi):
     ok, why = risk.symbol_gate(sym, s['side'], uid=uid)
     if not ok: print('skip', sym, s['side'], why); botstate.note(uid, sym, 'skip', why); risk_alerts.gate(uid, why, sym); return
     n = multi.entries(uid, s['score'], s['strategy']); base = links.risk(uid) if uid else st.fget('risk_pct')          # R8: 1 unless the owner allows more and the setup is strong
+    n, rp = openrisk.fit(uid, base, n)          # Section 2: a managed size opens fewer entries so ALL open entries together stay under the stop-loss ceiling; unmanaged = exactly as before
+    if n < 1: botstate.note(uid, sym, 'gate', 'open stop-loss ceiling reached'); return
     rz = rsn.pack(s)
     sid = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-         (sym, s['side'], s['entry'], s['sl'], s['tp'], multi.share(base, n), s['strategy'], s['score'], 'pending', int(time.time()), uid or None, rz))
+         (sym, s['side'], s['entry'], s['sl'], s['tp'], rp, s['strategy'], s['score'], 'pending', int(time.time()), uid or None, rz))
     sbauth.notify(f"{s['side'].upper()} {sym}", si.alert_body(s['strategy'], s['entry'], s['sl'], s['tp']), key=f'sig{sid}-new', only=uid or None)
     lag.created(sid, m15[-1]['t'], uid)
     if n <= 1: stake.mark(sid, uid, s.get('score'), s.get('adx'))          # Section 1: bigger Deriv stake on strong setups
@@ -167,9 +170,9 @@ def _scan_tf(sym, uid, tf, hi):
         st.x('UPDATE signals SET grp=? WHERE id=?', (sid, sid))
         for _ in range(n - 1):
             sib = st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid,grp,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                       (sym, s['side'], s['entry'], s['sl'], s['tp'], multi.share(base, n), s['strategy'], s['score'], 'pending', int(time.time()), uid or None, sid, rz))
+                       (sym, s['side'], s['entry'], s['sl'], s['tp'], rp, s['strategy'], s['score'], 'pending', int(time.time()), uid or None, sid, rz))
             lag.created(sib, m15[-1]['t'], uid)
-        print('multi-entry', sym, s['side'], n, 'entries sharing', base, 'percent')
+        print('multi-entry', sym, s['side'], n, 'entries at', rp, 'percent each')
         if not groupcap.mark(sid, uid, n): automode.mark(sid, uid, n)          # the person's own group target wins; else the Auto mode USD target (Section 5)
     botstate.note(uid, sym, 'signal')
     learn.log(uid, 'signal', s['strategy'], sym, s['side'], data={'score': s['score'], 'adx': s['adx'], 'entry': s['entry']})

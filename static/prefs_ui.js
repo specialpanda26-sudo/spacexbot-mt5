@@ -98,6 +98,7 @@
       var h = '<div style="border:2px solid var(--line);border-radius:16px;padding:10px 14px;margin:10px 0"><p class="note" style="font-weight:800;color:var(--fg)">The $' + k + " settings will set:</p>";
       h += '<p class="note">All strategies may trade (new ones too), up to ' + esc(v.entries) + " entries per setup, up to " + esc(v.max_open) + " open trades, stop after " + esc(v.streak) + " losses in a row.</p>";
       h += '<p class="note" style="font-weight:800;color:var(--fg)">Profit target for a setup: ' + esc(usd(v.target_usd)) + " for all its entries together. When it is reached they all close.</p>";
+      h += '<p class="note">All open trades together may lose at most ' + esc(usd(v.open_risk_usd)) + " if every stop loss is hit (half of $" + esc(k) + "). When that is reached the bot waits for room. It never closes a trade because of it.</p>";
       h += '<p class="note">Risk per trade: ' + esc(pct(v.risk_pct)) + "% of your balance. Burst and every-minute scans: off.</p>";
       if (bal > 0) {
         h += '<p class="note" style="font-weight:800;color:var(--fg)">Most one trade may lose: about ' + esc(usd(m.risk_usd)) + " (" + esc(pct(m.risk_pct)) + "% of your " + esc(usd(bal)) + " balance).</p>";
@@ -113,6 +114,11 @@
       h += '<p class="note">One tap sets the bot up to manage a $10 to $60 account. It only changes your own settings, and you can go back. It does not make money or keep an account safe.</p>';
       h += '<div class="seg" role="group" aria-label="Account size" style="justify-self:start;max-width:100%">' + SIZES.map(function (k) {
         return '<button type="button" data-p="' + k + '" aria-pressed="' + ((SEL || S.active) === k) + '"' + (!S.demo || BUSY ? " disabled" : "") + ">$" + k + "</button>"; }).join("") + "</div>";
+      var OR = S.open_risk || {};
+      if (S.active && OR.managed) {
+        h += '<p class="note" style="font-weight:800;color:var(--fg)">Open stop-loss now: ' + esc(usd(OR.used_usd)) + " of " + esc(usd(OR.ceiling_usd)) + " allowed (" + esc(usd(OR.room_usd)) + " free).</p>";
+        if (OR.waiting) h += '<p class="note" style="color:var(--bad);font-weight:800">The bot is waiting: the open stop-loss ceiling is reached. Nothing is closed. It opens new trades again when some close.</p>';
+      }
       if (!S.demo) h += '<p class="note">Try these on a Demo account first. Switch to Demo above, then pick a size.</p>';
       if (SEL && S.demo) h += confirmBox(SEL);
       if (ERR) h += '<p class="note" style="color:var(--bad)">' + esc(ERR) + "</p>";

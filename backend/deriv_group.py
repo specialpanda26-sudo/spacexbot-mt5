@@ -10,7 +10,7 @@ The new group still has to pass the risk gates (bot on, loss limits, daily trade
 and the cycle stops for the day after cycle.max_per_day new groups. A group that ended on a stop loss, by hand or on a failed sell never starts the next one.
 Nothing here claims it makes more money: repeating trades also repeats losses. Deriv still refuses a stake under 1 USD (deriv._size), a new entry that cannot be sized is rejected as usual."""
 import json, time
-from . import store as st, cycle, groupcap, risk, multi, links, limits, learn, sbauth, push, burst_live, manual_close
+from . import store as st, cycle, groupcap, risk, multi, links, limits, learn, sbauth, push, burst_live, manual_close, openrisk
 
 COLS = 'id,grp,symbol,side,entry,sl,tp,risk_pct,strategy,score,reason,ticket,status,pnl'
 
@@ -123,9 +123,10 @@ def reopen(uid, parent, m, first, spot, now=None):
     if ok: ok, why = risk.symbol_gate(sym, side, now, uid=uid, cool=False)          # no cooldown: the cycle is the point; news lock and exposure still count
     if not ok: return _why(uid, why, None)
     if limits.max_open(uid) - risk.open_count(uid) < n: return _why(uid, 'not enough room for %d entries' % n, None)
+    if not openrisk.total_fits(uid, links.risk(uid) if uid else st.fget('risk_pct')): return _why(uid, 'open stop-loss ceiling reached', None)          # Section 2
     dsl, dtp = abs(e - sl), abs(tp - e); sg = 1 if side == 'buy' else -1
     nsl, ntp = round(spot - sg * dsl, 5), round(spot + sg * dtp, 5)
-    base = links.risk(uid) if uid else st.fget('risk_pct'); rp = multi.share(base, n)
+    base = links.risk(uid) if uid else st.fget('risk_pct'); rp = multi.share(openrisk.eff_base(uid, base), n)
     sql = 'INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid,grp,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)'
     a = (sym, side, spot, nsl, ntp, rp, first['strategy'], first['score'], 'pending', int(now), uid or None)
     g = st.x(sql, a + (None, first['reason'])); st.x('UPDATE signals SET grp=? WHERE id=?', (g, g)); ids = [g]

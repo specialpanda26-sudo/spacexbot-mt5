@@ -15,7 +15,7 @@ The idea, in plain words:
 Settings are saved per person in kv 'burst:<uid>' (uid '' = the owner's own bot). Group facts are kept in kv 'bg:<group id>'.
 Nothing here claims it makes more money. Only a demo run or tools/backtest.py can say that."""
 import json, time
-from . import store as st, links, risk, limits, multi, groupcap, burst_look, burst_live, burst_results, automode, burst_bridge
+from . import store as st, links, risk, limits, multi, groupcap, burst_look, burst_live, burst_results, automode, burst_bridge, openrisk
 
 HI = 30
 AUTO_WHY = 'Auto mode is on, and Auto mode turns burst off'          # BX1: the scanner always stopped here, the card never said so
@@ -194,6 +194,7 @@ def plan(uid, score, now=None, n=None):
     if mt > 0:
         used = st.q("SELECT COUNT(*) n FROM signals WHERE created>=? AND status IN('pending','sent','open','closed') AND COALESCE(uid,'')=?", (st.day_start(), uid or ''), True)['n']
         room = min(room, mt - used)
+    if not openrisk.total_fits(uid, links.risk(uid) if uid else st.fget('risk_pct')): return None, 'open stop-loss ceiling reached'          # Section 2
     n = min(want, room)
     if n < 2: return None, 'not enough room for a burst (%d free)' % max(0, room)
     if p['loss_usd'] > 0 and _balance(uid) <= 0: return None, 'the account balance is not known yet, so the loss limit of %g USD cannot be set' % p['loss_usd']          # BT13
@@ -204,7 +205,7 @@ def create(uid, sym, s, pl, reason='', now=None):
     """Write the group: pl['n'] pending signals with the same side, stop and target, sharing the normal risk of one trade.
     s = the setup dict from brain.evaluate (side, entry, sl, tp, strategy, score). Returns the list of new signal ids (the first is the group id)."""
     now = int(now or time.time()); n = int(pl['n']); uid = uid or ''
-    base = links.risk(uid) if uid else st.fget('risk_pct'); rp = multi.share(base, n)
+    base = links.risk(uid) if uid else st.fget('risk_pct'); rp = multi.share(openrisk.eff_base(uid, base), n)          # Section 2: a managed size risks a share of its size, not of the balance
     sql = 'INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid,grp,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)'
     first = st.x(sql, (sym, s['side'], s['entry'], s['sl'], s['tp'], rp, s['strategy'], s['score'], 'pending', now, uid or None, None, reason))
     st.x('UPDATE signals SET grp=? WHERE id=?', (first, first))

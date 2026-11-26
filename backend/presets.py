@@ -96,7 +96,7 @@ def active(uid):
 
 
 # ---- S3: the minimum-lot check (before trading, not after) ----
-WORDS = 'Your balance is too small for this market on this account type. Try a cent account or a demo.'
+WORDS = 'This size is too small for this market on this account type. Try a bigger size, a cent account or a demo.'
 SYM_MAX = 12
 
 
@@ -123,7 +123,8 @@ def min_lot(uid, tier):
     t = values(tier, uid); a = st.acct(uid) or {}
     try: bal = float(a.get('balance') or 0)
     except (TypeError, ValueError): bal = 0.0
-    lim = round(bal * t['risk_pct'] / 100.0, 2)
+    basis = min(bal, float(t['size'])) if bal > 0 else 0.0          # Section 2: the bot risks a share of the SIZE it manages, not of a bigger balance
+    lim = round(basis * t['risk_pct'] / 100.0, 2)
     out = {'known': False, 'balance': round(bal, 2), 'risk_pct': t['risk_pct'], 'risk_usd': lim, 'rows': [], 'warn': False, 'blocked': False, 'message': ''}
     sym = clean_sym(a.get('sym')); mine = {x.strip() for x in (st.get('symbols') or '').split(',') if x.strip()}
     if bal <= 0 or not sym: return out
@@ -174,10 +175,16 @@ def undo(uid):
     return status(uid)
 
 
+def _open_risk(uid):
+    from . import openrisk          # imported here: openrisk reads this module
+    return openrisk.view(uid)
+
+
 def status(uid):
     """What the card needs: the tiers (with this person's capped values), which one is on, whether undo is possible."""
     s = _snap(uid) if uid else None
     return {'tiers': {str(k): values(k, uid) for k in TIERS}, 'active': s['tier'] if s else None, 'can_undo': bool(s),
             'not_included': NOT_INCLUDED, 'owner': bool(not uid or limits._owner(uid)),
             'demo': bool(uid) and links.mode(uid) != 'real' and bk.mode(uid, 'Deriv') != 'real',
-            'minlot': {} if not uid or limits._owner(uid) else {str(k): min_lot(uid, k) for k in TIERS}}
+            'minlot': {} if not uid or limits._owner(uid) else {str(k): min_lot(uid, k) for k in TIERS},
+            'open_risk': {} if not uid or limits._owner(uid) else _open_risk(uid)}
