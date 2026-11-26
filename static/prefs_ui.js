@@ -84,23 +84,23 @@
     paint();
   })();
 
-  /* ---------- A2. Small account settings (Bot tab). GET/POST /api/presets. A tap on $10 / $20 / $30 only picks; Confirm saves; Back puts the old values back. ---------- */
+  /* ---------- A2. Small account settings (Bot tab). GET/POST /api/presets. A tap on $10 to $60 only picks; Confirm saves; Back puts the old values back. ---------- */
   if (vb) (function () {
     var C = document.createElement("div"); C.className = "card"; C.id = "presetc"; C.hidden = true;
     var pc = document.getElementById("prefc"), after = document.getElementById("posc") || document.getElementById("botstatec");
     if (pc) vb.insertBefore(C, pc); else vb.insertBefore(C, after ? after.nextSibling : vb.firstChild);
-    var S = null, SEL = 0, BUSY = false, ERR = "", SIG = "", LH = "", TK = 0, SIZES = [10, 20, 30];
+    var S = null, SEL = 0, BUSY = false, ERR = "", SIG = "", LH = "", TK = 0, SIZES = [10, 20, 30, 40, 50, 60];
     function usd(n) { return "$" + (Math.round(Number(n) * 100) / 100).toFixed(2); }
     function pct(n) { return String(+Number(n).toFixed(2)); }
     function on() { return ready() && (S ? !S.owner : !!ERR); }          /* hidden while loading and for the owner; a failed first load shows its message */
     function confirmBox(k) {
       var v = S.tiers[String(k)] || {}, m = (S.minlot || {})[String(k)] || {}, bal = Number(m.balance) || 0, blocked = !!m.blocked;
       var h = '<div style="border:2px solid var(--line);border-radius:16px;padding:10px 14px;margin:10px 0"><p class="note" style="font-weight:800;color:var(--fg)">The $' + k + " settings will set:</p>";
-      h += '<p class="note">' + esc((v.strategies || []).length) + " strategies that may trade alone, " + esc(v.entries) + " entry per setup, " + esc(v.max_open) + " open trade at a time, stop after " + esc(v.streak) + " losses in a row.</p>";
+      h += '<p class="note">All strategies may trade (new ones too), up to ' + esc(v.entries) + " entries per setup, up to " + esc(v.max_open) + " open trades, stop after " + esc(v.streak) + " losses in a row.</p>";
+      h += '<p class="note" style="font-weight:800;color:var(--fg)">Profit target for a setup: ' + esc(usd(v.target_usd)) + " for all its entries together. When it is reached they all close.</p>";
       h += '<p class="note">Risk per trade: ' + esc(pct(v.risk_pct)) + "% of your balance. Burst and every-minute scans: off.</p>";
       if (bal > 0) {
         h += '<p class="note" style="font-weight:800;color:var(--fg)">Most one trade may lose: about ' + esc(usd(m.risk_usd)) + " (" + esc(pct(m.risk_pct)) + "% of your " + esc(usd(bal)) + " balance).</p>";
-        h += '<p class="note">If a setup has 2 or more entries, the whole group stops at a loss of ' + esc(usd(bal * Number(v.loss_pct) / 100)) + " (" + esc(pct(v.loss_pct)) + "%).</p>";
       } else h += '<p class="note">Your balance is not known yet, so no dollar amount can be shown.</p>';
       if (m.message) h += '<p class="note" style="color:var(--bad);font-weight:800">' + esc(m.message) + "</p>";
       h += '<p class="note">Not set by this: ' + esc((S.not_included || []).join("; ").toLowerCase()) + ".</p>";
@@ -110,7 +110,7 @@
     function html() {
       var h = '<div class="card-head"><h2>Small account settings</h2>' + (S && S.active ? '<span class="chip info">$' + esc(S.active) + " on</span>" : "") + "</div>";
       if (!S) return h + '<p class="note">' + esc(ERR || "Loading...") + "</p>";
-      h += '<p class="note">One tap picks smaller, fewer trades for a small account. It only changes your own settings, and you can go back. It does not make money or keep an account safe.</p>';
+      h += '<p class="note">One tap sets the bot up to manage a $10 to $60 account. It only changes your own settings, and you can go back. It does not make money or keep an account safe.</p>';
       h += '<div class="seg" role="group" aria-label="Account size" style="justify-self:start;max-width:100%">' + SIZES.map(function (k) {
         return '<button type="button" data-p="' + k + '" aria-pressed="' + ((SEL || S.active) === k) + '"' + (!S.demo || BUSY ? " disabled" : "") + ">$" + k + "</button>"; }).join("") + "</div>";
       if (!S.demo) h += '<p class="note">Try these on a Demo account first. Switch to Demo above, then pick a size.</p>';

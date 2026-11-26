@@ -1,5 +1,12 @@
-"""Small account presets ("smaller-risk settings") for $10 / $20 / $30 accounts.
-One tap sets a person's EXISTING safety choices; nothing changes for anyone who never taps.
+"""Account-size settings ("managed size") for $10 / $20 / $30 / $40 / $50 / $60 accounts.
+One tap sets a person's EXISTING choices; nothing changes for anyone who never taps.
+What a size does (change numbers in the block below only):
+ - ALL strategies may trade, including every strategy added later (the list is empty = all; nothing is pinned any more), and one may trade alone.
+ - 6 entries per setup (cut to the owner's ceiling). The positions-at-once limit is the owner's ceiling, so the TOTAL STOP-LOSS CEILING (below) is what limits the bot, not a fixed 1.
+ - Group profit target grows with the size: size x 0.075 ($0.75 at $10 ... $4.50 at $60). The whole group closes when it is reached.
+ - No group loss limit: nothing is closed because of the ceiling. Every trade keeps its own stop loss.
+ - open_risk_usd = size x 50%: the most all open entries together may lose if every stop loss hit. Stored here and read by the gate (Section 2): when it is reached
+   the bot WAITS (it never closes trades because of it). The size is what the person manages, not the balance on the screen.
 Rules (the tests check each one):
  - Per person only. The owner / admin scope is refused, because there the same save paths write GLOBAL settings.
  - Every value goes through the existing validated save: prefs.save, limits.save, groupcap.save, burst.save, links.set_risk.
@@ -11,28 +18,27 @@ Rules (the tests check each one):
  - If any save fails halfway, everything is rolled back from that snapshot and nothing is left half-applied.
 Not included (they have no per-person setting or no server rule today, so they are NOT set and the card says so): drawdown stop,
 daily profit target + stop for the day, daily/weekly loss % (global owner settings). Kept in NOT_INCLUDED for the card text only.
-Nothing here claims it makes money or keeps an account safe: it only makes the bot take smaller, fewer trades."""
+Nothing here claims it makes money or keeps an account safe: it only sets how many entries open, how big the group target is and how much open risk is allowed."""
 import json, re, time
 from . import store as st, prefs, limits, groupcap, burst, links, brokers as bk, automode, bars, indicators
 
-# ---- the three tiers: change numbers here only ----
-BASE = {'strategies': ['jg_pullback', 'heikin_flip', 'fvg_retrace'], 'alone': True, 'min_conf': 1, 'entries': 1,
-        'burst_on': False, 'minute': False, 'max_open': 1, 'streak': 2, 'risk_pct': 1.0}
-TIERS = {
-    10: dict(BASE, loss_pct=2.0),
-    20: dict(BASE, loss_pct=2.5),
-    30: dict(BASE, loss_pct=3.0),
-}
+# ---- the sizes: change numbers here only ----
+SIZES = (10, 20, 30, 40, 50, 60)
+ENTRIES = 6                  # entries per setup
+TARGET_PER_USD = 0.075       # group profit target = size x this ($0.75 at $10 ... $4.50 at $60)
+OPEN_RISK_PCT = 50.0         # most all open entries together may lose if every stop loss hit, as a share of the SIZE (not the balance)
+BASE = {'strategies': [], 'alone': True, 'min_conf': 1, 'entries': ENTRIES, 'burst_on': False, 'minute': False, 'streak': 2, 'risk_pct': 1.0, 'loss_pct': 0.0}
+TIERS = {n: dict(BASE, size=n, target_usd=round(n * TARGET_PER_USD, 2), open_risk_usd=round(n * OPEN_RISK_PCT / 100.0, 2)) for n in SIZES}
 NOT_INCLUDED = ['Drawdown stop', 'Daily profit target', 'Daily and weekly loss limits (the owner sets these for everyone)']
 KEYS = {'pref': 'pref:', 'lim': 'lim:', 'gcap': 'gcap:', 'burst': 'burst:'}          # kv prefixes, + the uid
 
 
 def _tier(n):
-    """10, 20 or 30 (a whole number, or the same number as text). Anything else, True and 20.5 included, is refused."""
+    """10, 20, 30, 40, 50 or 60 (a whole number, or the same number as text). Anything else, True and 20.5 included, is refused."""
     if isinstance(n, bool) or not isinstance(n, (int, float, str)): n = 0
     try: f = float(n); n = int(f) if f == int(f) else 0
     except (TypeError, ValueError, OverflowError): n = 0
-    if n not in TIERS: raise ValueError('Pick the $10, $20 or $30 settings')
+    if n not in TIERS: raise ValueError('Pick a size from $10 to $60')
     return n
 
 
@@ -76,9 +82,17 @@ def values(tier, uid=''):
     try: risk = min(risk, st.fget('risk_pct'))          # never above the owner's own risk setting
     except (TypeError, ValueError): pass
     risk = max(links.RISK_MIN, round(risk, 2))
-    return {'strategies': list(t['strategies']), 'alone': t['alone'], 'min_conf': t['min_conf'], 'entries': min(t['entries'], ceil),
-            'max_open': min(t['max_open'], ceil), 'streak': t['streak'], 'risk_pct': risk, 'loss_pct': t['loss_pct'],
+    return {'size': t['size'], 'strategies': list(t['strategies']), 'alone': t['alone'], 'min_conf': t['min_conf'], 'entries': min(t['entries'], ceil),
+            'max_open': ceil, 'streak': t['streak'], 'risk_pct': risk, 'loss_pct': t['loss_pct'], 'target_usd': t['target_usd'], 'open_risk_usd': t['open_risk_usd'],
             'burst_on': False, 'minute': False}
+
+
+def active(uid):
+    """The size (10..60) this person has switched on, or None. Section 2 reads this: it is the account size the bot manages for them."""
+    s = _snap(uid) if uid else None
+    try: n = int(s['tier']) if s else 0
+    except (TypeError, ValueError, KeyError): n = 0
+    return n if n in TIERS else None
 
 
 # ---- S3: the minimum-lot check (before trading, not after) ----
@@ -140,7 +154,7 @@ def apply(uid, tier):
     try:
         prefs.save(uid, {'strategies': v['strategies'], 'alone': v['alone'], 'min_conf': v['min_conf'], 'entries': v['entries']})
         limits.save(uid, streak=v['streak'], max_open=v['max_open'])
-        groupcap.save(uid, {'on': True, 'loss_pct': v['loss_pct']})
+        groupcap.save(uid, {'on': True, 'target_usd': v['target_usd'], 'loss_pct': v['loss_pct']})
         burst.save(uid, {'on': v['burst_on'], 'minute': v['minute']})
         if links.get(uid): links.set_risk(uid, v['risk_pct'])
     except Exception:
