@@ -5,7 +5,7 @@ from . import store as st, botstate, notifart, bars, brain, risk, sbauth, news, 
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static'); app.json.compact = True
 from . import screenread
-st.init(); assist.init(); screenread.init()
+st.init(); st.nolimits_once(); assist.init(); screenread.init()
 try:          # one-time cleanup: the old "Trade on" limit is gone, so forget its saved choice and the "paused" note it left on each broker
     st.x("DELETE FROM kv WHERE k LIKE 'trade_on:%'")
     for _r in st.q("SELECT k,v FROM kv WHERE k LIKE 'why:%'") or []:
@@ -570,7 +570,7 @@ def admin_pass():
 def admin_set(u):
     j = _j()
     for k, lo, hi in (('risk_pct', 0.1, 2.0), ('rr', 1.0, 4.0), ('max_stop_atr', 0.8, 5.0), ('auto_positions', 1, 5), ('stake_very_pct', 0, 50), ('stake_strong_pct', 0, 50), ('stake_max_risk_pct', 0.5, 25),
-                     ('max_open', 1, 10), ('max_daily_loss_pct', 0.5, 20), ('max_weekly_loss_pct', 1, 40), ('max_losing_streak', 0, 20), ('streak_cooldown_h', 0, 72),
+                     ('max_open', 1, 10), ('max_daily_loss_pct', 0, 20), ('max_weekly_loss_pct', 0, 40), ('max_losing_streak', 0, 20), ('streak_cooldown_h', 0, 72),
                      ('burst_ceiling', 2, 30), ('burst_big_score', 2, 10), ('burst_free_per_hour', 0, 12), ('burst_minute_per_hour', 1, 60), ('min_confluence', 1, 6), ('multi_min_score', 2, 10), ('auto_disable_min_trades', 5, 500),
                      ('auto_markets_max', 0, 10), ('max_trades_day', 0, 100), ('auto_target_usd', 0, 1000), ('practice_trades_needed', 0, 100),
                      ('news_before_min', 0, 240), ('news_after_min', 0, 240), ('cooldown_min', 0, 1440), ('max_ccy_exposure', 0, 10), ('multi_entries', 1, 10), ('regime_min_trades', 5, 500)):          # AU1: the six numbers that had no field, checked before anything is saved

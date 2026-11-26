@@ -130,18 +130,24 @@ def x(sql, a=(), count=False):
         cur = c.execute(sql, a); c.commit(); return cur.rowcount if count else cur.lastrowid
 
 DEFAULTS = {'bot_enabled': '0', 'risk_pct': os.getenv('RISK_PCT', '1.0'), 'max_open': os.getenv('MAX_OPEN', '3'), 'max_open_ceiling': os.getenv('MAX_OPEN_CEILING', '6'), 'no_open_cap': os.getenv('NO_OPEN_CAP', '1'), 'manual_close': os.getenv('MANUAL_CLOSE', '0'),
-    'max_trades_day': os.getenv('MAX_TRADES_DAY', '0'), 'screen_on': '0', 'max_daily_loss_pct': os.getenv('MAX_DAILY_LOSS_PCT', '3.0'),
-    'min_confluence': os.getenv('MIN_CONFLUENCE', '2'), 'rr': os.getenv('RR', '2.0'), 'cooldown_min': os.getenv('COOLDOWN_MIN', '60'),
+    'max_trades_day': os.getenv('MAX_TRADES_DAY', '0'), 'screen_on': '0', 'max_daily_loss_pct': os.getenv('MAX_DAILY_LOSS_PCT', '0'),
+    'min_confluence': os.getenv('MIN_CONFLUENCE', '2'), 'rr': os.getenv('RR', '2.0'), 'cooldown_min': os.getenv('COOLDOWN_MIN', '0'),
     'symbols': os.getenv('SYMBOLS', 'XAUUSD,EURUSD,GBPUSD,USDJPY'),
-    'max_weekly_loss_pct': os.getenv('MAX_WEEKLY_LOSS_PCT', '6.0'), 'max_losing_streak': os.getenv('MAX_LOSING_STREAK', '3'),
-    'streak_cooldown_h': os.getenv('STREAK_COOLDOWN_H', '4'), 'max_ccy_exposure': os.getenv('MAX_CCY_EXPOSURE', '2'),
-    'news_lock': os.getenv('NEWS_LOCK', '1'), 'news_before_min': os.getenv('NEWS_BEFORE_MIN', '30'), 'news_after_min': os.getenv('NEWS_AFTER_MIN', '30'),
+    'max_weekly_loss_pct': os.getenv('MAX_WEEKLY_LOSS_PCT', '0'), 'max_losing_streak': os.getenv('MAX_LOSING_STREAK', '0'),
+    'streak_cooldown_h': os.getenv('STREAK_COOLDOWN_H', '0'), 'max_ccy_exposure': os.getenv('MAX_CCY_EXPOSURE', '0'),
+    'news_lock': os.getenv('NEWS_LOCK', '0'), 'news_before_min': os.getenv('NEWS_BEFORE_MIN', '30'), 'news_after_min': os.getenv('NEWS_AFTER_MIN', '30'),
     'auto_markets': '0', 'symbols_pool': os.getenv('SYMBOLS_POOL', ''), 'auto_markets_max': '2', 'multi_entries': os.getenv('MULTI_ENTRIES', '1'), 'multi_min_score': os.getenv('MULTI_MIN_SCORE', '3'),
     'stake_on': os.getenv('STAKE_ON', '1'), 'stake_very_pct': os.getenv('STAKE_VERY_PCT', '40'), 'stake_strong_pct': os.getenv('STAKE_STRONG_PCT', '15'), 'stake_max_risk_pct': os.getenv('STAKE_MAX_RISK_PCT', '10'), 'feed_on': os.getenv('FEED_ON', '0'), 'auto_mode': os.getenv('AUTO_MODE', '0'), 'max_stop_atr': os.getenv('MAX_STOP_ATR', '3.5'), 'auto_positions': os.getenv('AUTO_POSITIONS', '1'), 'strategies_off': os.getenv('STRATEGIES_OFF', ''), 'strategies_solo': '', 'auto_disable': '0', 'auto_disable_min_trades': '20', 'regime_switch': os.getenv('REGIME_SWITCH', '0'), 'regime_min_trades': os.getenv('REGIME_MIN_TRADES', '10'), 'burst_enabled': os.getenv('BURST_ENABLED', '1'), 'burst_ceiling': os.getenv('BURST_CEILING', '15'), 'burst_big_score': os.getenv('BURST_BIG_SCORE', '3'), 'burst_free_per_hour': os.getenv('BURST_FREE_PER_HOUR', '2'), 'burst_minute_per_hour': os.getenv('BURST_MINUTE_PER_HOUR', '30'), 'auto_target_usd': os.getenv('AUTO_TARGET_USD', '0'), 'btc_sunday_bounce': '0', 'btc_short_pullback': '0', 'orb_session': '0', 'practice_trades_needed': '5', 'plans': ''}
 def get(k):
     r = q('SELECT v FROM kv WHERE k=?', (k,), True); return r['v'] if r else DEFAULTS.get(k)
 def put(k, v): x('INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', (k, str(v)))
 def fget(k): return float(get(k))
+def nolimits_once():
+    """NL1: ONE time, switch the owner's stopping limits off in the saved settings too (a value saved earlier beats the new defaults). Later changes in the admin page stay."""
+    if get('nolimits_v1') == '1': return
+    for k, v in (('max_daily_loss_pct', '0'), ('max_weekly_loss_pct', '0'), ('max_losing_streak', '0'), ('streak_cooldown_h', '0'), ('max_ccy_exposure', '0'),
+                 ('cooldown_min', '0'), ('news_lock', '0'), ('max_trades_day', '0'), ('no_open_cap', '1')): put(k, v)
+    put('nolimits_v1', '1')
 def acct(uid=''):
     """The EA account snapshot. uid '' = the owner's own EA; otherwise that subscriber's link."""
     if uid:
