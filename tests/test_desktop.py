@@ -75,7 +75,8 @@ def new_signal(sym='XAUUSD', side='buy', sl=2295.0, tp=2310.0, uid=None, risk=1.
     return st.x('INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
                 (sym, side, 2300.0, sl, tp, risk, 't', 2, 'pending', int(time.time()) - age, uid))
 def sig(i): return st.q('SELECT * FROM signals WHERE id=?', (i,), True)
-st.put('min_confluence', 99); st.put('bot_enabled', '1')      # the server's own scan never makes a signal; tests insert them
+st.put('min_confluence', 99); st.put('bot_enabled', '1')
+from backend import burst; burst.save('', {'max_lot': 100})      # LS1: the safe default lot cap is 0.06; these tests check the sizing maths, so the cap is out of the way (test_ls1.py tests the default)      # the server's own scan never makes a signal; tests insert them
 
 # ---------- config ----------
 @T('config: junk in, safe values out')

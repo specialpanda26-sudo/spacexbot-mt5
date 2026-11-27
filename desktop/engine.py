@@ -107,7 +107,9 @@ class Engine:
         except (TypeError, ValueError): ml = 0.0
         if ml != ml or ml < 0: ml = 0.0
         if ml > 0:
-            if ml < i['vol_min'] - 1e-12: return None, 'your biggest lot is below the broker minimum lot'
+            if ml < i['vol_min'] - 1e-12:
+                if not (src or {}).get('max_lot_soft'): return None, 'your biggest lot is below the broker minimum lot'
+                ml = i['vol_min']          # LS1: only the safe default (0.06) is below the broker minimum: the broker's smallest lot is the smallest possible
             cap = min(cap, ml)
         return cap, None
 
@@ -133,7 +135,11 @@ class Engine:
         if i['tick_value'] <= 0 or i['tick_size'] <= 0: return 'no tick value'
         cap, why = self.cap_for(sig, i)          # LC2: obey the person's biggest lot
         if why: return why
-        lots = self._lots(acct['balance'] * risk / 100.0 / ((abs(price - sl) / i['tick_size']) * i['tick_value']), i, cap)
+        want = acct['balance'] * risk / 100.0 / ((abs(price - sl) / i['tick_size']) * i['tick_value'])
+        try: fl = float(sig.get('lot') or 0)          # LS1: the person chose the lot (smallest or fixed); 0 = size by risk
+        except (TypeError, ValueError): fl = 0.0
+        if fl == fl and fl > 0: want = max(fl, i['vol_min'])
+        lots = self._lots(want, i, cap)
         if lots is None: return 'min lot would risk more than allowed'
         r = self.b.send_market(sym, side, lots, sl, tp, 'SXB%d' % sid, c['deviation'], c['magic'], i['fill'])
         if not r['ok']: return 'order failed %s' % r['retcode']

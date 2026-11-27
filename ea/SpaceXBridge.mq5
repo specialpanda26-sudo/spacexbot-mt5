@@ -4,7 +4,7 @@
 //| and add your Render URL to the list. Attach to ANY chart.        |
 //+------------------------------------------------------------------+
 #property strict
-#property version "1.23"
+#property version "1.24"
 #include <Trade\Trade.mqh>
 
 input string ServerUrl      = "https://your-service.onrender.com"; // no trailing slash
@@ -119,7 +119,7 @@ double StakeLots(const string sym, bool buy, double price, double sl, double sta
    return (lots >= mn) ? lots : 0;
 }
 
-void Execute(long id, string canon, string side, double sl, double tp, double riskPct, double stakePct = 0, double stakeMaxRisk = 10, double maxLot = 0)
+void Execute(long id, string canon, string side, double sl, double tp, double riskPct, double stakePct = 0, double stakeMaxRisk = 10, double maxLot = 0, double fixedLot = 0, double maxLotSoft = 0)
 {
    if(!IsDemo() && !AllowLive){ Reject(id, "live account blocked (AllowLive=false)"); return; }
    string sym = canon + SymbolSuffix;
@@ -138,11 +138,12 @@ void Execute(long id, string canon, string side, double sl, double tp, double ri
    double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * riskPct / 100.0;
    double lots = riskMoney / ((MathAbs(price - sl) / ts) * tv);
    double step = SymbolInfoDouble(sym, SYMBOL_VOLUME_STEP), mn = SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN), mx = SymbolInfoDouble(sym, SYMBOL_VOLUME_MAX);
-   lots = MathFloor(lots / step) * step;
+   if(fixedLot > 0) lots = MathMax(fixedLot, mn);          // LS1: the person chose the lot (smallest or fixed); 0 = size by risk
+   lots = MathFloor(lots / step + 1e-9) * step;
    if(lots < mn){ Reject(id, "min lot would risk more than allowed"); return; }
    lots = MathMin(lots, MathMin(mx, MaxLots));
    string cm = "SXB" + (string)id;
-   if(StakeOn && stakePct > 0)
+   if(StakeOn && stakePct > 0 && fixedLot <= 0)          // LS1: a lot the person chose is never raised by a big stake
    {
       stakePct = MathMin(stakePct, 50.0); stakeMaxRisk = MathMax(0.5, MathMin(stakeMaxRisk, 25.0));
       if(BigStakeOpen()) Print("Signal ", id, ": a big-stake trade is already open, this one uses normal sizing");
@@ -155,7 +156,7 @@ void Execute(long id, string canon, string side, double sl, double tp, double ri
    }
    if(maxLot > 0)
    {  // LC2: the person's biggest lot for any one trade (0 = no cap). It comes last, so it also limits a big-stake trade.
-      if(maxLot < mn - 1e-12){ Reject(id, "your biggest lot is below the broker minimum lot"); return; }
+      if(maxLot < mn - 1e-12){ if(maxLotSoft > 0) maxLot = mn; else { Reject(id, "your biggest lot is below the broker minimum lot"); return; } }          // LS1: the safe default never blocks a trade
       if(lots > maxLot + 1e-12){ lots = MathFloor(maxLot / step + 1e-9) * step; Print("Signal ", id, ": lot cut to your biggest lot, ", DoubleToString(lots, 2)); }
    }
    trade.SetExpertMagicNumber(Magic); trade.SetDeviationInPoints(Deviation); trade.SetTypeFillingBySymbol(sym);
@@ -179,7 +180,7 @@ long CmGid(const string cm){ int p = StringFind(cm, "G", 3); return (StringFind(
 string GV(const string k, long gid){ return "SXB_" + k + (string)gid; }
 void RejectAll(const long &ids[], string why){ for(int i = 0; i < ArraySize(ids); i++) Reject(ids[i], why); }
 
-void ExecuteBasket(long gid, string canon, string side, double sl, double tp, double riskPct, double each, int gb, string idsCsv, double grpTgt, double lossPct, double fixedLot = 0, double maxLot = 0)
+void ExecuteBasket(long gid, string canon, string side, double sl, double tp, double riskPct, double each, int gb, string idsCsv, double grpTgt, double lossPct, double fixedLot = 0, double maxLot = 0, double maxLotSoft = 0)
 {
    string idl[]; int n = StringSplit(idsCsv, ',', idl); if(n <= 0) return;
    long ids[]; ArrayResize(ids, n); for(int i = 0; i < n; i++) ids[i] = (long)StringToInteger(idl[i]);
@@ -212,7 +213,7 @@ void ExecuteBasket(long gid, string canon, string side, double sl, double tp, do
    lots = MathMin(lots, MathMin(mx, MaxLots));
    if(maxLot > 0)
    {  // LC2: the person's biggest lot for any one trade (0 = no cap): every entry of the group is cut to it
-      if(maxLot < mn - 1e-12){ RejectAll(ids, "your biggest lot is below the broker minimum lot"); return; }
+      if(maxLot < mn - 1e-12){ if(maxLotSoft > 0) maxLot = mn; else { RejectAll(ids, "your biggest lot is below the broker minimum lot"); return; } }          // LS1
       if(lots > maxLot + 1e-12) lots = MathFloor(maxLot / step + 1e-9) * step;
    }
    trade.SetExpertMagicNumber(Magic); trade.SetDeviationInPoints(Deviation); trade.SetTypeFillingBySymbol(sym);
@@ -382,13 +383,13 @@ void PollServer()
    {
       ExecuteBasket(bgid, JStr(res, "symbol"), JStr(res, "side"), StringToDouble(JStr(res, "sl")), StringToDouble(JStr(res, "tp")),
                     StringToDouble(JStr(res, "risk_pct")), StringToDouble(JStr(res, "each")), (int)StringToInteger(JStr(res, "gb")), JStr(res, "ids"),
-                    StringToDouble(JStr(res, "tgt")), StringToDouble(JStr(res, "loss")), StringToDouble(JStr(res, "lot")), StringToDouble(JStr(res, "max_lot")));
+                    StringToDouble(JStr(res, "tgt")), StringToDouble(JStr(res, "loss")), StringToDouble(JStr(res, "lot")), StringToDouble(JStr(res, "max_lot")), StringToDouble(JStr(res, "max_lot_soft")));
       return;
    }
    long id = (long)StringToInteger(JStr(res, "id"));
    if(id > 0 && StringFind(res, "\"signal\":null") < 0)
       Execute(id, JStr(res, "symbol"), JStr(res, "side"), StringToDouble(JStr(res, "sl")), StringToDouble(JStr(res, "tp")), StringToDouble(JStr(res, "risk_pct")),
-               StringToDouble(JStr(res, "stake_pct")), StringToDouble(JStr(res, "stake_max_risk_pct")), StringToDouble(JStr(res, "max_lot")));
+               StringToDouble(JStr(res, "stake_pct")), StringToDouble(JStr(res, "stake_max_risk_pct")), StringToDouble(JStr(res, "max_lot")), StringToDouble(JStr(res, "lot")), StringToDouble(JStr(res, "max_lot_soft")));
 }
 
 //--- report closes (SL/TP/manual) back to the backend

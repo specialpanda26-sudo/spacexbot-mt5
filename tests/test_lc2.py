@@ -17,7 +17,7 @@ def make(n=3):
     return burst.create('', 'XAUUSD', s, {'kind': 'quick', 'n': n, 'each': 0.5, 'giveback': 40, 'stake': 0}, 'test')
 
 # ---------- desktop: one normal trade ----------
-burst.save('', {'max_lot': 0, 'lot': 0}); clear()
+burst.save('', {'max_lot': 100, 'lot': 0}); clear()          # LS1: 0 now means the safe 0.06, so 'no cap' is a big typed number
 clock, fb, web, e, sf = D.rig(); D.go(e, clock, 3)
 clear(); D.new_signal(risk=5.0); D.go(e, clock, 2)
 base = lots(fb)
@@ -31,10 +31,10 @@ clear(); D.new_signal(risk=5.0); D.go(e, clock, 2)
 chk('cap below the broker minimum: refused, nothing traded', len(fb.orders) == 0)
 
 # ---------- desktop: a burst group ----------
-burst.save('', {'max_lot': 0.03, 'lot': 0.2})          # the fixed lot is bigger than the cap: the cap wins
+import json; st.put('burst:', json.dumps({'max_lot': 0.03, 'lot': 0.2, 'lot_mode': 'fixed'}))          # an old save with a fixed lot bigger than the cap (the panel now refuses it): the cap wins
 clock, fb, web, e, sf = D.rig(); D.go(e, clock, 3); ids = make(3); D.go(e, clock, 2)
 chk('burst: 3 entries, each cut to 0.03 even though the fixed lot is 0.2', len(fb.orders) == 3 and all(abs(x - 0.03) < 1e-9 for x in lots(fb)))
-burst.save('', {'max_lot': 0, 'lot': 0.2})
+burst.save('', {'max_lot': 100, 'lot': 0.2})
 clock, fb, web, e, sf = D.rig(); D.go(e, clock, 3); ids = make(3); D.go(e, clock, 2)
 chk('burst, cap off: the fixed lot 0.2 is used', len(fb.orders) == 3 and all(abs(x - 0.2) < 1e-9 for x in lots(fb)))
 burst.save('', {'max_lot': 0.05, 'lot': 0.02})
@@ -47,12 +47,12 @@ src = open(os.path.join(HERE, '..', 'ea', 'SpaceXBridge.mq5'), encoding='utf-8')
 def body(name):
     m = re.search(r'\nvoid %s\(.*?\n\}\n' % name, src, re.S); return m.group(0) if m else ''
 ex, bx = body('Execute'), body('ExecuteBasket')
-chk('EA: Execute takes maxLot', 'double maxLot = 0)' in ex.split('{')[0])
-chk('EA: ExecuteBasket takes maxLot', 'double maxLot = 0)' in bx.split('{')[0])
+chk('EA: Execute takes maxLot', 'double maxLot = 0' in ex.split('{')[0])
+chk('EA: ExecuteBasket takes maxLot', 'double maxLot = 0' in bx.split('{')[0])
 chk('EA: single trade cuts lots to maxLot after the stake sizing', ex.find('StakeLots(sym') < ex.find('lots > maxLot') < ex.find('trade.Buy(lots'))
 chk('EA: basket cuts lots to maxLot before opening', bx.find('lots > maxLot') != -1 and bx.find('lots > maxLot') < bx.find('trade.Buy(lots'))
 chk('EA: a cap below the broker minimum rejects', ex.count('below the broker minimum lot') == 1 and bx.count('below the broker minimum lot') == 1)
 chk('EA: both calls pass the server max_lot', src.count('JStr(res, "max_lot")') == 2)
-chk('EA: version raised so the recompile is visible', '#property version "1.23"' in src)
+chk('EA: version raised so the recompile is visible', '#property version "1.24"' in src)
 badn = [n for n, c in ok if not c]
 print('\n'.join(('ok   ' if c else 'FAIL ') + n for n, c in ok)); sys.exit(1 if badn else 0)

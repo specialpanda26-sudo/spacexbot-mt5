@@ -15,7 +15,7 @@ def poll(): return c.post('/api/ea/sync', headers={'X-EA-Key': 'k'}, json={'bala
 def sig(grp=None):
     return st.x("INSERT INTO signals(symbol,side,entry,sl,tp,risk_pct,strategy,score,status,created,uid,grp) VALUES('XAUUSD','sell',3620,3624.2,3601.9,1,'s',1,'pending',?,NULL,?)", (int(time.time()), grp))
 
-T('default: no biggest lot (0) and automatic lot (0)', burst.get('')['max_lot'] == 0 and burst.get('')['lot'] == 0)
+T('default: nothing saved (0 and 0), but the biggest lot in use is the safe 0.06', burst.get('')['max_lot'] == 0 and burst.get('')['lot'] == 0 and burst.eff_max_lot('') == 0.06)
 j = c.post('/api/burst', json={'max_lot': 0.06}, headers=OW).get_json()
 T('saved through the app route', j['settings']['max_lot'] == 0.06)
 T('saving it leaves the other choices alone', j['settings']['lot'] == 0 and j['settings']['loss_usd'] == 0 and j['settings']['quick_n'] == 5)
@@ -27,7 +27,7 @@ c.post('/api/burst', json={'lot': 0.02}, headers=OW)
 T('the fixed lot is still its own choice', burst.get('')['lot'] == 0.02 and burst.get('')['max_lot'] == 0.06)
 
 sig(); s = (poll().get('signal') or {})
-T('a single signal carries lot 0.02 and max_lot 0.06', s.get('lot') == 0.02 and s.get('max_lot') == 0.06)
+T('a single signal carries lot 0.02 and max_lot 0.06 (a typed cap is not soft)', s.get('lot') == 0.02 and s.get('max_lot') == 0.06 and s.get('max_lot_soft') == 0)
 T('the single signal keeps its normal fields', s.get('risk_pct') == 1 and s.get('side') == 'sell' and 'stake_pct' in s)
 st.x('DELETE FROM signals')
 g = sig(); st.x('UPDATE signals SET grp=? WHERE id=?', (g, g)); sig(g)
@@ -35,5 +35,5 @@ st.put('bg:%d' % g, json.dumps({'k': 'quick', 'n': 2, 'each': 0.5, 'gb': 40, 't'
 bk = poll().get('basket') or {}
 T('a burst basket carries max_lot 0.06 and its own lot 0.02', bk.get('max_lot') == 0.06 and bk.get('lot') == 0.02)
 st.x('DELETE FROM signals'); c.post('/api/burst', json={'max_lot': 0, 'lot': 0}, headers=OW); sig(); s = (poll().get('signal') or {})
-T('both cleared: the bridge gets 0 and 0 (automatic, no cap)', s.get('lot') == 0 and s.get('max_lot') == 0)
+T('both cleared: automatic lot (0) and the safe default cap 0.06 (LS1)', s.get('lot') == 0 and s.get('max_lot') == 0.06 and s.get('max_lot_soft') == 1)
 print('%d checks, %d failed' % (len(R), sum(1 for _, ok in R if not ok)))

@@ -22,6 +22,9 @@ AUTO_WHY = 'Auto mode is on, and Auto mode turns burst off'          # BX1: the 
 DEF = {'on': False, 'idle_min': 5, 'quick_n': 5, 'big_n': 15, 'quick_usd': 0.5, 'big_usd': 1.0, 'giveback': 40, 'stake_usd': 0.5, 'minute': False, 'minute_n': 2, 'loss_usd': 0.0}
 KEYS = tuple(DEF)
 USD_LO, USD_HI = 0.05, 1000.0
+SAFE_MAX_LOT = 0.06          # LS1: the biggest lot any one MT5 trade may have unless the person raises it on their own panel
+SMALLEST_LOT = 0.01          # LS1: what 'Smallest lot' asks for; the bridge lifts it to the broker's own minimum when that is bigger
+LOT_MODES = ('smallest', 'fixed', 'auto')
 
 
 def enabled():
@@ -62,6 +65,13 @@ def _clamp(v, lo, hi, d, f=int):
     return max(lo, min(hi, x))
 
 
+def _mode(j):
+    """LS1: how the lot is chosen. A saved mode wins; an older save with a fixed lot stays 'fixed'; nothing saved = 'auto' (sized by risk, then cut to the biggest lot)."""
+    m = j.get('lot_mode')
+    if m in LOT_MODES: return m
+    return 'fixed' if _clamp(j.get('lot'), 0, 100.0, 0.0, float) > 0 else 'auto'
+
+
 def get(uid=''):
     """The person's choices, always valid (a bad saved value falls back to the default)."""
     j = _raw(uid); c = ceiling()
@@ -73,8 +83,30 @@ def get(uid=''):
             'giveback': _clamp(j.get('giveback'), 0, 90, DEF['giveback']),
             'stake_usd': round(_clamp(j.get('stake_usd'), 0, USD_HI, DEF['stake_usd'], float), 2),
             'loss_usd': round(_clamp(j.get('loss_usd'), 0, USD_HI, 0.0, float), 2), 'lot': round(_clamp(j.get('lot'), 0, 100.0, 0.0, float), 2), 'max_lot': round(_clamp(j.get('max_lot'), 0, 100.0, 0.0, float), 2),          # LOT1
+            'lot_mode': _mode(j),          # LS1: smallest | fixed | auto
                       # BT13
             'minute': j.get('minute') is True, 'minute_n': _clamp(j.get('minute_n'), 2, c, DEF['minute_n'])}          # BT7
+
+
+def eff_max_lot(uid=''):
+    """LS1: the biggest lot for any one MT5 trade. The person's own number, or SAFE_MAX_LOT (0.06) when they have not set one."""
+    m = get(uid)['max_lot']
+    return m if m > 0 else SAFE_MAX_LOT
+
+
+def max_lot_soft(uid=''):
+    """LS1: 1 when the biggest lot is only the safe default (the person set none). The bridge then never refuses a trade just because the broker's own
+    minimum lot is above 0.06: it uses that minimum. A number the person typed is never softened (0 = not soft)."""
+    return 1 if get(uid)['max_lot'] <= 0 else 0
+
+
+def eff_lot(uid=''):
+    """LS1: the lot the bridge must use for each entry. 0 = size by risk (the bridge then cuts it to the biggest lot).
+    Smallest -> 0.01 (lifted to the broker minimum by the bridge). Fixed -> the person's number, never above the biggest lot."""
+    g = get(uid)
+    if g['lot_mode'] == 'smallest': return SMALLEST_LOT
+    if g['lot_mode'] == 'fixed' and g['lot'] > 0: return min(g['lot'], eff_max_lot(uid))
+    return 0.0
 
 
 def _whole(v, lo, hi, name):
@@ -123,13 +155,23 @@ def save(uid, d):
     if 'lot' in d:          # LOT1: lots for each burst entry on MT5 (0 = automatic)
         try: tv = float('nan') if isinstance(d['lot'], bool) else float(d['lot'])
         except (TypeError, ValueError): tv = float('nan')
-        if tv != tv or not (tv == 0 or 0.01 <= tv <= 100): raise ValueError('Lot per entry must be 0 (automatic) or from 0.01 to 100')
+        if tv != tv or not (tv == 0 or 0.01 <= tv <= 100): raise ValueError('Lot per entry must be from 0.01 to 100')
         new['lot'] = round(tv, 2)
     if 'max_lot' in d:          # LC1: the biggest lot any one MT5 trade may have (0 = no cap)
         try: mv = float('nan') if isinstance(d['max_lot'], bool) else float(d['max_lot'])
         except (TypeError, ValueError): mv = float('nan')
-        if mv != mv or not (mv == 0 or 0.01 <= mv <= 100): raise ValueError('Biggest lot must be 0 (no cap) or from 0.01 to 100')
+        if mv != mv or not (mv == 0 or 0.01 <= mv <= 100): raise ValueError('Biggest lot must be from 0.01 to 100 (empty or 0 = the safe default, %g)' % SAFE_MAX_LOT)
         new['max_lot'] = round(mv, 2)
+    if 'lot' in d and 'lot_mode' not in d: new['lot_mode'] = 'fixed' if new.get('lot', 0) > 0 else 'auto'          # LS1: older callers send only the lot (0 = automatic)
+    if 'lot_mode' in d:          # LS1
+        if d['lot_mode'] not in LOT_MODES: raise ValueError('Lot mode must be smallest, fixed or auto')
+        new['lot_mode'] = d['lot_mode']
+    chk = dict(cur); chk.update(new)          # LS1: a fixed lot above the biggest lot would be silently cut, so say so instead
+    mode = _mode(chk); big = _clamp(chk.get('max_lot'), 0, 100.0, 0.0, float); big = big if big > 0 else SAFE_MAX_LOT
+    if mode == 'fixed':
+        fl = _clamp(chk.get('lot'), 0, 100.0, 0.0, float)
+        if fl <= 0: raise ValueError('Fixed lot needs a lot size from 0.01, for example 0.02')
+        if fl > big + 1e-9: raise ValueError('Lot per entry (%g) is above your biggest lot (%g). Raise the biggest lot first, or choose a smaller lot.' % (fl, big))
     cur.update(new)
     st.put('burst:' + (uid or ''), json.dumps(cur))
     return get(uid)
@@ -217,7 +259,7 @@ def create(uid, sym, s, pl, reason='', now=None):
     ids = [first]
     for _ in range(n - 1):
         ids.append(st.x(sql, (sym, s['side'], s['entry'], s['sl'], s['tp'], rp, s['strategy'], s['score'], 'pending', now, uid or None, first, reason)))
-    gm = {'k': pl['kind'], 'n': n, 'each': pl['each'], 'gb': pl['giveback'], 't': now, 'stake': pl.get('stake', 0), 'lot': get(uid)['lot']}
+    gm = {'k': pl['kind'], 'n': n, 'each': pl['each'], 'gb': pl['giveback'], 't': now, 'stake': pl.get('stake', 0), 'lot': eff_lot(uid)}
     gr = groupcap.rules(uid, n)          # the person's group target / loss limit, when they switched it on
     if gr: gm.update(tgt=gr['tgt'], loss=gr['loss'])
     if not gr: gm['dtgt'] = round(float(pl['each']) * n, 2)          # BT2: the Deriv engine closes the group when the entries together reach entries x target each
@@ -275,9 +317,10 @@ def minlot(uid=''):
             r = indicators.atr(b)[-1]
             if not r > 0: continue
             one = f['vol_min'] * (r * wide / f['tick_size']) * f['tick_value']
-            if p['lot'] > 0:
-                lot = max(p['lot'], f['vol_min']); each = one * lot / f['vol_min']
-                lines.append('%s: %g lot each risks up to about $%.2f per entry, $%.2f for %d entries.%s' % (name, lot, each, each * n, n, ' (Your lot is under the broker minimum, so %g is used.)' % f['vol_min'] if p['lot'] < f['vol_min'] - 1e-12 else ''))
+            el = eff_lot(uid)          # LS1
+            if el > 0:
+                lot = max(el, f['vol_min']); each = one * lot / f['vol_min']
+                lines.append('%s: %g lot each risks up to about $%.2f per entry, $%.2f for %d entries.%s' % (name, lot, each, each * n, n, ' (Your lot is under the broker minimum, so %g is used.)' % f['vol_min'] if el < f['vol_min'] - 1e-12 else ''))
             elif one * n > total:
                 fit = int(total // one) if one > 0 else n
                 lines.append('%s: the smallest lot (%g) risks up to about $%.2f each, but your risk of $%.2f is shared by %d entries, so only %d would open. Raise Risk %%, or set Lot per entry, or use fewer entries.' % (name, f['vol_min'], one, total, n, max(fit, 0)))
