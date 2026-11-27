@@ -83,12 +83,17 @@ def plan_lot(plan):
     return round(min(SAFE_MAX_LOT, max(SMALLEST_LOT, int(v // 10) * LOT_STEP)), 2)
 
 
+def plan_active(uid=''):
+    """PL2: does this account have a managed plan? (burst is then mandatory and Auto mode cannot pause it)"""
+    return _clamp(_raw(uid).get('plan_usd'), 0, PLAN_MAX, 0, int) >= PLAN_MIN
+
+
 def get(uid=''):
     """The person's choices, always valid (a bad saved value falls back to the default)."""
     j = _raw(uid); c = ceiling()
     quick = min(c, _clamp(j.get('quick_n'), 1, c, DEF['quick_n']))
     big = max(quick, min(c, _clamp(j.get('big_n'), 1, c, DEF['big_n'])))
-    return {'on': j.get('on') is True, 'idle_min': _clamp(j.get('idle_min'), 1, 60, DEF['idle_min']), 'quick_n': quick, 'big_n': big,
+    return {'on': j.get('on') is True or plan_active(uid), 'idle_min': _clamp(j.get('idle_min'), 1, 60, DEF['idle_min']), 'quick_n': quick, 'big_n': big,
             'quick_usd': round(_clamp(j.get('quick_usd'), USD_LO, USD_HI, DEF['quick_usd'], float), 2),
             'big_usd': round(_clamp(j.get('big_usd'), USD_LO, USD_HI, DEF['big_usd'], float), 2),
             'giveback': _clamp(j.get('giveback'), 0, 90, DEF['giveback']),
@@ -244,6 +249,7 @@ def save(uid, d):
     if 'lot_mode' in d and not (new.get('plan_usd', cur.get('plan_usd', 0)) or 0) >= PLAN_MIN:          # LS1 (ignored while a plan is active: the plan decides)
         if d['lot_mode'] not in LOT_MODES: raise ValueError('Lot mode must be smallest, fixed or auto')
         new['lot_mode'] = d['lot_mode']
+    if d.get('on') is False and (_clamp(new.get('plan_usd', cur.get('plan_usd')), 0, PLAN_MAX, 0, int) >= PLAN_MIN): raise ValueError('Burst must stay on while a managed plan is active. Set the plan to 0 first to turn burst off.')          # PL2
     chk = dict(cur); chk.update(new)          # LS1: a fixed lot above the biggest lot would be silently cut, so say so instead
     mode = _mode(chk); big = _clamp(chk.get('max_lot'), 0, 100.0, 0.0, float); big = big if big > 0 else SAFE_MAX_LOT
     if mode == 'fixed':
@@ -293,7 +299,7 @@ def due(uid='', now=None):
     now = now or time.time(); p = get(uid)
     if not enabled(): return False, 'burst mode is switched off by the owner'
     if not p['on']: return False, 'burst mode is off'
-    if automode.on(): return False, AUTO_WHY          # BX1
+    if automode.on() and not plan_active(uid): return False, AUTO_WHY          # BX1 (PL2: a managed plan wins over Auto mode)
     ok, why = risk.global_gate(now, uid=uid, burst=True)
     if not ok: return False, why
     mm = p.get('minute') is True          # BT7: trade every minute: a new group every minute, even while the last one is still open

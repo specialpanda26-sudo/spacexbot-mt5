@@ -182,7 +182,7 @@ def _burst_scan(sym, uid=''):
     """Burst mode: after the quiet minutes, take a quick chance. One strategy is enough (min_conf 1); the ADX regime filter, the stop-distance check,
     the news lock, currency exposure and every loss limit still apply. 5-minute candles when the EA sends them, else 15-minute."""
     if not burst.get(uid)['on']: return
-    if automode.on(): burst_look.note(uid, 'Auto mode is ON, so burst is paused. Switch Auto mode off to let burst trade.'); return          # BX1
+    if automode.on() and not burst.plan_active(uid): burst_look.note(uid, 'Auto mode is ON, so burst is paused. Switch Auto mode off to let burst trade.'); return          # BX1
     k = (uid, sym, 'burst')
     if time.time() - _last_scan.get(k, 0) < 20: return
     _last_scan[k] = time.time()
