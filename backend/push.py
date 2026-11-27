@@ -24,7 +24,7 @@ _T = [
  (38,'billing','hi','Payment received'),(39,'billing','hi','M-Pesa prompt sent'),(40,'billing','hi','Payment not completed'),(41,'billing','hi','PayPal payment confirmed'),
  (42,'billing','hi','Plan ends in 3 days'),(43,'billing','hi','Plan ends tomorrow'),(44,'billing','hi','Plan ended'),
  (45,'tips','lo','Verify your email'),(46,'tips','lo','Connect your MT5'),(47,'tips','lo','Set your risk'),(48,'tips','lo','Choose your alerts'),(49,'tips','lo','Finish your profile'),
- (50,'system','hi','Security notice')]
+ (50,'system','hi','Security notice'),(51,'system','hi','App update available')]          # UPD1
 KINDS = {k: {'cat': c, 'ch': h, 'title': t} for k, c, h, t in _T}
 CHANNEL = {'hi': 'sxb_high', 'lo': 'sxb_low'}
 ROUTE = {'trade': '#signals', 'risk': '#home', 'news': '#home', 'daily': '#stats', 'tips': '#profile', 'system': '#home', 'billing': '#plans'}   # screen opened on tap
@@ -144,7 +144,7 @@ def send(uid, kind, body, title=None, key=None, force=False, img=None):
     tk = tokens(uid)
     if not tk: return 0, 'no device'
     title = title or k['title']; ch = CHANNEL[k['ch']]
-    data = {'kind': kind, 'cat': k['cat'], 'route': '#connect' if kind == 7 else ROUTE[k['cat']], 'tag': tag_for(kind, key)}; n = 0; last = ''
+    data = {'kind': kind, 'cat': k['cat'], 'route': '#update' if kind == 51 else '#connect' if kind == 7 else ROUTE[k['cat']], 'tag': tag_for(kind, key)}; n = 0; last = ''
     if img: data['img'] = img
     for t in tk:
         try: ok, why = _fcm(t, title, body, ch, data)

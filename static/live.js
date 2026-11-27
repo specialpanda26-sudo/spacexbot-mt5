@@ -49,7 +49,7 @@
     return api("/api/push/token", { method: "POST", body: { token: t, platform: "android" } }).then(function () { try { localStorage.setItem("sxb_pt", t); localStorage.removeItem("sxb_pt_why"); } catch (x) {} }, function () { if (PT.sent === key) PT.sent = null; });
   }
   function pushRoute(d) {
-    var r = String((d && d.route) || "").replace(/^#/, ""); r = GOMAP[r] || r;
+    var r = String((d && d.route) || "").replace(/^#/, ""); if (r === "update") { try { window.SXBUpdate && window.SXBUpdate.open(); } catch (x) {} return; } /*UPD1*/ r = GOMAP[r] || r;
     if (GO[r] === 1) location.hash = "#" + r;
   }
   function pushStart() {

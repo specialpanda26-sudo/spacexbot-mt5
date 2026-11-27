@@ -1318,6 +1318,6 @@ except Exception as e: print('deriv loop not started', e)
 try: binance_bot.start(_scan, _paid)          # 5B-2b: Binance testnet bot (every BINANCE_EVERY seconds, default 60)
 except Exception as e: print('binance loop not started', e)
 try:
-    from . import live, market_alerts; market_alerts.register(); risk_alerts.register(); system_alerts.register(); report_alerts.register(); nudge_alerts.register(); alerts.start()
+    from . import live, market_alerts; market_alerts.register(); risk_alerts.register(); system_alerts.register(); __import__('backend.update_alerts', fromlist=['x']).register(); report_alerts.register(); nudge_alerts.register(); alerts.start()
     live.start()
 except Exception as e: print('[live] not started', e)

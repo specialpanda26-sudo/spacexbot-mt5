@@ -199,7 +199,12 @@
     Promise.resolve(check()).then(function () { var m = document.getElementById("sxbUpdWhy"); if (m) m.textContent = status(); });
   });
   function again() { if (Date.now() - LAST >= 60000) check(); }                      /* back in the app: look again, at most once a minute */
-  window.SXBUpdate = { celebrate: celebrate, build: build, newer: newer, show: show, art: art, row: row, status: status, note: note, check: check, again: again, why: function () { return WHY; }, APK: APK };
+  /*UPD1*/ function open() {          /* a tap on the "update available" notification: look right now and show the prompt */
+    try { sessionStorage.removeItem(LATER); } catch (e) {}
+    LAST = 0; FOUND = false;
+    return Promise.resolve(check()).then(function () { if (!FOUND && native() && window.sxToast) window.sxToast("You are on the latest version."); });
+  }
+  window.SXBUpdate = { open: open, celebrate: celebrate, build: build, newer: newer, show: show, art: art, row: row, status: status, note: note, check: check, again: again, why: function () { return WHY; }, APK: APK };
   if (native()) {
     var go = function () { setTimeout(check, 6500); };      // after the opening animation
     if (document.addEventListener) document.addEventListener("visibilitychange", function () { if (!document.hidden) again(); });
