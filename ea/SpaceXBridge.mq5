@@ -4,7 +4,7 @@
 //| and add your Render URL to the list. Attach to ANY chart.        |
 //+------------------------------------------------------------------+
 #property strict
-#property version "1.24"
+#property version "1.25"
 #include <Trade\Trade.mqh>
 
 input string ServerUrl      = "https://your-service.onrender.com"; // no trailing slash
@@ -119,7 +119,7 @@ double StakeLots(const string sym, bool buy, double price, double sl, double sta
    return (lots >= mn) ? lots : 0;
 }
 
-void Execute(long id, string canon, string side, double sl, double tp, double riskPct, double stakePct = 0, double stakeMaxRisk = 10, double maxLot = 0, double fixedLot = 0, double maxLotSoft = 0)
+void Execute(long id, string canon, string side, double sl, double tp, double riskPct, double stakePct = 0, double stakeMaxRisk = 10, double maxLot = 0, double fixedLot = 0, double maxLotSoft = 0, double tinyPct = 0)
 {
    if(!IsDemo() && !AllowLive){ Reject(id, "live account blocked (AllowLive=false)"); return; }
    string sym = canon + SymbolSuffix;
@@ -135,6 +135,11 @@ void Execute(long id, string canon, string side, double sl, double tp, double ri
    if(MathAbs(price - sl) < stopLvl || MathAbs(price - tp) < stopLvl){ Reject(id, "inside broker stop level"); return; }
    double tv = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_VALUE), ts = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_SIZE);
    if(tv <= 0 || ts <= 0){ Reject(id, "no tick value"); return; }
+   if(tinyPct > 0)
+   {  // LS5: tiny-account check: even the broker's smallest lot must not lose more than tinyPct % of the balance at the stop
+      double balT = AccountInfoDouble(ACCOUNT_BALANCE), minLoss = SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN) * (MathAbs(price - sl) / ts) * tv;
+      if(balT > 0 && minLoss > balT * tinyPct / 100.0 + 1e-9){ Reject(id, "even the smallest lot would lose $" + DoubleToString(minLoss, 2) + " at the stop, more than " + DoubleToString(tinyPct, 1) + "% of the balance"); return; }
+   }
    double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * riskPct / 100.0;
    double lots = riskMoney / ((MathAbs(price - sl) / ts) * tv);
    double step = SymbolInfoDouble(sym, SYMBOL_VOLUME_STEP), mn = SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN), mx = SymbolInfoDouble(sym, SYMBOL_VOLUME_MAX);
@@ -180,7 +185,7 @@ long CmGid(const string cm){ int p = StringFind(cm, "G", 3); return (StringFind(
 string GV(const string k, long gid){ return "SXB_" + k + (string)gid; }
 void RejectAll(const long &ids[], string why){ for(int i = 0; i < ArraySize(ids); i++) Reject(ids[i], why); }
 
-void ExecuteBasket(long gid, string canon, string side, double sl, double tp, double riskPct, double each, int gb, string idsCsv, double grpTgt, double lossPct, double fixedLot = 0, double maxLot = 0, double maxLotSoft = 0)
+void ExecuteBasket(long gid, string canon, string side, double sl, double tp, double riskPct, double each, int gb, string idsCsv, double grpTgt, double lossPct, double fixedLot = 0, double maxLot = 0, double maxLotSoft = 0, double tinyPct = 0)
 {
    string idl[]; int n = StringSplit(idsCsv, ',', idl); if(n <= 0) return;
    long ids[]; ArrayResize(ids, n); for(int i = 0; i < n; i++) ids[i] = (long)StringToInteger(idl[i]);
@@ -198,6 +203,11 @@ void ExecuteBasket(long gid, string canon, string side, double sl, double tp, do
    if(MathAbs(price - sl) < stopLvl || MathAbs(price - tp) < stopLvl){ RejectAll(ids, "inside broker stop level"); return; }
    double tv = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_VALUE), ts = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_SIZE);
    if(tv <= 0 || ts <= 0){ RejectAll(ids, "no tick value"); return; }
+   if(tinyPct > 0)
+   {  // LS5: tiny-account check for the whole group
+      double balT = AccountInfoDouble(ACCOUNT_BALANCE), minLoss = SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN) * (MathAbs(price - sl) / ts) * tv;
+      if(balT > 0 && minLoss > balT * tinyPct / 100.0 + 1e-9){ RejectAll(ids, "even the smallest lot would lose $" + DoubleToString(minLoss, 2) + " at the stop, more than " + DoubleToString(tinyPct, 1) + "% of the balance"); return; }
+   }
    // riskPct is ONE entry's share (the server already split the normal risk of one trade across the group)
    double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * riskPct / 100.0;
    double lotsRaw = riskMoney / ((MathAbs(price - sl) / ts) * tv);
@@ -383,13 +393,13 @@ void PollServer()
    {
       ExecuteBasket(bgid, JStr(res, "symbol"), JStr(res, "side"), StringToDouble(JStr(res, "sl")), StringToDouble(JStr(res, "tp")),
                     StringToDouble(JStr(res, "risk_pct")), StringToDouble(JStr(res, "each")), (int)StringToInteger(JStr(res, "gb")), JStr(res, "ids"),
-                    StringToDouble(JStr(res, "tgt")), StringToDouble(JStr(res, "loss")), StringToDouble(JStr(res, "lot")), StringToDouble(JStr(res, "max_lot")), StringToDouble(JStr(res, "max_lot_soft")));
+                    StringToDouble(JStr(res, "tgt")), StringToDouble(JStr(res, "loss")), StringToDouble(JStr(res, "lot")), StringToDouble(JStr(res, "max_lot")), StringToDouble(JStr(res, "max_lot_soft")), StringToDouble(JStr(res, "tiny_pct")));
       return;
    }
    long id = (long)StringToInteger(JStr(res, "id"));
    if(id > 0 && StringFind(res, "\"signal\":null") < 0)
       Execute(id, JStr(res, "symbol"), JStr(res, "side"), StringToDouble(JStr(res, "sl")), StringToDouble(JStr(res, "tp")), StringToDouble(JStr(res, "risk_pct")),
-               StringToDouble(JStr(res, "stake_pct")), StringToDouble(JStr(res, "stake_max_risk_pct")), StringToDouble(JStr(res, "max_lot")), StringToDouble(JStr(res, "lot")), StringToDouble(JStr(res, "max_lot_soft")));
+               StringToDouble(JStr(res, "stake_pct")), StringToDouble(JStr(res, "stake_max_risk_pct")), StringToDouble(JStr(res, "max_lot")), StringToDouble(JStr(res, "lot")), StringToDouble(JStr(res, "max_lot_soft")), StringToDouble(JStr(res, "tiny_pct")));
 }
 
 //--- report closes (SL/TP/manual) back to the backend

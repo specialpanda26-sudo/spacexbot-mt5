@@ -53,6 +53,6 @@ chk('EA: single trade cuts lots to maxLot after the stake sizing', ex.find('Stak
 chk('EA: basket cuts lots to maxLot before opening', bx.find('lots > maxLot') != -1 and bx.find('lots > maxLot') < bx.find('trade.Buy(lots'))
 chk('EA: a cap below the broker minimum rejects', ex.count('below the broker minimum lot') == 1 and bx.count('below the broker minimum lot') == 1)
 chk('EA: both calls pass the server max_lot', src.count('JStr(res, "max_lot")') == 2)
-chk('EA: version raised so the recompile is visible', '#property version "1.24"' in src)
+chk('EA: version raised so the recompile is visible', '#property version "1.25"' in src)
 badn = [n for n, c in ok if not c]
 print('\n'.join(('ok   ' if c else 'FAIL ') + n for n, c in ok)); sys.exit(1 if badn else 0)

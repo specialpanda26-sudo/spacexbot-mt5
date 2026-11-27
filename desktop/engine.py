@@ -113,6 +113,15 @@ class Engine:
             cap = min(cap, ml)
         return cap, None
 
+    def tiny_why(self, src, i, acct, price, sl):
+        """LS5: text when even the broker's smallest lot would lose more than tiny_pct % of the balance at the stop, else None (0 or missing = off)."""
+        try: pct = float((src or {}).get('tiny_pct') or 0)
+        except (TypeError, ValueError): return None
+        if pct != pct or pct <= 0 or acct['balance'] <= 0: return None
+        loss = i['vol_min'] * (abs(price - sl) / i['tick_size']) * i['tick_value']
+        if loss > acct['balance'] * pct / 100.0 + 1e-9: return 'even the smallest lot (%g) would lose $%.2f at the stop, more than %g%% of the balance' % (i['vol_min'], loss, pct)
+        return None
+
     def _place(self, sid, sig, acct, bot):
         """None = order placed; text = why it was refused. Same checks as the EA, plus bot-off and algo-trading-off."""
         c = self.cfg
@@ -133,6 +142,8 @@ class Engine:
         lvl = i['stops_level'] * pt
         if abs(price - sl) < lvl or abs(price - tp) < lvl: return 'inside broker stop level'
         if i['tick_value'] <= 0 or i['tick_size'] <= 0: return 'no tick value'
+        why = self.tiny_why(sig, i, acct, price, sl)          # LS5
+        if why: return why
         cap, why = self.cap_for(sig, i)          # LC2: obey the person's biggest lot
         if why: return why
         want = acct['balance'] * risk / 100.0 / ((abs(price - sl) / i['tick_size']) * i['tick_value'])

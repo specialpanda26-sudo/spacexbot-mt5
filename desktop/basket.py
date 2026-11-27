@@ -45,6 +45,8 @@ def _open(e, bk, ids, acct, bot):
     lvl = i['stops_level'] * pt
     if abs(price - sl) < lvl or abs(price - tp) < lvl: return 'inside broker stop level'
     if i['tick_value'] <= 0 or i['tick_size'] <= 0: return 'no tick value'
+    why = e.tiny_why(bk, i, acct, price, sl)          # LS5
+    if why: return why
     n = len(ids); step = i['vol_step'] or 0.01; nd = max(0, -int(math.floor(math.log10(step) + 1e-9)))
     raw = acct['balance'] * risk / 100.0 / ((abs(price - sl) / i['tick_size']) * i['tick_value'])      # risk = ONE entry's share
     try: fl = float(bk.get('lot') or 0)          # LOT1: the person chose the lot of each entry

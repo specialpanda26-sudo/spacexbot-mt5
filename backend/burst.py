@@ -131,6 +131,14 @@ def strength_cap(uid='', perfect=False):
     return min(top_lot(uid), round(base + LOT_STEP, 2))
 # LS4-end
 
+# LS5-start
+def tiny_pct():
+    """LS5: refuse a trade when even the broker's smallest lot would lose more than this percent of the balance at the stop. 0 = check off. Default 10."""
+    try: v = float(st.get('tiny_risk_pct'))
+    except (TypeError, ValueError): return 10.0
+    return 10.0 if v != v else max(0.0, min(100.0, v))
+# LS5-end
+
 
 def lot_now(uid=''):
     """LS3: words for the panel about the lot that is really used now."""
