@@ -180,8 +180,14 @@
     if (g && !g.dataset.old) { e.stopImmediatePropagation(); e.preventDefault(); openP("set"); }
   }, true);
 
+  /* DUP1: one Settings and one Search. While the bar is showing, the header gear and the "Find a setting" card are hidden; signed out they come back. */
+  function dupHide() {
+    var on = signed(), g = document.querySelectorAll('.top-actions button[data-up="set"]'), f = document.querySelectorAll(".sxfind"), i;
+    for (i = 0; i < g.length; i++) g[i].style.display = on ? "none" : "";
+    for (i = 0; i < f.length; i++) f[i].style.display = on ? "none" : "";
+  }
   setInterval(function () {
-    TK++; B.hidden = !signed();
+    TK++; B.hidden = !signed(); dupHide();
     if (signed() && !document.hidden && (TK === 2 || TK % 30 === 0)) loadInbox();
   }, 1000);
   document.addEventListener("visibilitychange", function () { if (!document.hidden && signed()) loadInbox(); });
