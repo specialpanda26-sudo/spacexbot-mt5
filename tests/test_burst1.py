@@ -31,7 +31,7 @@ clean()
 # ---- settings ----
 p = burst.get('')
 T('defaults: off, 5 minutes quiet, 5 quick / 15 big entries, 0.5 and 1.0 USD each, 40 percent give-back',
-  p == {'on': False, 'idle_min': 5, 'quick_n': 5, 'big_n': 15, 'quick_usd': 0.5, 'big_usd': 1.0, 'giveback': 40, 'stake_usd': 0.5, 'minute': False, 'minute_n': 2, 'loss_usd': 0.0, 'lot': 0.0, 'max_lot': 0.0, 'lot_mode': 'auto'})
+  p == {'on': False, 'idle_min': 5, 'quick_n': 5, 'big_n': 15, 'quick_usd': 0.5, 'big_usd': 1.0, 'giveback': 40, 'stake_usd': 0.5, 'minute': False, 'minute_n': 2, 'loss_usd': 0.0, 'lot': 0.0, 'max_lot': 0.0, 'lot_mode': 'auto', 'plan_usd': 0})
 o = burst.save('', {'on': True, 'idle_min': 4, 'quick_usd': 0.8, 'big_usd': 2, 'giveback': 30})
 T('save keeps the choices, USD amounts are per entry', o['on'] is True and o['idle_min'] == 4 and o['quick_usd'] == 0.8 and o['big_usd'] == 2.0 and o['giveback'] == 30 and o['quick_n'] == 5)
 before = burst.get('')

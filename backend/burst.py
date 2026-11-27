@@ -24,7 +24,8 @@ KEYS = tuple(DEF)
 USD_LO, USD_HI = 0.05, 1000.0
 SAFE_MAX_LOT = 0.06          # LS1: the biggest lot any one MT5 trade may have unless the person raises it on their own panel
 SMALLEST_LOT = 0.01          # LS1: what 'Smallest lot' asks for; the bridge lifts it to the broker's own minimum when that is bigger
-LOT_MODES = ('smallest', 'fixed', 'auto')
+LOT_MODES = ('smallest', 'fixed', 'auto', 'plan')
+PLAN_MIN, PLAN_MAX = 10, 1000          # PL1: managed account plan in USD. Lot per entry = plan / 1000 ($10 -> 0.01, $20 -> 0.02 ... $60 -> 0.06), never above SAFE_MAX_LOT
 TIERS = ((30, 0.01), (60, 0.02), (100, 0.03), (200, 0.04), (400, 0.05))          # LS3: balance (USD) below the first number -> that automatic lot ceiling; 400 and above -> SAFE_MAX_LOT
 
 
@@ -68,9 +69,18 @@ def _clamp(v, lo, hi, d, f=int):
 
 def _mode(j):
     """LS1: how the lot is chosen. A saved mode wins; an older save with a fixed lot stays 'fixed'; nothing saved = 'auto' (sized by risk, then cut to the biggest lot)."""
+    if _clamp(j.get('plan_usd'), 0, PLAN_MAX, 0, int) >= PLAN_MIN: return 'plan'          # PL1: a managed plan always decides the lot
     m = j.get('lot_mode')
-    if m in LOT_MODES: return m
+    if m in LOT_MODES and m != 'plan': return m
     return 'fixed' if _clamp(j.get('lot'), 0, 100.0, 0.0, float) > 0 else 'auto'
+
+
+def plan_lot(plan):
+    """PL1: lot per entry for a managed plan of `plan` USD: one 0.01 step per $10, rounded DOWN, at least 0.01, never above SAFE_MAX_LOT. Bad/zero plan -> 0.0 (no plan)."""
+    try: v = float(plan)
+    except (TypeError, ValueError): return 0.0
+    if v != v or v < PLAN_MIN: return 0.0
+    return round(min(SAFE_MAX_LOT, max(SMALLEST_LOT, int(v // 10) * LOT_STEP)), 2)
 
 
 def get(uid=''):
@@ -84,7 +94,8 @@ def get(uid=''):
             'giveback': _clamp(j.get('giveback'), 0, 90, DEF['giveback']),
             'stake_usd': round(_clamp(j.get('stake_usd'), 0, USD_HI, DEF['stake_usd'], float), 2),
             'loss_usd': round(_clamp(j.get('loss_usd'), 0, USD_HI, 0.0, float), 2), 'lot': round(_clamp(j.get('lot'), 0, 100.0, 0.0, float), 2), 'max_lot': round(_clamp(j.get('max_lot'), 0, 100.0, 0.0, float), 2),          # LOT1
-            'lot_mode': _mode(j),          # LS1: smallest | fixed | auto
+            'lot_mode': _mode(j),          # LS1: smallest | fixed | auto | plan (PL1)
+            'plan_usd': _clamp(j.get('plan_usd'), 0, PLAN_MAX, 0, int),          # PL1: 0 = no managed plan
                       # BT13
             'minute': j.get('minute') is True, 'minute_n': _clamp(j.get('minute_n'), 2, c, DEF['minute_n'])}          # BT7
 
@@ -109,6 +120,7 @@ def eff_max_lot(uid=''):
     """LS1/LS3: the biggest lot for any one MT5 trade, as sent to the bridge. A number the person typed, or a fixed/smallest choice, is used as it is
     (top_lot). Automatic mode with no typed number also follows the account size (tier_cap): $20 -> 0.01 ... $400+ -> 0.06."""
     g = get(uid); top = top_lot(uid)
+    if g['lot_mode'] == 'plan': return plan_lot(g['plan_usd'])          # PL1: the plan IS the ceiling, whatever the account balance is
     if g['max_lot'] > 0 or g['lot_mode'] != 'auto': return top
     return min(top, tier_cap(_balance(uid)))
 
@@ -143,7 +155,8 @@ def tiny_pct():
 def lot_now(uid=''):
     """LS3: words for the panel about the lot that is really used now."""
     g = get(uid); bal = _balance(uid); top = top_lot(uid); eff = eff_max_lot(uid)
-    if g['lot_mode'] == 'smallest': msg = 'Every MT5 trade uses the smallest lot (0.01, or your broker minimum if that is bigger).'
+    if g['lot_mode'] == 'plan': msg = 'Managed $%d plan: every entry uses %g lot (one 0.01 for each $10 of plan, never above %g). Your account balance does not change this.' % (g['plan_usd'], eff, SAFE_MAX_LOT)          # PL1
+    elif g['lot_mode'] == 'smallest': msg = 'Every MT5 trade uses the smallest lot (0.01, or your broker minimum if that is bigger).'
     elif g['lot_mode'] == 'fixed': msg = 'Every MT5 trade uses your fixed lot, %g (never above %g).' % (eff_lot(uid), top)
     elif g['max_lot'] > 0: msg = 'Automatic: sized by risk, never above your biggest lot, %g.' % top
     elif bal > 0 and eff < top - 1e-12: msg = 'Automatic: sized by risk, never above %g. Your balance is $%.2f, so this smaller ceiling is used. It grows with the balance (%g from $%g).' % (eff, bal, SAFE_MAX_LOT, TIERS[-1][0])
@@ -161,6 +174,7 @@ def eff_lot(uid=''):
     """LS1: the lot the bridge must use for each entry. 0 = size by risk (the bridge then cuts it to the biggest lot).
     Smallest -> 0.01 (lifted to the broker minimum by the bridge). Fixed -> the person's number, never above the biggest lot."""
     g = get(uid)
+    if g['lot_mode'] == 'plan': return plan_lot(g['plan_usd'])          # PL1
     if g['lot_mode'] == 'smallest': return SMALLEST_LOT
     if g['lot_mode'] == 'fixed' and g['lot'] > 0: return min(g['lot'], top_lot(uid))
     return 0.0
@@ -220,7 +234,14 @@ def save(uid, d):
         if mv != mv or not (mv == 0 or 0.01 <= mv <= 100): raise ValueError('Biggest lot must be from 0.01 to 100 (empty or 0 = the safe default, %g)' % SAFE_MAX_LOT)
         new['max_lot'] = round(mv, 2)
     if 'lot' in d and 'lot_mode' not in d: new['lot_mode'] = 'fixed' if new.get('lot', 0) > 0 else 'auto'          # LS1: older callers send only the lot (0 = automatic)
-    if 'lot_mode' in d:          # LS1
+    if 'plan_usd' in d:          # PL1: 0 = no plan, else a whole number of USD from PLAN_MIN to PLAN_MAX
+        pv = d['plan_usd']
+        if not (isinstance(pv, bool) or not isinstance(pv, (int, float, str))) and str(pv).strip() in ('', '0'): pv = 0
+        if pv != 0: pv = _whole(pv, PLAN_MIN, PLAN_MAX, 'Managed plan (USD)')
+        new['plan_usd'] = pv
+        if pv >= PLAN_MIN: new['lot_mode'] = 'plan'
+        elif cur.get('lot_mode') == 'plan' or _mode(cur) == 'plan': new['lot_mode'] = 'auto'
+    if 'lot_mode' in d and not (new.get('plan_usd', cur.get('plan_usd', 0)) or 0) >= PLAN_MIN:          # LS1 (ignored while a plan is active: the plan decides)
         if d['lot_mode'] not in LOT_MODES: raise ValueError('Lot mode must be smallest, fixed or auto')
         new['lot_mode'] = d['lot_mode']
     chk = dict(cur); chk.update(new)          # LS1: a fixed lot above the biggest lot would be silently cut, so say so instead
