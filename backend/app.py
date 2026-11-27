@@ -20,6 +20,7 @@ def _boom(e):
 EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
 from . import manual_close, burst_scope, btc_switch, course, roadmap, guide, deriv_oauth, testlab
 from . import quickprofit          # QP1: take small profits
+from . import mt5_markets          # PL6: which markets this account's MT5 bot trades
 from . import openrisk          # Section 2: total stop-loss ceiling for a managed account size
 from . import inbox as inbox_mod          # TB1: in-app notification inbox
 from . import userlim, risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck, presets, streakreq, sharecode
@@ -248,6 +249,7 @@ def ea_sync():
             except (TypeError, ValueError, IndexError) as e: print('bad bars from EA', sym, tf, e)
     if bz: lag.got(who, 'ea')
     for sym in bz:
+        if not mt5_markets.allowed(who, sym): continue          # PL6: a market this account did not choose gets no new signals (open trades are never touched)
         try: _scan(sym, who)
         except Exception as e: print('scan failed', sym, str(e)[:120])
     now = int(time.time())
@@ -1003,6 +1005,19 @@ def prefs_set(u):
     except ValueError as e: return jsonify(error=str(e)), 400
     learn.log(u['uid'], 'setting', data={'path': request.path, **{k: v for k, v in j.items() if k in ('min_conf', 'entries', 'alone', 'scale')}})
     return jsonify(prefs=out)
+
+@app.get('/api/markets')
+@need(verified=True)
+def mk_get(u): return jsonify(mt5_markets.view('' if u.get('admin') else u['uid']))          # PL6: the owner's own MT5 EA runs under scope ''
+
+@app.post('/api/markets')
+@need(verified=True)
+def mk_set(u):
+    j = _j(); sc = '' if u.get('admin') else u['uid']
+    if not isinstance(j, dict): return jsonify(error='Send the choice as an object'), 400
+    try: mt5_markets.switch(sc, j.get('to', ''), j.get('mode', 'only'))
+    except ValueError as e: return jsonify(error=str(e)), 400
+    return jsonify(mt5_markets.view(sc))
 
 @app.get('/api/burst')
 @need(verified=True)
