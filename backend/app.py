@@ -252,18 +252,18 @@ def ea_sync():
         except Exception as e: print('scan failed', sym, str(e)[:120])
     now = int(time.time())
     st.x("UPDATE signals SET status='expired' WHERE status IN('pending','sent') AND created<? AND COALESCE(uid,'')=?", (now - 180, who))
-    s = st.q("SELECT id,symbol,side,sl,tp,risk_pct FROM signals WHERE status='pending' AND COALESCE(uid,'')=? ORDER BY id LIMIT 1", (who,), one=True)
+    s = st.q("SELECT id,symbol,side,sl,tp,risk_pct,score FROM signals WHERE status='pending' AND COALESCE(uid,'')=? ORDER BY id LIMIT 1", (who,), one=True)
     if s and who and risk.bot_on(who) and not links.bot_on(who): s = None          # R7: the bot is on only for Deriv, so this signal is for Deriv; the MT5 bridge never sees it (the MT5 bridge itself ignores the bot flag)
     bk = burst.basket(s, who) if s else None          # a burst group goes out ALL AT ONCE as one basket (the old way would send one entry per poll)
     if bk and manual_close.on(who): bk.update(tgt=manual_close.FAR, gb=0, tp=manual_close.far_tp(bk['side'], bk['sl'], bk['tp']))          # MC1: the owner closes the profits
     if bk:
         for i in bk['ids'].split(','): st.x("UPDATE signals SET status='sent' WHERE id=?", (int(i),)); lag.stamp(int(i), 'sent')
-        bk['max_lot'] = burst.eff_max_lot(who); bk['max_lot_soft'] = burst.max_lot_soft(who)          # LC1/LS1: the person's biggest lot (0.06 unless they raised it)
+        bk['max_lot'] = burst.strength_cap(who, bk.get('kind') == 'big'); bk['max_lot_soft'] = burst.max_lot_soft(who)          # LC1/LS1: the person's biggest lot (0.06 unless they raised it)
         bk['stake_pct'] = 0.0          # Section 2: a burst basket is many small entries, it never gets a big stake
         return jsonify(signal=None, basket=bk, bot=links.bot_on(who), symbols=st.get('symbols'), qp=quickprofit.usd_for(who))
     if s: st.x("UPDATE signals SET status='sent' WHERE id=?", (s['id'],)); lag.stamp(s['id'], 'sent')
     if s and manual_close.on(who): s = dict(s, tp=manual_close.far_tp(s['side'], s['sl'], s['tp']))          # MC1
-    if s: s = dict(s); s['stake_pct'] = stake.pct(s['id']); s['stake_max_risk_pct'] = stake.max_risk(); s['lot'] = burst.eff_lot(who); s['max_lot'] = burst.eff_max_lot(who); s['max_lot_soft'] = burst.max_lot_soft(who)          # LC1/LS1          # Section 2: the EA sizes a strong setup by margin share (0 = normal sizing)
+    if s: s = dict(s); s['stake_pct'] = stake.pct(s['id']); s['stake_max_risk_pct'] = stake.max_risk(); s['lot'] = burst.eff_lot(who); s['max_lot'] = burst.strength_cap(who, burst.is_perfect(s.get('score'))); s['max_lot_soft'] = burst.max_lot_soft(who)          # LC1/LS1          # Section 2: the EA sizes a strong setup by margin share (0 = normal sizing)
     return jsonify(signal=s, bot=links.bot_on(who), symbols=st.get('symbols'), qp=quickprofit.usd_for(who))
 
 @app.post('/api/ea/report')

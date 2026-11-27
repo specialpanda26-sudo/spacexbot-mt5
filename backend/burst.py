@@ -113,6 +113,25 @@ def eff_max_lot(uid=''):
     return min(top, tier_cap(_balance(uid)))
 
 
+# LS4-start
+LOT_STEP = 0.01
+
+
+def is_perfect(score):
+    """LS4: a perfect setup = at least burst_big_score strategies agree (the same bar as a BIG burst)."""
+    try: return int(score or 0) >= big_score()
+    except (TypeError, ValueError): return False
+
+
+def strength_cap(uid='', perfect=False):
+    """LS4: the biggest lot for ONE trade given how strong the setup is. Normal setup = eff_max_lot (the base). Perfect setup in automatic mode
+    with no typed biggest lot = one step (0.01) above the base, never above top_lot. Smallest, Fixed and a typed biggest lot are never raised."""
+    g = get(uid); base = eff_max_lot(uid)
+    if not perfect or g['lot_mode'] != 'auto' or g['max_lot'] > 0: return base
+    return min(top_lot(uid), round(base + LOT_STEP, 2))
+# LS4-end
+
+
 def lot_now(uid=''):
     """LS3: words for the panel about the lot that is really used now."""
     g = get(uid); bal = _balance(uid); top = top_lot(uid); eff = eff_max_lot(uid)
