@@ -76,11 +76,11 @@ def _mode(j):
 
 
 def plan_lot(plan):
-    """PL1: lot per entry for a managed plan of `plan` USD: one 0.01 step per $10, rounded DOWN, at least 0.01, never above SAFE_MAX_LOT. Bad/zero plan -> 0.0 (no plan)."""
+    """PL1: lot per entry for a managed plan of `plan` USD: one 0.01 step per $10, rounded DOWN, at least 0.01, no upper cap (PL4). Bad/zero plan -> 0.0 (no plan)."""
     try: v = float(plan)
     except (TypeError, ValueError): return 0.0
     if v != v or v < PLAN_MIN: return 0.0
-    return round(min(SAFE_MAX_LOT, max(SMALLEST_LOT, int(v // 10) * LOT_STEP)), 2)
+    return round(max(SMALLEST_LOT, int(v // 10) * LOT_STEP), 2)          # PL4: no 0.06 cap for a plan
 
 
 def plan_active(uid=''):
@@ -160,7 +160,7 @@ def tiny_pct():
 def lot_now(uid=''):
     """LS3: words for the panel about the lot that is really used now."""
     g = get(uid); bal = _balance(uid); top = top_lot(uid); eff = eff_max_lot(uid)
-    if g['lot_mode'] == 'plan': msg = 'Managed $%d plan: every entry uses %g lot (one 0.01 for each $10 of plan, never above %g). Your account balance does not change this.' % (g['plan_usd'], eff, SAFE_MAX_LOT)          # PL1
+    if g['lot_mode'] == 'plan': msg = 'Managed $%d plan: every entry uses %g lot (one 0.01 for each $10 of plan). Your account balance does not change this.' % (g['plan_usd'], eff)          # PL1
     elif g['lot_mode'] == 'smallest': msg = 'Every MT5 trade uses the smallest lot (0.01, or your broker minimum if that is bigger).'
     elif g['lot_mode'] == 'fixed': msg = 'Every MT5 trade uses your fixed lot, %g (never above %g).' % (eff_lot(uid), top)
     elif g['max_lot'] > 0: msg = 'Automatic: sized by risk, never above your biggest lot, %g.' % top

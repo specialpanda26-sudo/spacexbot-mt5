@@ -12,7 +12,7 @@ def T(n, ok): R.append((n, bool(ok))); print('PASS' if ok else 'FAIL', n)
 def bad(d):
     try: burst.save('', d); return False
     except ValueError: return True
-for plan, want in ((10, 0.01), (20, 0.02), (30, 0.03), (40, 0.04), (50, 0.05), (60, 0.06), (19, 0.01), (25, 0.02), (99, 0.06), (100, 0.06), (1000, 0.06)):
+for plan, want in ((10, 0.01), (20, 0.02), (30, 0.03), (40, 0.04), (50, 0.05), (60, 0.06), (19, 0.01), (25, 0.02), (99, 0.09), (100, 0.10), (200, 0.20), (1000, 1.0)):
     T('plan_lot(%g) == %g' % (plan, want), burst.plan_lot(plan) == want)
 T('no plan / junk -> 0', all(burst.plan_lot(x) == 0.0 for x in (0, 5, 9.99, -10, None, 'x', float('nan'))))
 burst.save('', {'plan_usd': 0, 'lot_mode': 'auto', 'lot': 0, 'max_lot': 0})
