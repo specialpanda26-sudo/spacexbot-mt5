@@ -63,6 +63,30 @@ clock, fb, web, e, sf = D.rig(); D.go(e, clock, 3); fb.info['XAUUSD']['vol_min']
 T('a TYPED cap under the broker minimum still refuses', fb.orders == [])
 burst.save('', {'max_lot': 0, 'lot_mode': 'auto', 'lot': 0})
 
+# ---- LS3: account-size tiers ----
+T('tier table: 20->0.01, 30->0.02, 59.99->0.02, 60->0.03, 150->0.04, 399->0.05, 400->0.06, 29220->0.06',
+  [burst.tier_cap(x) for x in (20, 30, 59.99, 60, 150, 399, 400, 29220)] == [0.01, 0.02, 0.02, 0.03, 0.04, 0.05, 0.06, 0.06])
+T('unknown or bad balance: no extra tier (0.06)', [burst.tier_cap(x) for x in (0, -5, None, 'x', float('nan'))] == [0.06] * 5)
+burst.save('', {'lot_mode': 'auto', 'lot': 0, 'max_lot': 0})
+st.set_acct({'balance': 25, 'equity': 25, 'open': 0, 'demo': True}, '')
+T('auto, $25 account: the bridge gets ceiling 0.01 (soft)', burst.eff_max_lot('') == 0.01 and burst.max_lot_soft('') == 1)
+T('the panel says so in words', '0.01' in burst.lot_now('')['message'] and '$25.00' in burst.lot_now('')['message'] and burst.view('')['lot_now']['ceiling'] == 0.01)
+st.set_acct({'balance': 150, 'equity': 150, 'open': 0, 'demo': True}, '')
+T('auto, $150 account: ceiling 0.04', burst.eff_max_lot('') == 0.04)
+st.set_acct({'balance': 25, 'equity': 25, 'open': 0, 'demo': True}, '')
+burst.save('', {'max_lot': 0.06})
+T('a number the person typed beats the tier ($25 account, typed 0.06)', burst.eff_max_lot('') == 0.06 and burst.max_lot_soft('') == 0)
+burst.save('', {'max_lot': 0, 'lot_mode': 'fixed', 'lot': 0.03})
+T('fixed 0.03 on a $25 account is the chosen lot: not cut by the tier', burst.eff_max_lot('') == 0.06 and burst.eff_lot('') == 0.03)
+burst.save('', {'lot_mode': 'smallest'})
+T('smallest on a $25 account: 0.01', burst.eff_lot('') == 0.01)
+burst.save('', {'lot_mode': 'auto', 'lot': 0, 'max_lot': 0})
+clock, fb, web, e, sf = D.rig(); fb.acct['balance'] = 150.0; D.go(e, clock, 3); clear(); D.new_signal(sl=2299.0, risk=5.0); D.go(e, clock, 2)
+T('desktop, $150 account: 5% risk would be 0.07, the order is cut to the tier, 0.04', lots(fb) == [0.04])
+clock, fb, web, e, sf = D.rig(); fb.acct['balance'] = 1000.0; D.go(e, clock, 3); clear(); D.new_signal(sl=2299.0, risk=5.0); D.go(e, clock, 2)
+T('desktop, $1000 account: 0.06', lots(fb) == [0.06])
+burst.save('', {'lot_mode': 'auto', 'lot': 0, 'max_lot': 0})
+
 # ---- what the bridge receives ----
 src = open(os.path.join(HERE, '..', 'ea', 'SpaceXBridge.mq5'), encoding='utf-8').read()
 ex = src[src.index('void Execute('):src.index('//--- BURST BASKET')]

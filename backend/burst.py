@@ -25,6 +25,7 @@ USD_LO, USD_HI = 0.05, 1000.0
 SAFE_MAX_LOT = 0.06          # LS1: the biggest lot any one MT5 trade may have unless the person raises it on their own panel
 SMALLEST_LOT = 0.01          # LS1: what 'Smallest lot' asks for; the bridge lifts it to the broker's own minimum when that is bigger
 LOT_MODES = ('smallest', 'fixed', 'auto')
+TIERS = ((30, 0.01), (60, 0.02), (100, 0.03), (200, 0.04), (400, 0.05))          # LS3: balance (USD) below the first number -> that automatic lot ceiling; 400 and above -> SAFE_MAX_LOT
 
 
 def enabled():
@@ -88,10 +89,39 @@ def get(uid=''):
             'minute': j.get('minute') is True, 'minute_n': _clamp(j.get('minute_n'), 2, c, DEF['minute_n'])}          # BT7
 
 
-def eff_max_lot(uid=''):
-    """LS1: the biggest lot for any one MT5 trade. The person's own number, or SAFE_MAX_LOT (0.06) when they have not set one."""
+def tier_cap(balance):
+    """LS3: the automatic lot ceiling for an account of this size (USD). Small accounts get small lots. Unknown balance = no extra limit (SAFE_MAX_LOT)."""
+    try: b = float(balance)
+    except (TypeError, ValueError): return SAFE_MAX_LOT
+    if b != b or b <= 0: return SAFE_MAX_LOT
+    for lim, cap in TIERS:
+        if b < lim: return cap
+    return SAFE_MAX_LOT
+
+
+def top_lot(uid=''):
+    """LS3: the biggest lot the person allows: the number they typed, or SAFE_MAX_LOT (0.06). A fixed lot may go up to this."""
     m = get(uid)['max_lot']
     return m if m > 0 else SAFE_MAX_LOT
+
+
+def eff_max_lot(uid=''):
+    """LS1/LS3: the biggest lot for any one MT5 trade, as sent to the bridge. A number the person typed, or a fixed/smallest choice, is used as it is
+    (top_lot). Automatic mode with no typed number also follows the account size (tier_cap): $20 -> 0.01 ... $400+ -> 0.06."""
+    g = get(uid); top = top_lot(uid)
+    if g['max_lot'] > 0 or g['lot_mode'] != 'auto': return top
+    return min(top, tier_cap(_balance(uid)))
+
+
+def lot_now(uid=''):
+    """LS3: words for the panel about the lot that is really used now."""
+    g = get(uid); bal = _balance(uid); top = top_lot(uid); eff = eff_max_lot(uid)
+    if g['lot_mode'] == 'smallest': msg = 'Every MT5 trade uses the smallest lot (0.01, or your broker minimum if that is bigger).'
+    elif g['lot_mode'] == 'fixed': msg = 'Every MT5 trade uses your fixed lot, %g (never above %g).' % (eff_lot(uid), top)
+    elif g['max_lot'] > 0: msg = 'Automatic: sized by risk, never above your biggest lot, %g.' % top
+    elif bal > 0 and eff < top - 1e-12: msg = 'Automatic: sized by risk, never above %g. Your balance is $%.2f, so this smaller ceiling is used. It grows with the balance (%g from $%g).' % (eff, bal, SAFE_MAX_LOT, TIERS[-1][0])
+    else: msg = 'Automatic: sized by risk, never above %g.' % eff
+    return {'ceiling': eff, 'tier': tier_cap(bal), 'balance': round(bal, 2), 'message': msg}
 
 
 def max_lot_soft(uid=''):
@@ -105,7 +135,7 @@ def eff_lot(uid=''):
     Smallest -> 0.01 (lifted to the broker minimum by the bridge). Fixed -> the person's number, never above the biggest lot."""
     g = get(uid)
     if g['lot_mode'] == 'smallest': return SMALLEST_LOT
-    if g['lot_mode'] == 'fixed' and g['lot'] > 0: return min(g['lot'], eff_max_lot(uid))
+    if g['lot_mode'] == 'fixed' and g['lot'] > 0: return min(g['lot'], top_lot(uid))
     return 0.0
 
 
@@ -331,7 +361,7 @@ def minlot(uid=''):
 
 
 def view(uid='', now=None):
-    return {'minlot': minlot(uid), 'settings': get(uid), 'enabled': enabled(), 'ceiling': ceiling(), 'big_score': big_score(), 'now': explain(uid, now), 'look': burst_look.last(uid, now), 'group': burst_live.group(uid, now), 'results': burst_results.line(uid, now)}
+    return {'minlot': minlot(uid), 'lot_now': lot_now(uid), 'settings': get(uid), 'enabled': enabled(), 'ceiling': ceiling(), 'big_score': big_score(), 'now': explain(uid, now), 'look': burst_look.last(uid, now), 'group': burst_live.group(uid, now), 'results': burst_results.line(uid, now)}
 
 
 def fixed_size(entry, sl, tp, bal, stake, mult):
