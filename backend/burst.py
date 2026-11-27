@@ -100,6 +100,7 @@ def get(uid=''):
             'stake_usd': round(_clamp(j.get('stake_usd'), 0, USD_HI, DEF['stake_usd'], float), 2),
             'loss_usd': round(_clamp(j.get('loss_usd'), 0, USD_HI, 0.0, float), 2), 'lot': round(_clamp(j.get('lot'), 0, 100.0, 0.0, float), 2), 'max_lot': round(_clamp(j.get('max_lot'), 0, 100.0, 0.0, float), 2),          # LOT1
             'lot_mode': _mode(j),          # LS1: smallest | fixed | auto | plan (PL1)
+            'tiny_pct': round(_clamp(j.get('tiny_pct'), 0, 100, 0.0, float), 1),          # PL5: plan accounts only; 0 = check off
             'plan_usd': _clamp(j.get('plan_usd'), 0, PLAN_MAX, 0, int),          # PL1: 0 = no managed plan
                       # BT13
             'minute': j.get('minute') is True, 'minute_n': _clamp(j.get('minute_n'), 2, c, DEF['minute_n'])}          # BT7
@@ -149,8 +150,10 @@ def strength_cap(uid='', perfect=False):
 # LS4-end
 
 # LS5-start
-def tiny_pct():
-    """LS5: refuse a trade when even the broker's smallest lot would lose more than this percent of the balance at the stop. 0 = check off. Default 10."""
+def tiny_pct(uid=''):
+    """LS5: refuse a trade when even the broker's smallest lot would lose more than this percent of the balance at the stop. 0 = check off. Default 10.
+    PL5: an account with a managed plan uses its own number instead (default 0 = off)."""
+    if plan_active(uid): return float(get(uid)['tiny_pct'])
     try: v = float(st.get('tiny_risk_pct'))
     except (TypeError, ValueError): return 10.0
     return 10.0 if v != v else max(0.0, min(100.0, v))
@@ -240,6 +243,11 @@ def save(uid, d):
         if mv != mv or not (mv == 0 or 0.01 <= mv <= 100): raise ValueError('Biggest lot must be from 0.01 to 100 (empty or 0 = the safe default, %g)' % SAFE_MAX_LOT)
         new['max_lot'] = round(mv, 2)
     if 'lot' in d and 'lot_mode' not in d: new['lot_mode'] = 'fixed' if new.get('lot', 0) > 0 else 'auto'          # LS1: older callers send only the lot (0 = automatic)
+    if 'tiny_pct' in d:          # PL5
+        try: tp5 = float('nan') if isinstance(d['tiny_pct'], bool) else float(d['tiny_pct'])
+        except (TypeError, ValueError): tp5 = float('nan')
+        if tp5 != tp5 or not (0 <= tp5 <= 100): raise ValueError('Tiny-account check must be from 0 (off) to 100 percent')
+        new['tiny_pct'] = round(tp5, 1)
     if 'plan_usd' in d:          # PL1: 0 = no plan, else a whole number of USD from PLAN_MIN to PLAN_MAX
         pv = d['plan_usd']
         if not (isinstance(pv, bool) or not isinstance(pv, (int, float, str))) and str(pv).strip() in ('', '0'): pv = 0

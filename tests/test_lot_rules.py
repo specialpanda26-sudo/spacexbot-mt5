@@ -74,7 +74,7 @@ T('EA: both tiny checks are live (guarded by tinyPct > 0) and compare against th
 T('EA: the tiny check uses the broker smallest lot and rejects', ea.count('SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN) * (MathAbs(price - sl) / ts) * tv') == 2)
 T('EA: poll passes max_lot, max_lot_soft and tiny_pct to both', ea.count('JStr(res, "tiny_pct")') == 2 and ea.count('JStr(res, "max_lot_soft")') == 2 and ea.count('JStr(res, "max_lot")') == 2)
 T('EA: version 1.25', '#property version "1.25"' in ea)
-T('server: both poll paths use strength_cap and send tiny_pct', app.count('burst.strength_cap(') == 2 and app.count("['tiny_pct'] = burst.tiny_pct()") == 2)
+T('server: both poll paths use strength_cap and send tiny_pct', app.count('burst.strength_cap(') == 2 and app.count("['tiny_pct'] = burst.tiny_pct(who)") == 2)
 T('server: the tier table and the 0.06 cap are unchanged', burst.SAFE_MAX_LOT == 0.06 and burst.TIERS == ((30, 0.01), (60, 0.02), (100, 0.03), (200, 0.04), (400, 0.05)))
 print('%d checks, %d failed' % (len(R), sum(1 for _, o in R if not o)))
 sys.exit(1 if any(not o for _, o in R) else 0)
