@@ -172,6 +172,7 @@ def lot_now(uid=''):
 def max_lot_soft(uid=''):
     """LS1: 1 when the biggest lot is only the safe default (the person set none). The bridge then never refuses a trade just because the broker's own
     minimum lot is above 0.06: it uses that minimum. A number the person typed is never softened (0 = not soft)."""
+    if plan_active(uid): return 0          # PL3: a managed plan is strict: never lift the lot to a bigger broker minimum, refuse the trade
     return 1 if get(uid)['max_lot'] <= 0 else 0
 
 
