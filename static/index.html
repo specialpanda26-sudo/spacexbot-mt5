@@ -1893,13 +1893,14 @@ function tf(t){var d=new Date(t),h=d.getHours()+":"+("0"+d.getMinutes()).slice(-
 function ja(k,m,t){X.j.unshift({t:t||Date.now(),k:k,m:m});X.j.sort(function(a,b){return b.t-a.t});if(X.j.length>300)X.j.length=300;sv();if($("#jList"))jr()}
 var n0=X.j.length;X.j=X.j.filter(function(e){return e.k!=="trade"});if(X.j.length!==n0)sv();/* older builds saved 3 made-up trade lines here: drop them */
 if(!X.j.length){X.j.push({t:NOW,k:"note",m:"Journal started. Bot activity, rule changes and your notes are saved here."});X.j.sort(function(a,b){return b.t-a.t});sv()}
-window.jr=jr;window.sr=sr;/* S2: so the S6 loader can repaint these */
+window.jr=jr;window.sr=sr;try{SXA.ready().then(function(){try{jr();sr()}catch(e){}})}catch(e){}/* BTN1: repaint when sign-in finishes *//* S2: so the S6 loader can repaint these */
 function acm(r){var h=function(s){var d=new Date(s*1000);return d.getHours()+":"+("0"+d.getMinutes()).slice(-2)};return r.m+(r.t-r.a>=120?" (same since "+h(r.a)+")":"")}
 function jall(){var AC=(window.SXAC&&window.SXAC.state==="ok")?window.SXAC:null,B=AC?AC.items.map(function(r){return{t:r.t*1000,k:"bot",m:acm(r)}}):[],T=SXJ.state==="ok"?SXJ.rows.map(function(r){return{t:r.t*1000,k:"trade",m:r.symbol+" "+(r.side==="buy"?"Buy":"Sell")+" closed "+m2(r.pnl)+" ("+r.broker+")"}}):[];return X.j.filter(function(e){var m=e.m||"";return!((AC&&e.k==="bot")||(e.k==="bot"&&/setup passed|RSI stretched|High-impact news in \d+ min|trend and RSI disagree/.test(m))||(e.k==="note"&&/^Backtest ran: profit factor/.test(m)))}).concat(T).concat(B).sort(function(a,b){return b.t-a.t})}
 function jsum(){var s=SXJ.stats,u=null,h="";try{u=SXA.user()}catch(e){}
  if(SXJ.state==="ok"&&s&&s.trades)h='<div class="stats">'+kp("Won",m2(s.won))+kp("Lost",m2(-s.lost))+kp("Net",m2(s.net))+kp("Win rate",s.win_rate.toFixed(1)+"%")+'</div><div class="note">'+s.wins+" wins · "+s.losses+" losses · "+s.trades+" closed trades</div>";
- if(u)h+='<div style="margin:8px 0"><button class="btn" id="jDay">Restart daily loss count</button>'+(u.admin?' <button class="btn" id="jWipe">Clear all trades</button>':' <button class="btn" id="jReset">Reset my stats</button>')+(s&&s.from?' <button class="btn" id="jUndo">Count all trades again</button>':' <button class="btn" id="jFrom">Start stats from now</button>')+'</div>'+(s&&s.from?'<div class="note">Won, Lost and Net count only trades closed after '+new Date(s.from*1000).toLocaleString()+'. Nothing was deleted.</div>':'');
+ h+=jbtns(s);          /* BTN1: always drawn */
  return h}
+function jbtns(s){var u=null;try{u=SXA.user()}catch(e){}return '<div style="margin:8px 0"><button class="btn" id="jDay">Restart daily loss count</button>'+((u&&u.admin)?' <button class="btn" id="jWipe">Clear all trades</button>':' <button class="btn" id="jReset">Reset my stats</button>')+(s&&s.from?' <button class="btn" id="jUndo">Count all trades again</button>':' <button class="btn" id="jFrom">Start stats from now</button>')+'</div>'+(s&&s.from?'<div class="note">Won, Lost and Net count only trades closed after '+new Date(s.from*1000).toLocaleString()+'. Nothing was deleted.</div>':'')}
 document.addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest("#jWipe"):null;if(!b)return;
  if(!confirm("Delete ALL your finished trades and their win/loss numbers? This cannot be undone."))return;
  if(!confirm("Last check: clear everything and start from zero?"))return;
@@ -1920,12 +1921,12 @@ function jr(){jn();var f=X.jf,A=jall(),L=A.filter(function(e){return f==="all"||
 
 /* ---------- stats ---------- */
 function sr(){var s=SXJ.stats,v,b=$("#sBody");
- if(SXJ.state!=="ok"||!s||!s.trades){b.innerHTML='<p class="note">'+jmsg()+'</p>';return}
+ if(SXJ.state!=="ok"||!s||!s.trades){b.innerHTML='<p class="note">'+jmsg()+'</p>'+jbtns(s);return}
  if(s.trades<30)v="Too few trades to say much yet. You need 30 or more before a win rate means something.";
  else if(s.win_rate<s.break_even-s.band)v="Your win rate is below break-even by more than luck explains. At this rate you lose money.";
  else if(s.win_rate>s.break_even+s.band)v="Your win rate is above break-even beyond normal luck. Keep risk small and keep checking.";
  else v="Your win rate is inside the luck range, so it cannot be told apart from chance.";
- b.innerHTML='<div class="stats">'+kp("Win rate",s.win_rate.toFixed(1)+"%")+kp("Break-even",s.break_even.toFixed(1)+"%")+kp("Per trade",m2(s.per_trade))+kp("Loss streak",s.loss_streak)+'</div>'+
+ b.innerHTML=jbtns(s)+'<div class="stats">'+kp("Win rate",s.win_rate.toFixed(1)+"%")+kp("Break-even",s.break_even.toFixed(1)+"%")+kp("Per trade",m2(s.per_trade))+kp("Loss streak",s.loss_streak)+'</div>'+
  '<div class="note">Luck range '+(s.break_even-s.band).toFixed(1)+'% to '+(s.break_even+s.band).toFixed(1)+'% · Best '+m2(s.best)+' · Worst '+m2(s.worst)+' · Deepest dip '+m2(-s.max_drawdown)+'</div><div class="callout">'+v+'</div>'+
  '<b style="font-size:13px" class="muted">BY PAIR</b><ul class="list">'+SXJ.pairs.map(function(o){return'<li class="row"><span class="ic '+(o.pnl>=0?"up":"dn")+'">'+(o.pnl>=0?ICK:ICX)+'</span><span class="t">'+esc(o.symbol)+'</span><span class="r num '+(o.pnl>=0?"good":"bad")+'">'+m2(o.pnl)+'</span><span class="s">'+o.n+' trade'+(o.n>1?"s":"")+' · '+o.win_rate+'% won</span></li>'}).join("")+'</ul>'+bxs()}
 function bxs(){/* BX2: finished burst groups, from SXJ.burst (GET /api/journal) */
