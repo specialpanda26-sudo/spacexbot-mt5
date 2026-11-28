@@ -4,7 +4,7 @@ state: 'nolink'  a subscriber who has not made a personal key yet | 'expired' pl
        'offline' it reported before but not in the last OFFLINE seconds | 'online'
 Same limit as the rest of the app for 'EA online': OFFLINE = 120 s (risk.global_gate, /api/status)."""
 import time
-from . import store as st, links, risk
+from . import store as st, links, risk, eafile
 
 OFFLINE = 120
 
@@ -29,7 +29,7 @@ def describe(uid, admin, paid, site, now=None):
     """uid: the person's uid. admin: the owner (their own EA, scope ''). paid: plan active. site: this server's address (no slash)."""
     now = now or time.time(); scope = '' if admin else uid; site = (site or '').rstrip('/')
     out = {'state': 'never', 'message': '', 'login': None, 'balance': None, 'equity': None, 'open': None, 'mode': None, 'allow_live': None,
-           'age': None, 'bot': False, 'can_trade': False, 'why': '', 'warn': '', 'help': [], 'site': site}
+           'age': None, 'ea_version': None, 'ea_latest': None, 'ea_outdated': False, 'bot': False, 'can_trade': False, 'why': '', 'warn': '', 'help': [], 'site': site}
     if not admin and not links.get(uid):
         out.update(state='nolink', message='No bridge key yet.', help=[{'t': 'Make your key', 'd': 'In the Connect your MT5 card on this tab, make your personal key, then paste it into the bridge as EAKey.'}] + _checklist(site, False)[:2])
         return out
@@ -40,6 +40,7 @@ def describe(uid, admin, paid, site, now=None):
     out.update(login=str(a.get('login')) if a.get('login') not in (None, '') else None, balance=_f(a.get('balance')), equity=_f(a.get('equity')),
                open=int(_f(a.get('open')) or 0), mode='demo' if a.get('demo') is True else 'real' if a.get('demo') is False else None,
                allow_live=a.get('allow_live') if isinstance(a.get('allow_live'), bool) else None, bot=bool(links.bot_on(scope)))
+    v = str(a.get('ver') or ''); out['ea_version'] = v or None; out['ea_latest'] = eafile.version(); out['ea_outdated'] = eafile.newer(out['ea_latest'], v)          # EA1: an EA that does not report a version is never called outdated
     ok, why = risk.global_gate(now, uid=scope); out['can_trade'] = bool(ok); out['why'] = str(why or '')
     if not seen:
         out.update(state='never', message='The bridge has not reported yet. MT5 has not contacted this server.', help=_checklist(site, admin))

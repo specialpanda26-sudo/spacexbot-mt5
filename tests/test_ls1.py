@@ -93,6 +93,6 @@ ex = src[src.index('void Execute('):src.index('//--- BURST BASKET')]
 T('EA: Execute takes a fixed lot and the soft flag', 'double fixedLot = 0' in ex.split('{')[0] and 'double maxLotSoft = 0' in ex.split('{')[0])
 T('EA: Execute uses the fixed lot and skips the big stake when one is set', 'if(fixedLot > 0) lots = MathMax(fixedLot, mn)' in ex and 'fixedLot <= 0' in ex)
 T('EA: the poll passes lot and max_lot_soft to both', src.count('JStr(res, "max_lot_soft")') == 2)
-T('EA: version raised so the recompile is visible', '#property version "1.25"' in src)
+T('EA: version raised so the recompile is visible', '#property version "1.26"' in src)
 print('%d checks, %d failed' % (len(R), sum(1 for _, ok in R if not ok)))
 sys.exit(1 if any(not ok for _, ok in R) else 0)

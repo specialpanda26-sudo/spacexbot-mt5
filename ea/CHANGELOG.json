@@ -1,0 +1,8 @@
+[
+  {"v": "1.26", "date": "2026-11-27", "notes": [
+    "The EA now tells the app which version it is, so the app can show Up to date or Update available.",
+    "When a newer EA exists, MT5 shows a message on the chart and one alert in the Experts tab. Trading is not affected.",
+    "The code you copy from the app already has your server address filled in."
+  ]},
+  {"v": "1.25", "date": "2026-11-20", "notes": ["Lot size rules and tiny-account handling."]}
+]

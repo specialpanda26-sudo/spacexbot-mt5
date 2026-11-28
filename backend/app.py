@@ -21,6 +21,7 @@ EA_KEY = os.getenv('EA_KEY', ''); ADMINS = {e.strip().lower() for e in os.getenv
 from . import manual_close, burst_scope, btc_switch, course, roadmap, guide, deriv_oauth, testlab
 from . import quickprofit          # QP1: take small profits
 from . import mt5_markets          # PL6: which markets this account's MT5 bot trades
+from . import eafile          # EA1: the SpaceXBridge code and its version, served inside the app
 from . import openrisk          # Section 2: total stop-loss ceiling for a managed account size
 from . import inbox as inbox_mod          # TB1: in-app notification inbox
 from . import userlim, risk_alerts, system_alerts, report_alerts, nudge_alerts, security_alerts, lag, multi, automarkets, prefs, scale, burst, burst_free, burst_look, groupcap, cycle, authmail, binance, binance_bot, stake, envcheck, presets, streakreq, sharecode
@@ -233,9 +234,10 @@ def ea_sync():
     sy = presets.clean_sym(a.get('sym'))          # S3: optional min-lot facts from a newer EA
     if who:
         if not _paid(who): return jsonify(signal=None, bot=False, expired=True, symbols=st.get('symbols'))          # plan ended: nothing is stored or traded
-        a = {k: a[k] for k in ('balance', 'equity', 'open', 'demo', 'allow_live', 'login') if k in a}                   # only the fields we know
+        a = {k: a[k] for k in ('balance', 'equity', 'open', 'demo', 'allow_live', 'login', 'ver') if k in a}                   # only the fields we know
         ok = {x.strip() for x in (st.get('symbols') or '').split(',') if x.strip()}
         bz = {s: v for s, v in list(bz.items())[:12] if s in ok}                                                        # only the owner's symbol list
+    if 'ver' in a and not re.fullmatch(r'\d{1,2}\.\d{1,3}', str(a.get('ver'))): a.pop('ver')          # EA1: only a plain version number is kept
     a.pop('sym', None)
     if sy: a['sym'] = sy          # S3: only checked numbers are kept; an old EA sends none and nothing changes
     st.set_acct(a, who)
@@ -262,11 +264,11 @@ def ea_sync():
         for i in bk['ids'].split(','): st.x("UPDATE signals SET status='sent' WHERE id=?", (int(i),)); lag.stamp(int(i), 'sent')
         bk['max_lot'] = burst.strength_cap(who, bk.get('kind') == 'big'); bk['max_lot_soft'] = burst.max_lot_soft(who); bk['tiny_pct'] = burst.tiny_pct(who)          # LC1/LS1: the person's biggest lot (0.06 unless they raised it)
         bk['stake_pct'] = 0.0          # Section 2: a burst basket is many small entries, it never gets a big stake
-        return jsonify(signal=None, basket=bk, bot=links.bot_on(who), symbols=st.get('symbols'), qp=quickprofit.usd_for(who))
+        return jsonify(signal=None, basket=bk, bot=links.bot_on(who), symbols=st.get('symbols'), qp=quickprofit.usd_for(who), ea_latest=eafile.version())
     if s: st.x("UPDATE signals SET status='sent' WHERE id=?", (s['id'],)); lag.stamp(s['id'], 'sent')
     if s and manual_close.on(who): s = dict(s, tp=manual_close.far_tp(s['side'], s['sl'], s['tp']))          # MC1
     if s: s = dict(s); s['stake_pct'] = stake.pct(s['id']); s['stake_max_risk_pct'] = stake.max_risk(); s['lot'] = burst.eff_lot(who); s['max_lot'] = burst.strength_cap(who, burst.is_perfect(s.get('score'))); s['max_lot_soft'] = burst.max_lot_soft(who); s['tiny_pct'] = burst.tiny_pct(who)          # LC1/LS1          # Section 2: the EA sizes a strong setup by margin share (0 = normal sizing)
-    return jsonify(signal=s, bot=links.bot_on(who), symbols=st.get('symbols'), qp=quickprofit.usd_for(who))
+    return jsonify(signal=s, bot=links.bot_on(who), symbols=st.get('symbols'), qp=quickprofit.usd_for(who), ea_latest=eafile.version())
 
 @app.post('/api/ea/report')
 def ea_report():
@@ -619,6 +621,29 @@ def bridge_api(u):
     site = (os.getenv('BASE_URL') or '').strip().rstrip('/')
     if not site.startswith('http'): site = request.host_url.rstrip('/'); site = site.replace('http://', 'https://') if 'localhost' not in site and '127.0.0.1' not in site else site
     return jsonify(bridge.describe(u['uid'], bool(u['admin']), _paid(u['uid']), site))
+
+def _site():
+    site = (os.getenv('BASE_URL') or '').strip().rstrip('/')
+    if not site.startswith('http'): site = request.host_url.rstrip('/'); site = site.replace('http://', 'https://') if 'localhost' not in site and '127.0.0.1' not in site else site
+    return site
+
+def _installed_ver(u):
+    a = st.acct('' if u['admin'] else u['uid']) or {}; v = str(a.get('ver') or '')
+    return v if re.fullmatch(r'\d{1,2}\.\d{1,3}', v) else None
+
+@app.get('/api/ea/info')
+@need(verified=True, active=True)
+def ea_info(u):
+    """EA1: the newest SpaceXBridge version, what changed, the version this person's MT5 reports, and click-by-click steps. Subscribers (and the owner) only."""
+    site = _site(); out = eafile.info(site, _installed_ver(u)); out['steps'] = eafile.steps(site, bool(u['admin'])); out['site'] = site
+    return jsonify(out)
+
+@app.get('/api/ea/code')
+@need(verified=True, active=True)
+def ea_code(u):
+    """EA1: the MQ5 source to paste into MetaEditor (always the newest). Subscribers (and the owner) only. The personal key is never in it."""
+    src = eafile.code(_site()); r = jsonify(version=eafile.version(src), code=src)
+    r.headers['Cache-Control'] = 'no-store'; return r
 
 @app.get('/api/connections')
 @need(verified=True)

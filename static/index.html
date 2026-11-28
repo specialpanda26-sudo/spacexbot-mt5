@@ -2360,7 +2360,7 @@ build()})();
     C.innerHTML = h;
   }
   function steps() {
-    return '<ol class="steps"><li><div><b>Install the EA</b><span>Copy <code>SpaceXBridge.mq5</code> into <code>MQL5/Experts</code> in MT5, then compile it.</span></div></li>' +
+    return '<ol class="steps"><li><div><b>Install the EA</b><span>Tap Copy code in the SpaceX EA card below, paste it into a new file in MetaEditor (F4 in MT5), then press F7 to compile.</span></div></li>' +
       '<li><div><b>Allow the address</b><span>In MT5 open Tools, Options, Expert Advisors, tick Allow WebRequest and add <code>' + esc(location.origin) + "</code> (no slash at the end).</span></div></li>" +
       '<li><div><b>Attach it and paste your key</b><span>Drag SpaceXBridge onto the XAUUSD chart. Press F7 and set <code>ServerUrl</code> to <code>' + esc(location.origin) + '</code> and <code>EAKey</code> to your key. Keep <code>AllowLive</code> off while you practise.</span></div></li>' +
       "<li><div><b>Turn Algo Trading on</b><span>The Algo Trading button at the top of MT5 must be green.</span></div></li>" +
@@ -3687,4 +3687,5 @@ window.sxBanner=function(o){o=o||{};var t=String(o.title||""),x=String(o.text||"
 window.sxBannerHide=hide})();
 </script>
 <script src="/static/prefs_ui.js"></script><script src="/static/streak_ui.js"></script><script src="/static/share_ui.js"></script><script src="/static/quick_ui.js"></script><script src="/static/topbar_ui.js"></script><script src="/static/screen.js"></script><script src="/static/deriv_login.js"></script><script src="/static/test_lab.js"></script><script src="/static/course.js"></script><script src="/static/roadmap.js"></script><script src="/static/guide.js"></script><script src="/static/running.js"></script><script src="/static/update.js"></script>
+<script src="/static/ea_card.js"></script>
 </body></html>

@@ -4,7 +4,8 @@
 //| and add your Render URL to the list. Attach to ANY chart.        |
 //+------------------------------------------------------------------+
 #property strict
-#property version "1.25"
+#property version "1.26"
+#define EA_VERSION "1.26"          // keep the same as #property version above: it is sent to the app so the app can say Up to date / Update available
 #include <Trade\Trade.mqh>
 
 input string ServerUrl      = "https://your-service.onrender.com"; // no trailing slash
@@ -338,10 +339,32 @@ void ManageBaskets()
 int OnInit()
 {
    EventSetMillisecondTimer(BasketCheckMs);
-   Print("SpaceXBridge started. Demo account: ", IsDemo(), "  AllowLive: ", AllowLive);
+   Print("SpaceXBridge ", EA_VERSION, " started. Demo account: ", IsDemo(), "  AllowLive: ", AllowLive);
    return INIT_SUCCEEDED;
 }
-void OnDeinit(const int reason){ EventKillTimer(); }
+void OnDeinit(const int reason){ EventKillTimer(); Comment(""); }
+
+//--- 1.26: update notice. An EA cannot rewrite and compile itself, so it only tells you. Re-paste the code from the app, then compile (F7).
+bool VersionNewer(const string latest, const string mine)
+{
+   string a[], b[]; int na = StringSplit(latest, '.', a), nb = StringSplit(mine, '.', b);
+   if(na < 1 || nb < 1) return false;
+   for(int i = 0; i < MathMax(na, nb); i++)
+   {
+      long x = (i < na) ? StringToInteger(a[i]) : 0, y = (i < nb) ? StringToInteger(b[i]) : 0;
+      if(x != y) return x > y;
+   }
+   return false;
+}
+string noticedVersion = "";
+void CheckUpdate(const string latest)
+{
+   if(latest == "" || !VersionNewer(latest, EA_VERSION)) { if(noticedVersion != "") { Comment(""); noticedVersion = ""; } return; }
+   Comment("SpaceXBridge " + EA_VERSION + ": a newer version (" + latest + ") is ready. Open the app, tap Copy code, paste it in MetaEditor, press F7.");
+   if(noticedVersion == latest) return;          // one line in the Experts tab per new version, not one every poll
+   noticedVersion = latest;
+   Print("SpaceXBridge update available: you have ", EA_VERSION, ", newest is ", latest, ". Open the app, tap Copy code, paste it into SpaceXBridge.mq5 in MetaEditor and press F7.");
+}
 
 void PollServer();
 void OnTimer()
@@ -370,7 +393,7 @@ void PollServer()
 {
    string acct = "{\"balance\":" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + ",\"equity\":" + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2)
                + ",\"open\":" + (string)OurPositions() + ",\"demo\":" + (IsDemo() ? "true" : "false") + ",\"allow_live\":" + (AllowLive ? "true" : "false")
-               + ",\"login\":" + (string)AccountInfoInteger(ACCOUNT_LOGIN) + SymJson() + "}";
+               + ",\"login\":" + (string)AccountInfoInteger(ACCOUNT_LOGIN) + ",\"ver\":\"" + EA_VERSION + "\"" + SymJson() + "}";
    string bars = "";
    if(TimeLocal() - lastBars >= BarsPushSeconds || firstPush)
    {
@@ -387,6 +410,7 @@ void PollServer()
    string res = Post("/api/ea/sync", "{\"account\":" + acct + bars + "}");
    if(res == "") return;
    if(bars != "") firstPush = false;
+   CheckUpdate(JStr(res, "ea_latest"));                                                 // 1.26: the server says the newest EA version; we only warn, we never change ourselves
    QuickUsd = StringToDouble(JStr(res, "qp"));                                         // QP1: 0 when the person has it off (or an old server sends nothing)
    long bgid = (long)StringToInteger(JStr(res, "gid"));
    if(bgid > 0)   // a burst group arrived: all its entries at once
