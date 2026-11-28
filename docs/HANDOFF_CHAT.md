@@ -31,7 +31,7 @@ Read this file first, then docs/HANDOFF.md "STATUS BOARD Nov 23" for the older r
 
 ## STATUS (update after every section)
 - CH1 DONE  chat page shell, composer, chips (owner-only)
-- CH2 TODO  composer + "+" menu (PDF, image, photo, text file, Share screen) + removable chips + long paste becomes transcript.txt chip (tap to preview or remove). Plan: NEW file static/chat_attach.js that plugs into window.sxChat.tools; do not rewrite chat.js; add its script tag after chat.js in index.html and its name in static/sw.js; tests/test_ch2.py. Files stay in the page until CH3/CH6 send them.
+- CH2 DONE  composer + "+" menu (PDF, image, photo, text file, Share screen) + removable chips + long paste becomes transcript.txt chip (tap to preview or remove). Plan: NEW file static/chat_attach.js that plugs into window.sxChat.tools; do not rewrite chat.js; add its script tag after chat.js in index.html; tests/test_ch2.py. Files stay in the page until CH3/CH6 send them.
 - CH3 TODO  /api/chat with streaming, paid only, daily limits, backend/chatmodel.py reusing visionmodel PROVIDERS and keys; the page streams into the message list through setReply
 - CH4 TODO  per-user read-only snapshot (settings and limits, plan and connections, open trades and journal, strategies on/off, why the last scan skipped) + written guide to every feature
 - CH5 TODO  safety and cost: per-user limits, no profit promises, fencing of document text against hidden instructions
@@ -46,6 +46,15 @@ Read this file first, then docs/HANDOFF.md "STATUS BOARD Nov 23" for the older r
 - CH14 TODO extras: Explain this trade, spoken daily summary, risk coach for small accounts, Teach me mode, Swahili and English
 - CH15 TODO Android: microphone permission and file picker through android-wrapper (needs an APK build)
 - CH16 TODO final tests, then set OPEN = true for paid users
+
+## CH2 notes (read before CH3 and CH6)
+- static/chat_attach.js adds the + menu, the chips and the long-paste chip. It uploads nothing.
+- chat.js now calls the reply function as replyFn(text, files). files = window.sxChat.files = [{id, kind, name, size, file, text, url, truncated}]. kind is pdf | image | photo | text | paste. file is the browser File (null for a paste). text is set for text files and pastes (cut at 300000 characters, truncated = true).
+- Limits are the LIM block at the top of chat_attach.js: 5 items, images 10 MB, PDFs 15 MB, text files 2 MB. A paste of 1500+ characters or 25+ lines becomes transcript.txt (then transcript-2.txt).
+- Hooks for later sections: window.sxChat.shareScreen (CH12 defines it, the menu item calls it), window.sxChat.refresh(), window.sxChat.clearFiles().
+- Your bubble shows only "Attached: name" lines. The placeholder reply says nothing is uploaded yet.
+- There is no jsdom here. tests/test_ch2.py runs the page code in node against a small fake page. It was NOT looked at in a real browser or on a phone: check the look and the file picker on the phone (camera pick and paste inside the Android app belong to CH15).
+- static/sw.js does not list assets (it keeps only the shell and the offline page), so new scripts need no entry there.
 
 ## Separate track: lot-size work (resume after CH16)
 - DONE and in the repo: Section 1 safe 0.06 default cap, Section 2 lot panel (Automatic / Smallest / Fixed), Section 3 account-size tiers (backend/burst.py TIERS, tests/test_ls1.py). EA is version 1.24 and must be recompiled in MetaEditor.

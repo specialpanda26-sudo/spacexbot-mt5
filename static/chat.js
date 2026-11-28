@@ -85,11 +85,11 @@
 
   function toBottom() { try { window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" }); } catch (e) { window.scrollTo(0, document.documentElement.scrollHeight); } }
   function showList() { list.hidden = false; empty.hidden = true; top.hidden = false; }
-  function add(role, text) {
+  function add(role, text, fl) {
     showList();
     var m = document.createElement("div"); m.className = "cx-m " + (role === "me" ? "me" : "bot");
     if (role !== "me") { var av = document.createElement("div"); av.className = "cx-av"; av.innerHTML = '<svg class="mk" width="20" height="20" aria-hidden="true"><use href="#mk"/></svg>'; m.appendChild(av); }
-    var t = document.createElement("div"); t.className = "cx-t"; t.textContent = text; m.appendChild(t);
+    var t = document.createElement("div"); t.className = "cx-t"; t.textContent = text || ""; if (fl && fl.length) { var fa = document.createElement("div"); fa.className = "cx-fl"; fa.textContent = fl.map(function (f) { return "Attached: " + f.name; }).join("\n"); t.appendChild(fa); } m.appendChild(t);
     list.appendChild(m); toBottom(); return m;
   }
   function thinking() {
@@ -98,23 +98,27 @@
     m.innerHTML = '<div class="cx-av"><svg class="mk" width="20" height="20" aria-hidden="true"><use href="#mk"/></svg></div><div class="cx-t"><span class="cx-dots" aria-label="Thinking"><i></i><i></i><i></i></span></div>';
     list.appendChild(m); toBottom(); return m;
   }
-  function placeholder() {
-    return Promise.resolve("The chat brain is not connected yet. This tab is the layout only, so you can check how it looks. Your message above is just shown back to you.");
+  function placeholder(text, fl) {
+    return Promise.resolve("The chat brain is not connected yet. This tab is the layout only, so you can check how it looks. Your message above is just shown back to you." + (fl && fl.length ? " Your " + fl.length + " attachment(s) stay on this device; nothing is uploaded yet." : ""));
   }
   function submit(text) {
     text = String(text == null ? input.value : text).trim();
-    if (!text || BUSY) return;
-    input.value = ""; fit(); refresh();
-    add("me", text); BUSY = true; refresh();
+    var fl = files().slice();          /* CH2: what is attached goes with the message */
+    if ((!text && !fl.length) || BUSY) return;
+    input.value = ""; fit();
+    if (window.sxChat && window.sxChat.clearFiles) window.sxChat.clearFiles();          /* CH2: the chips leave the box when the message goes */
+    refresh();
+    add("me", text, fl); BUSY = true; refresh();
     var wait = thinking();
-    Promise.resolve().then(function () { return (replyFn || placeholder)(text); })
+    Promise.resolve().then(function () { return (replyFn || placeholder)(text, fl); })
       .then(function (ans) { wait.remove(); add("bot", ans || "I have no answer for that yet."); },
             function (e) { wait.remove(); add("bot", (e && e.message) || "Something went wrong. Try again in a moment."); })
       .then(function () { BUSY = false; refresh(); });
   }
   function fit() { input.style.height = "auto"; input.style.height = Math.min(180, input.scrollHeight) + "px"; }
-  function refresh() { send.disabled = BUSY || !input.value.trim(); }
-  function reset() { list.innerHTML = ""; list.hidden = true; empty.hidden = false; top.hidden = true; input.value = ""; fit(); refresh(); }
+  function files() { return (window.sxChat && window.sxChat.files) || []; }          /* CH2 */
+  function refresh() { send.disabled = BUSY || !(input.value.trim() || files().length); }
+  function reset() { if (window.sxChat && window.sxChat.clearFiles) window.sxChat.clearFiles(); list.innerHTML = ""; list.hidden = true; empty.hidden = false; top.hidden = true; input.value = ""; fit(); refresh(); }
 
   input.addEventListener("input", function () { fit(); refresh(); });
   input.addEventListener("keydown", function (e) {
@@ -142,5 +146,5 @@
   gate(); setInterval(gate, 1500);
   window.addEventListener("hashchange", function () { if (location.hash === "#chat") { gate(); setTimeout(function () { try { input.focus({ preventScroll: true }); } catch (e) {} }, 400); } });
 
-  window.sxChat = { add: add, send: submit, reset: reset, tools: tools, setReply: function (fn) { replyFn = typeof fn === "function" ? fn : null; } };
+  window.sxChat = { add: add, send: submit, reset: reset, refresh: refresh, tools: tools, setReply: function (fn) { replyFn = typeof fn === "function" ? fn : null; } };
 })();
