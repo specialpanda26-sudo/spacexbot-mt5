@@ -581,6 +581,7 @@ body.scrolled .top::before{border-bottom-color:var(--line)}
       <button data-go="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Home</button>
       <button data-go="market"><svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 3 8-9"/><path d="M3 21h18"/></svg>Market</button>
       <button data-go="bot"><svg class="mk" width="24" height="24" aria-hidden="true"><use href="#mk"/></svg>Bot</button>
+      <button data-go="chat" id="navChat" hidden><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-5.4A8 8 0 1 1 21 12z"/></svg>Chat</button>
       <button data-go="trades"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Trades</button>
       <button data-go="connect"><svg viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v3"/></svg>Connect</button>
     </nav>
@@ -743,6 +744,7 @@ body.scrolled .top::before{border-bottom-color:var(--line)}
   </section>
 
   <!-- ======== CONNECT ======== -->
+  <section class="view" id="view-chat"></section>
   <section class="view" id="view-connect">
     <div class="grid2">
       <div class="card">
@@ -1077,7 +1079,7 @@ function confetti(x,y){if(reduce||!document.body.animate)return;var cols=["#3CCB
 /* ---------- theme, routing, motion ---------- */
 function syncTC(){var m=document.querySelector("meta[name=theme-color]");if(m)m.content=getComputedStyle(document.documentElement).getPropertyValue("--bg").trim()||m.content}
 function applyTheme(){setTimeout(syncTC,40);var r=document.documentElement;if(S.theme==="auto")r.removeAttribute("data-theme");else r.setAttribute("data-theme",S.theme);$("#themeBtn").title="Theme: "+S.theme;redraw(false)}
-var VIEWS=["welcome","onboard","home","market","bot","trades","connect","terms","privacy","cookies","profile"];
+var VIEWS=["welcome","onboard","home","market","bot","trades","connect","chat","terms","privacy","cookies","profile"];
 function sxOA(v){return /^(access_token|error|error_code|error_description)=/.test(v||"")}
 function show(v,noScroll){var oa=sxOA(v);if(oa)v="welcome";if(v==="admin"){show(window.U?"home":"welcome",noScroll);try{history.replaceState(null,"","#admin")}catch(e){}if(window.adm)window.adm();return}if(VIEWS.indexOf(v)<0)v="welcome";closeSheet();if(v==="profile")renderProfile();
   document.body.classList.toggle("welcome",v==="welcome");document.body.classList.toggle("lg",/^(terms|privacy|cookies)$/.test(v));
@@ -1275,7 +1277,7 @@ var XB='<button class="icon-btn x" aria-label="Close"><svg width="18" height="18
 
 /* ---- auth: sign up / create account / log in ---- */
 var U=null;window.sxToast=tst;
-var PROT=/^#(home|market|bot|trades|connect|profile|onboard)$/;
+var PROT=/^#(home|market|bot|trades|connect|chat|profile|onboard)$/;
 /* ---- finish-your-profile prompt: shown after sign-in while username, phone or country is missing. Skip hides it for a day. ---- */
 var PSK="sxb_pskip";
 function profDone(u){var p=(u&&u.prof)||{};return !!(p.user&&p.phone&&p.country)}
@@ -3688,4 +3690,5 @@ window.sxBannerHide=hide})();
 </script>
 <script src="/static/prefs_ui.js"></script><script src="/static/streak_ui.js"></script><script src="/static/share_ui.js"></script><script src="/static/quick_ui.js"></script><script src="/static/topbar_ui.js"></script><script src="/static/screen.js"></script><script src="/static/deriv_login.js"></script><script src="/static/test_lab.js"></script><script src="/static/course.js"></script><script src="/static/roadmap.js"></script><script src="/static/guide.js"></script><script src="/static/running.js"></script><script src="/static/update.js"></script>
 <script src="/static/ea_card.js"></script>
+<script src="/static/chat.js"></script>
 </body></html>
