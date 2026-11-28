@@ -1,4 +1,5 @@
 # HANDOFF - what is built, what is left (give this file to the next AI)
+AI CHAT PROJECT: read docs/HANDOFF_CHAT.md first for the chat feature (sections CH1-CH16) and the lot-size work.
 
 Project: gold/forex signal bot (backend/*.py strategies, backend/brain.py confluence, tools/backtest.py, tests/*.py).
 Rules for every new section (same as sections already done):
